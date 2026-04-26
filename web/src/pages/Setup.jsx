@@ -50,17 +50,33 @@ function SecurityModal({ onClose }) {
               </li>
               <li className="flex gap-2">
                 <span className="text-gray-400 shrink-0">&#8226;</span>
-                <span><strong>Transcript embeddings</strong> — short transcript chunks (~100 words) are converted to numerical vectors for matching suggestions. Only the numeric vector is compared locally; the text is sent once to generate it.</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-gray-400 shrink-0">&#8226;</span>
-                <span><strong>Knowledge base embeddings</strong> — your KB items are converted to vectors once during onboarding. These vectors are stored locally and reused.</span>
+                <span><strong>Embeddings</strong> — text is converted to numeric vectors for semantic matching. See "How search works" below for details.</span>
               </li>
               <li className="flex gap-2">
                 <span className="text-gray-400 shrink-0">&#8226;</span>
                 <span><strong>Full transcript</strong> (after the call) sent once to generate your call summary and follow up email</span>
               </li>
             </ul>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-gray-900 mb-1.5">How search works</h3>
+            <p className="mb-2">
+              Embeddings let Clumo match by meaning, not keywords. When a prospect says "we are struggling
+              with employee churn," Clumo recognizes it relates to a case study about reducing attrition
+              by 40%, even though no words match exactly. This makes suggestions accurate and timely.
+            </p>
+            <p className="mb-2">
+              An embedding is a list of numbers (a vector) that captures meaning. The conversion is one way.
+              There is no known method to reconstruct the original text from its vector. Your knowledge base
+              text never leaves your machine after the initial one time conversion. During calls, transcript
+              chunks are converted to vectors and compared locally against stored KB vectors.
+            </p>
+            <p className="text-xs text-gray-500 bg-gray-50 rounded-md p-2 border border-gray-100">
+              When using managed models, embedding requests are sent to Clumo's AI service over a TLS
+              encrypted connection. The text is processed and discarded. Clumo does not store your text
+              or vectors on any server.
+            </p>
           </div>
 
           <div>
