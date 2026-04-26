@@ -3,7 +3,7 @@
 
 const WebSocket = require('ws');
 const SuggestionEngine = require('../suggestion-engine');
-const { loadProvider } = require('../ai-provider');
+const { loadProvider, loadEmbeddingProvider } = require('../ai-provider');
 const storage = require('../storage');
 const db = require('../db');
 
@@ -28,7 +28,9 @@ function setupWebSocket(httpServer) {
     console.log('[WS] Client connected');
 
     const provider = loadProvider();
-    if (!provider) {
+    const embeddingProvider = loadEmbeddingProvider();
+
+    if (!provider && !embeddingProvider) {
       clientWs.send(JSON.stringify({
         type: 'error',
         message: 'AI provider not configured. Please complete setup first.'
@@ -37,9 +39,13 @@ function setupWebSocket(httpServer) {
       return;
     }
 
+    // In managed mode, provider may be null but embeddingProvider is available for suggestions.
+    // We still need a chat/realtime provider for transcription and suggestion scoring.
+    const activeProvider = provider || embeddingProvider;
+
     let openaiWs = null;
-    const openaiClient = provider.getClient();
-    const suggestionEngine = new SuggestionEngine(provider);
+    const openaiClient = activeProvider.getClient();
+    const suggestionEngine = new SuggestionEngine(activeProvider, null, embeddingProvider);
     await suggestionEngine.init('local');
 
     let transcriptBuffer = '';
@@ -57,7 +63,7 @@ function setupWebSocket(httpServer) {
     // Connect to Realtime API for transcription
     async function connectToRealtimeAPI() {
       return new Promise((resolve, reject) => {
-        openaiWs = provider.createRealtimeWebSocket();
+        openaiWs = activeProvider.createRealtimeWebSocket();
 
         openaiWs.on('open', () => {
           console.log('[WS] Connected to Realtime API');

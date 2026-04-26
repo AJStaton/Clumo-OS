@@ -136,6 +136,40 @@ class OpenAIProvider {
   }
 }
 
+class ManagedProvider {
+  constructor(endpoint, apiKey) {
+    this.endpoint = endpoint;
+    this.apiKey = apiKey;
+    this.apiVersion = '2024-10-01-preview';
+    this.embeddingDeployment = 'text-embedding-3-small';
+    this.client = null;
+  }
+
+  getClient() {
+    if (this.client) return this.client;
+    const { AzureOpenAI } = require('openai');
+    this.client = new AzureOpenAI({
+      apiKey: this.apiKey,
+      endpoint: this.endpoint,
+      apiVersion: this.apiVersion,
+      deployment: this.embeddingDeployment
+    });
+    return this.client;
+  }
+
+  async generateEmbedding(text) {
+    const client = this.getClient();
+    const input = Array.isArray(text) ? text : [text];
+    const response = await client.embeddings.create({
+      model: this.embeddingDeployment,
+      input
+    });
+    return Array.isArray(text)
+      ? response.data.map(d => d.embedding)
+      : response.data[0].embedding;
+  }
+}
+
 // --- Factory: load provider from saved config ---
 
 function loadProvider() {
@@ -174,6 +208,30 @@ function loadProvider() {
   return null;
 }
 
+// --- Load embedding provider based on provider_mode ---
+
+function loadEmbeddingProvider() {
+  const mode = getConfig('provider_mode');
+  if (mode === 'managed') {
+    const managedEndpoint = getSecureConfig('managed_endpoint');
+    const managedKey = getSecureConfig('managed_api_key');
+    if (managedEndpoint && managedKey) {
+      return new ManagedProvider(managedEndpoint, managedKey);
+    }
+    console.warn('[AI Provider] Managed mode selected but credentials not found');
+    return null;
+  }
+  // BYOK mode: use existing provider
+  return loadProvider();
+}
+
+// --- Seed managed credentials into DB (called during setup or first run) ---
+
+function seedManagedCredentials(endpoint, apiKey) {
+  setSecureConfig('managed_endpoint', endpoint);
+  setSecureConfig('managed_api_key', apiKey);
+}
+
 // --- Save provider config ---
 
 function saveProviderConfig(providerType, config) {
@@ -200,6 +258,9 @@ function saveProviderConfig(providerType, config) {
 module.exports = {
   AzureOpenAIProvider,
   OpenAIProvider,
+  ManagedProvider,
   loadProvider,
-  saveProviderConfig
+  loadEmbeddingProvider,
+  saveProviderConfig,
+  seedManagedCredentials
 };

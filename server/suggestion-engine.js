@@ -15,7 +15,7 @@ function cosineSimilarity(a, b) {
 }
 
 class SuggestionEngine {
-  constructor(provider, sessionId = null) {
+  constructor(provider, sessionId = null, embeddingProvider = null) {
     // Accept either a provider object or a raw OpenAI client for backward compatibility
     if (provider && typeof provider.chatCompletion === 'function') {
       this.provider = provider;
@@ -24,6 +24,8 @@ class SuggestionEngine {
       this.provider = null;
       this.openai = provider;
     }
+    // Optional separate embedding provider (e.g. managed mode)
+    this.embeddingProvider = embeddingProvider || this.provider;
     this.sessionId = sessionId || this.generateSessionId();
     this.sessionStartTime = new Date();
     this.recentTranscript = '';
@@ -254,7 +256,7 @@ Keep evidence snippets to 1 short sentence each. Only include evidence actually 
   // Find matching items using embedding-based cosine similarity
   async findSemanticMatches(text) {
     const SIMILARITY_THRESHOLD = 0.3;
-    const textEmbedding = await this.provider.generateEmbedding(text);
+    const textEmbedding = await this.embeddingProvider.generateEmbedding(text);
 
     const matches = {
       caseStudies: [],
@@ -305,9 +307,9 @@ Keep evidence snippets to 1 short sentence each. Only include evidence actually 
       return null;
     }
 
-    // Use semantic matching if provider supports embeddings and KB has embeddings
-    const hasEmbeddings = this.provider &&
-      typeof this.provider.generateEmbedding === 'function' &&
+    // Use semantic matching if embedding provider supports embeddings and KB has embeddings
+    const hasEmbeddings = this.embeddingProvider &&
+      typeof this.embeddingProvider.generateEmbedding === 'function' &&
       this.knowledgeBase.discoveryQuestions.some(dq => dq.embedding);
 
     let matches;

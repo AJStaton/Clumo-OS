@@ -9,7 +9,7 @@ const crypto = require('crypto');
 
 const db = require('../db');
 const storage = require('../storage');
-const { loadProvider, saveProviderConfig } = require('../ai-provider');
+const { loadProvider, loadEmbeddingProvider, saveProviderConfig, seedManagedCredentials } = require('../ai-provider');
 const { getKnowledgeBase } = require('../knowledge-base');
 const HybridWebsiteScraper = require('../hybrid-website-scraper');
 const DocumentParser = require('../document-parser');
@@ -58,12 +58,22 @@ router.get('/api/status', (req, res) => {
 
 // Get current settings (provider type, non-secret config)
 router.get('/api/settings', (req, res) => {
+  const providerMode = db.getConfig('provider_mode') || 'byok';
   const provider = db.getConfig('ai_provider');
-  if (!provider) {
-    return res.json({ configured: false });
+
+  if (providerMode === 'managed') {
+    return res.json({
+      configured: true,
+      providerMode: 'managed',
+      provider: 'managed'
+    });
   }
 
-  const settings = { configured: true, provider };
+  if (!provider) {
+    return res.json({ configured: false, providerMode });
+  }
+
+  const settings = { configured: true, providerMode, provider };
 
   if (provider === 'azure') {
     settings.endpoint = db.getConfig('azure_endpoint');
@@ -83,7 +93,23 @@ router.get('/api/settings', (req, res) => {
 
 // Save settings (API keys + provider config)
 router.post('/api/settings', async (req, res) => {
-  const { provider, ...config } = req.body;
+  const { provider, providerMode, managedEndpoint, managedApiKey, ...config } = req.body;
+
+  // Handle managed mode
+  if (providerMode === 'managed') {
+    db.setConfig('provider_mode', 'managed');
+    // Seed managed credentials if provided (admin/setup)
+    if (managedEndpoint && managedApiKey) {
+      seedManagedCredentials(managedEndpoint, managedApiKey);
+    }
+    // Mark setup as having a provider configured
+    db.setConfig('ai_provider', 'managed');
+    return res.json({ success: true });
+  }
+
+  // BYOK mode
+  db.setConfig('provider_mode', 'byok');
+
   const existingAzureApiKey = db.getSecureConfig('azure_api_key');
   const existingOpenAiApiKey = db.getSecureConfig('openai_api_key');
 
@@ -195,9 +221,28 @@ router.get('/api/onboarding/stream', async (req, res) => {
   pendingJobs.delete(token);
   const { websiteUrl, uploadedFiles, merge } = job.config;
 
-  const provider = loadProvider();
-  if (!provider) {
-    return res.status(400).json({ error: 'AI provider not configured. Complete setup first.' });
+  const providerMode = db.getConfig('provider_mode') || 'byok';
+  const embeddingProvider = loadEmbeddingProvider();
+
+  // For managed mode, we only need the embedding provider (no chat/realtime provider required for onboarding)
+  let provider;
+  if (providerMode === 'managed') {
+    provider = loadProvider();
+    // In managed mode, if no BYOK provider is configured, the embedding provider handles embeddings
+    // but we still need a chat provider for KB generation. For now, managed mode requires
+    // managed credentials to include chat capability or fall back to embedding-only.
+    if (!provider && !embeddingProvider) {
+      return res.status(400).json({ error: 'AI provider not configured. Complete setup first.' });
+    }
+    // Use embedding provider's client for chat if no BYOK provider
+    if (!provider) {
+      provider = embeddingProvider;
+    }
+  } else {
+    provider = loadProvider();
+    if (!provider) {
+      return res.status(400).json({ error: 'AI provider not configured. Complete setup first.' });
+    }
   }
 
   const openaiClient = provider.getClient();
@@ -226,7 +271,7 @@ router.get('/api/onboarding/stream', async (req, res) => {
     const maxCaseStudies = parseInt(db.getConfig('max_case_studies') || '10', 10);
     const scraper = new HybridWebsiteScraper(openaiClient, { maxCaseStudies });
     const parser = new DocumentParser(openaiClient);
-    const generator = new KnowledgeGenerator(provider);
+    const generator = new KnowledgeGenerator(provider, embeddingProvider);
 
     let websiteContent = null;
     let documentContents = [];

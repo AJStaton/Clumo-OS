@@ -150,6 +150,8 @@ function deleteSession(id) {
 // --- Setup status helpers ---
 
 function isSetupComplete() {
+  const providerMode = getConfig('provider_mode');
+  if (providerMode === 'managed') return true;
   const provider = getConfig('ai_provider');
   return !!provider;
 }

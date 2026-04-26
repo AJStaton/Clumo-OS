@@ -96,6 +96,7 @@ function SecurityModal({ onClose }) {
 
 export default function Setup({ onComplete }) {
   const [step, setStep] = useState(1);
+  const [providerMode, setProviderMode] = useState(''); // 'managed' or 'byok'
   const [provider, setProvider] = useState('');
   const [config, setConfig] = useState({});
   const [testing, setTesting] = useState(false);
@@ -110,6 +111,26 @@ export default function Setup({ onComplete }) {
   const [onboardingStatus, setOnboardingStatus] = useState('idle');
   const [onboardingMessages, setOnboardingMessages] = useState([]);
   const [onboardingCounts, setOnboardingCounts] = useState(null);
+
+  async function handleSelectManaged() {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ providerMode: 'managed' })
+      });
+      if (res.ok) {
+        setStep(2);
+      } else {
+        const err = await res.json();
+        setTestResult({ valid: false, error: err.error });
+      }
+    } catch (e) {
+      setTestResult({ valid: false, error: e.message });
+    }
+    setSaving(false);
+  }
 
   async function handleTestConnection() {
     setTesting(true);
@@ -255,28 +276,75 @@ export default function Setup({ onComplete }) {
               </button>
             </div>
 
+            {/* Managed vs BYOK choice */}
             <div className="flex gap-3 mb-6">
               <button
-                onClick={() => { setProvider('azure'); setConfig({}); setTestResult(null); }}
-                className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium transition-colors ${
-                  provider === 'azure'
+                onClick={() => { setProviderMode('managed'); setProvider(''); setConfig({}); setTestResult(null); }}
+                className={`flex-1 p-4 rounded-lg border-2 text-left transition-colors ${
+                  providerMode === 'managed'
                     ? 'border-gray-900 bg-gray-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                Azure OpenAI
+                <div className="text-sm font-semibold">Managed Models</div>
+                <div className="text-xs text-gray-500 mt-1">Clumo provides the AI. No API keys needed. Just start coaching.</div>
               </button>
               <button
-                onClick={() => { setProvider('openai'); setConfig({}); setTestResult(null); }}
-                className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium transition-colors ${
-                  provider === 'openai'
+                onClick={() => { setProviderMode('byok'); setProvider(''); setConfig({}); setTestResult(null); }}
+                className={`flex-1 p-4 rounded-lg border-2 text-left transition-colors ${
+                  providerMode === 'byok'
                     ? 'border-gray-900 bg-gray-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                OpenAI
+                <div className="text-sm font-semibold">Bring Your Own Key</div>
+                <div className="text-xs text-gray-500 mt-1">Use your own OpenAI or Azure OpenAI account.</div>
               </button>
             </div>
+
+            {/* Managed mode: just a continue button */}
+            {providerMode === 'managed' && (
+              <div>
+                <div className="bg-gray-50 rounded-md p-3 border border-gray-200 mb-4">
+                  <p className="text-sm text-gray-600">
+                    Clumo will handle all AI processing. Your data is sent over encrypted connections and is not stored on any server.
+                  </p>
+                </div>
+                <button
+                  onClick={handleSelectManaged}
+                  disabled={saving}
+                  className="w-full px-4 py-2 bg-gray-900 text-white rounded-md text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
+                >
+                  {saving ? 'Setting up...' : 'Continue'}
+                </button>
+              </div>
+            )}
+
+            {/* BYOK mode: provider selection */}
+            {providerMode === 'byok' && (
+              <div className="flex gap-3 mb-6">
+                <button
+                  onClick={() => { setProvider('azure'); setConfig({}); setTestResult(null); }}
+                  className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                    provider === 'azure'
+                      ? 'border-gray-900 bg-gray-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  Azure OpenAI
+                </button>
+                <button
+                  onClick={() => { setProvider('openai'); setConfig({}); setTestResult(null); }}
+                  className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                    provider === 'openai'
+                      ? 'border-gray-900 bg-gray-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  OpenAI
+                </button>
+              </div>
+            )}
 
             {provider === 'azure' && (
               <div className="space-y-3">

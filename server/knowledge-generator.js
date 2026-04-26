@@ -5,7 +5,7 @@
 const storage = require('./storage');
 
 class KnowledgeGenerator {
-  constructor(provider) {
+  constructor(provider, embeddingProvider = null) {
     // Accept either a provider object (with chatCompletion + generateEmbedding)
     // or a raw OpenAI client for backward compatibility
     if (provider && typeof provider.chatCompletion === 'function') {
@@ -15,6 +15,8 @@ class KnowledgeGenerator {
       this.provider = null;
       this.openai = provider;
     }
+    // Optional separate embedding provider (e.g. managed mode)
+    this.embeddingProvider = embeddingProvider || this.provider;
   }
 
   // Main generation pipeline
@@ -77,7 +79,7 @@ class KnowledgeGenerator {
     console.log(`[Knowledge Generator] LLM returned ${proofPoints.length} proof points`);
 
     // Phase 5: Generate embeddings for all KB items
-    if (this.provider && typeof this.provider.generateEmbedding === 'function') {
+    if (this.embeddingProvider && typeof this.embeddingProvider.generateEmbedding === 'function') {
       if (onProgress) onProgress({ stage: 'embeddings', message: 'Generating embeddings...' });
       await this.generateEmbeddings(discoveryQuestions, caseStudies, proofPoints);
       console.log(`[Knowledge Generator] Embeddings generated for ${discoveryQuestions.length} DQs, ${caseStudies.length} CSs, ${proofPoints.length} PPs`);
@@ -419,22 +421,23 @@ Return ONLY a JSON array (no markdown):
     );
 
     // Batch embed each type (OpenAI supports array input)
+    const embedder = this.embeddingProvider;
     if (dqTexts.length > 0) {
-      const embeddings = await this.provider.generateEmbedding(dqTexts);
+      const embeddings = await embedder.generateEmbedding(dqTexts);
       for (let i = 0; i < discoveryQuestions.length; i++) {
         discoveryQuestions[i].embedding = embeddings[i];
       }
     }
 
     if (csTexts.length > 0) {
-      const embeddings = await this.provider.generateEmbedding(csTexts);
+      const embeddings = await embedder.generateEmbedding(csTexts);
       for (let i = 0; i < caseStudies.length; i++) {
         caseStudies[i].embedding = embeddings[i];
       }
     }
 
     if (ppTexts.length > 0) {
-      const embeddings = await this.provider.generateEmbedding(ppTexts);
+      const embeddings = await embedder.generateEmbedding(ppTexts);
       for (let i = 0; i < proofPoints.length; i++) {
         proofPoints[i].embedding = embeddings[i];
       }
