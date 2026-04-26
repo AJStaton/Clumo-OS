@@ -1,0 +1,51 @@
+{
+  "name": "clumo-electron",
+  "version": "1.0.0",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^35.1.2",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.clumo.app",
+    "productName": "Clumo",
+    "directories": {
+      "output": "../dist"
+    },
+    "files": [
+      "**/*",
+      "!node_modules"
+    ],
+    "extraResources": [
+      {
+        "from": "../server",
+        "to": "server",
+        "filter": [
+          "**/*",
+          "!data/**",
+          "!uploads/**",
+          "!node_modules/**"
+        ]
+      },
+      {
+        "from": "../server/node_modules",
+        "to": "server/node_modules"
+      }
+    ],
+    "win": {
+      "target": ["nsis", "portable"]
+    },
+    "mac": {
+      "target": ["dmg"]
+    },
+    "linux": {
+      "target": ["AppImage", "deb"]
+    }
+  }
+}

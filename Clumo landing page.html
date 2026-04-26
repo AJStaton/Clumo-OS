@@ -1,0 +1,1463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clumo | Never Miss an Opportunity</title>
+  <meta name="description" content="Open-source AI-powered live call coaching for technical sales. Download the desktop app and never miss an opportunity again.">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      background: #fafafa;
+      color: #1a1a1a;
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.6;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    /* ─── Navigation ─── */
+    .nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(250, 250, 250, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid #e5e5e5;
+    }
+
+    .nav-inner {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0 32px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #1a1a1a;
+    }
+
+    .nav-logo svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+    }
+
+    .nav-link {
+      font-size: 14px;
+      font-weight: 500;
+      color: #666666;
+      transition: color 0.15s ease;
+    }
+
+    .nav-link:hover {
+      color: #1a1a1a;
+    }
+
+    .nav-cta {
+      font-size: 13px;
+      font-weight: 600;
+      color: #ffffff;
+      background: #1a1a1a;
+      padding: 8px 20px;
+      border-radius: 6px;
+      transition: background 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .nav-cta:hover {
+      background: #333333;
+    }
+
+    .nav-github {
+      font-size: 13px;
+      font-weight: 500;
+      color: #666666;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: color 0.15s ease;
+    }
+
+    .nav-github:hover {
+      color: #1a1a1a;
+    }
+
+    /* ─── Hero ─── */
+    .hero {
+      padding: 160px 32px 80px;
+      text-align: center;
+      max-width: 840px;
+      margin: 0 auto;
+    }
+
+    .hero-badges {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #777777;
+      background: #ffffff;
+      border: 1px solid #e5e5e5;
+      padding: 6px 14px;
+      border-radius: 100px;
+    }
+
+    .hero-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #28c840;
+    }
+
+    .hero h1 {
+      font-size: 60px;
+      font-weight: 800;
+      letter-spacing: -2px;
+      line-height: 1.05;
+      color: #1a1a1a;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 .accent {
+      background: linear-gradient(135deg, #1a1a1a 0%, #555 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-sub {
+      font-size: 20px;
+      line-height: 1.7;
+      color: #555555;
+      max-width: 600px;
+      margin: 0 auto 40px;
+      font-weight: 400;
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #ffffff;
+      background: #1a1a1a;
+      padding: 16px 36px;
+      border-radius: 10px;
+      transition: background 0.15s ease, transform 0.1s ease;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-primary:hover {
+      background: #333333;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 16px;
+      font-weight: 500;
+      color: #1a1a1a;
+      background: #ffffff;
+      padding: 16px 36px;
+      border-radius: 10px;
+      border: 1px solid #e0e0e0;
+      transition: border-color 0.15s ease, transform 0.1s ease;
+      cursor: pointer;
+    }
+
+    .btn-secondary:hover {
+      border-color: #bbbbbb;
+      transform: translateY(-1px);
+    }
+
+    .hero-note {
+      font-size: 13px;
+      color: #999;
+    }
+
+    .hero-note a {
+      color: #1a1a1a;
+      font-weight: 500;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    /* ─── Sections (shared) ─── */
+    .section {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0 32px 120px;
+    }
+
+    .section-center {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: #777777;
+      margin-bottom: 12px;
+    }
+
+    .section-heading {
+      font-size: 40px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      line-height: 1.15;
+      color: #1a1a1a;
+      margin-bottom: 16px;
+      max-width: 600px;
+    }
+
+    .section-desc {
+      font-size: 18px;
+      color: #555555;
+      line-height: 1.7;
+      max-width: 560px;
+      margin-bottom: 48px;
+    }
+
+    /* ─── Section 1: The New Standard ─── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: #e0e0e0;
+      border: 1px solid #e0e0e0;
+      border-radius: 14px;
+      overflow: hidden;
+      width: 100%;
+    }
+
+    .feature-card {
+      background: #ffffff;
+      padding: 36px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .feature-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: #f5f5f5;
+      border: 1px solid #eee;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .feature-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a1a;
+      letter-spacing: -0.2px;
+    }
+
+    .feature-text {
+      font-size: 14px;
+      color: #777;
+      line-height: 1.65;
+    }
+
+    /* ─── Section 2: Who is Clumo for — Tabs ─── */
+    .persona-tabs {
+      width: 100%;
+      max-width: 760px;
+    }
+
+    .persona-tab-buttons {
+      display: flex;
+      gap: 0;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #f5f5f5;
+      margin-bottom: 0;
+    }
+
+    .persona-tab-btn {
+      flex: 1;
+      padding: 14px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #777;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+      letter-spacing: -0.2px;
+      position: relative;
+    }
+
+    .persona-tab-btn:hover {
+      color: #1a1a1a;
+      background: #eee;
+    }
+
+    .persona-tab-btn.active {
+      color: #ffffff;
+      background: #1a1a1a;
+    }
+
+    .persona-tab-panels {
+      border: 1px solid #e0e0e0;
+      border-top: none;
+      border-radius: 0 0 14px 14px;
+      background: #ffffff;
+      overflow: hidden;
+    }
+
+    .persona-panel {
+      display: none;
+      padding: 40px 36px;
+      text-align: left;
+      animation: fadeIn 0.25s ease;
+    }
+
+    .persona-panel.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .persona-panel-inner {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .persona-panel-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a1a1a;
+      letter-spacing: -0.4px;
+    }
+
+    .persona-panel-text {
+      font-size: 15px;
+      color: #555;
+      line-height: 1.75;
+    }
+
+    .persona-panel-tags {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    .persona-tag {
+      font-size: 12px;
+      font-weight: 600;
+      color: #666;
+      background: #f5f5f5;
+      border: 1px solid #e8e8e8;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      letter-spacing: 0.2px;
+    }
+
+    /* ─── Section 3: Get Started ─── */
+    .qs-frame {
+      max-width: 760px;
+      width: 100%;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #ffffff;
+      border: 1px solid #e0e0e0;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.06);
+    }
+
+    .qs-topbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 20px;
+      background: #fafafa;
+      border-bottom: 1px solid #e8e8e8;
+    }
+
+    .qs-topbar-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .qs-topbar-dot.r { background: #ff5f57; }
+    .qs-topbar-dot.y { background: #febc2e; }
+    .qs-topbar-dot.g { background: #28c840; }
+
+    .qs-topbar-title {
+      margin-left: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #999;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    }
+
+    .qs-body {
+      padding: 32px 36px 36px;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 14px;
+      line-height: 2.2;
+      color: #1a1a1a;
+    }
+
+    .qs-comment {
+      color: #aaa;
+    }
+
+    .qs-line {
+      display: flex;
+      align-items: baseline;
+      gap: 0;
+    }
+
+    .qs-prompt {
+      color: #1a1a1a;
+      font-weight: 700;
+      margin-right: 10px;
+      user-select: none;
+      flex-shrink: 0;
+    }
+
+    .qs-command {
+      color: #1a1a1a;
+      font-weight: 500;
+    }
+
+    .qs-highlight {
+      color: #1a1a1a;
+      font-weight: 700;
+    }
+
+    .qs-success {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #1a1a1a;
+      font-weight: 600;
+      padding: 14px 0 0;
+      font-size: 14px;
+      border-top: 1px solid #f0f0f0;
+      margin-top: 8px;
+    }
+
+    .qs-success-check {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #1a1a1a;
+      color: #fff;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+
+    .qs-sub {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 13px;
+      color: #999;
+    }
+
+    .qs-sub a {
+      color: #1a1a1a;
+      font-weight: 500;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    /* ─── Section: Platform badges ─── */
+    .platform-badges {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+      margin-top: 32px;
+      flex-wrap: wrap;
+    }
+
+    .platform-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #666;
+    }
+
+    .platform-badge svg {
+      width: 20px;
+      height: 20px;
+      fill: #999;
+    }
+
+    /* ─── Section 4: Watch a Demo ─── */
+    .demo-frame {
+      max-width: 840px;
+      width: 100%;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #ffffff;
+      border: 1px solid #e0e0e0;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.06);
+      aspect-ratio: 16 / 9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      color: #999;
+      position: relative;
+      cursor: pointer;
+      transition: border-color 0.15s ease;
+    }
+
+    .demo-frame:hover {
+      border-color: #ccc;
+    }
+
+    .demo-frame::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 20% 40%, rgba(0,0,0,0.01) 0%, transparent 50%),
+        radial-gradient(circle at 80% 60%, rgba(0,0,0,0.015) 0%, transparent 50%);
+    }
+
+    .demo-play-icon {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: #1a1a1a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      z-index: 1;
+      transition: transform 0.15s ease;
+    }
+
+    .demo-frame:hover .demo-play-icon {
+      transform: scale(1.05);
+    }
+
+    .demo-play-icon svg {
+      width: 24px;
+      height: 24px;
+      fill: #ffffff;
+      margin-left: 3px;
+    }
+
+    .demo-label {
+      font-size: 15px;
+      font-weight: 600;
+      color: #1a1a1a;
+      position: relative;
+      z-index: 1;
+    }
+
+    .demo-sub {
+      font-size: 13px;
+      color: #bbb;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ─── Section 5: Roadmap ─── */
+    .roadmap-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: #e0e0e0;
+      border: 1px solid #e0e0e0;
+      border-radius: 14px;
+      overflow: hidden;
+      width: 100%;
+    }
+
+    .roadmap-card {
+      background: #ffffff;
+      padding: 32px 24px;
+    }
+
+    .roadmap-phase {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: #999;
+      margin-bottom: 12px;
+    }
+
+    .roadmap-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 12px;
+      letter-spacing: -0.2px;
+    }
+
+    .roadmap-items {
+      list-style: none;
+      padding: 0;
+    }
+
+    .roadmap-items li {
+      font-size: 13px;
+      color: #777;
+      line-height: 1.6;
+      padding: 4px 0;
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+    }
+
+    .roadmap-items li::before {
+      content: '→';
+      color: #ccc;
+      flex-shrink: 0;
+    }
+
+    .roadmap-status {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      margin-bottom: 12px;
+    }
+
+    .roadmap-status.shipped {
+      color: #28c840;
+      background: #f0faf2;
+      border: 1px solid #d0f0d6;
+    }
+
+    .roadmap-status.building {
+      color: #e8a317;
+      background: #fffbf0;
+      border: 1px solid #f5e6c0;
+    }
+
+    .roadmap-status.planned {
+      color: #999;
+      background: #f8f8f8;
+      border: 1px solid #eee;
+    }
+
+    /* ─── Section 6: Documentation ─── */
+    .docs-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      width: 100%;
+    }
+
+    .doc-card {
+      background: #ffffff;
+      border: 1px solid #e5e5e5;
+      border-radius: 12px;
+      padding: 32px 28px;
+      transition: border-color 0.15s ease, transform 0.15s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .doc-card:hover {
+      border-color: #ccc;
+      transform: translateY(-2px);
+    }
+
+    .doc-icon {
+      font-size: 24px;
+      margin-bottom: 16px;
+    }
+
+    .doc-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 8px;
+      letter-spacing: -0.2px;
+    }
+
+    .doc-text {
+      font-size: 14px;
+      color: #777;
+      line-height: 1.6;
+      flex: 1;
+      margin-bottom: 16px;
+    }
+
+    .doc-link {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1a1a1a;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .doc-link .arrow {
+      transition: transform 0.15s ease;
+    }
+
+    .doc-card:hover .doc-link .arrow {
+      transform: translateX(3px);
+    }
+
+    /* ─── Open Source Banner ─── */
+    .oss-banner {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0 32px 120px;
+    }
+
+    .oss-banner-inner {
+      background: #1a1a1a;
+      border-radius: 16px;
+      padding: 64px 48px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .oss-banner-inner h2 {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+      color: #ffffff;
+      margin-bottom: 16px;
+    }
+
+    .oss-banner-inner p {
+      font-size: 17px;
+      color: #999;
+      line-height: 1.7;
+      max-width: 480px;
+      margin-bottom: 32px;
+    }
+
+    .oss-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .btn-white {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #1a1a1a;
+      background: #ffffff;
+      padding: 14px 32px;
+      border-radius: 8px;
+      transition: background 0.15s ease, transform 0.1s ease;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-white:hover {
+      background: #f0f0f0;
+      transform: translateY(-1px);
+    }
+
+    .btn-outline-light {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #ffffff;
+      background: transparent;
+      padding: 14px 32px;
+      border-radius: 8px;
+      border: 1px solid #444;
+      transition: border-color 0.15s ease, transform 0.1s ease;
+      cursor: pointer;
+    }
+
+    .btn-outline-light:hover {
+      border-color: #888;
+      transform: translateY(-1px);
+    }
+
+    /* ─── Footer ─── */
+    .footer {
+      border-top: 1px solid #e5e5e5;
+      padding: 48px 32px;
+      background: #ffffff;
+    }
+
+    .footer-inner {
+      max-width: 1120px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+
+    .footer-left {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .footer-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      color: #1a1a1a;
+    }
+
+    .footer-logo svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .footer-copy {
+      font-size: 12px;
+      color: #bbbbbb;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 28px;
+    }
+
+    .footer-link {
+      font-size: 13px;
+      color: #888888;
+      transition: color 0.15s ease;
+    }
+
+    .footer-link:hover {
+      color: #1a1a1a;
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 1024px) {
+      .roadmap-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .nav-links {
+        gap: 16px;
+      }
+
+      .hero {
+        padding: 120px 24px 64px;
+      }
+
+      .hero h1 {
+        font-size: 38px;
+        letter-spacing: -1px;
+      }
+
+      .hero-sub {
+        font-size: 17px;
+      }
+
+      .section {
+        padding: 0 24px 80px;
+      }
+
+      .section-heading {
+        font-size: 30px;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr !important;
+      }
+
+      .persona-grid {
+        grid-template-columns: 1fr !important;
+      }
+
+      .persona-tab-buttons {
+        flex-direction: column;
+      }
+
+      .docs-grid {
+        grid-template-columns: 1fr !important;
+      }
+
+      .roadmap-grid {
+        grid-template-columns: 1fr !important;
+      }
+
+      .qs-body {
+        padding: 24px 20px;
+        font-size: 12px;
+      }
+
+      .oss-banner {
+        padding: 0 24px 80px;
+      }
+
+      .oss-banner-inner {
+        padding: 48px 28px;
+      }
+
+      .oss-banner-inner h2 {
+        font-size: 28px;
+      }
+
+      .footer-inner {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .nav-links .nav-link {
+        display: none;
+      }
+
+      .hero h1 {
+        font-size: 32px;
+      }
+    }
+
+    /* ─── Smooth scrolling ─── */
+    html {
+      scroll-behavior: smooth;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ─── Navigation ─── -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 128 128">
+          <rect width="128" height="128" rx="24" fill="#1a1a1a"/>
+          <text x="64" y="85" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="#ffffff" text-anchor="middle">C</text>
+        </svg>
+        Clumo
+      </a>
+      <div class="nav-links">
+        <a href="#who" class="nav-link">Who it's for</a>
+        <a href="#get-started" class="nav-link">Get started</a>
+        <a href="#roadmap" class="nav-link">Roadmap</a>
+        <a href="#docs" class="nav-link">Docs</a>
+        <a href="https://github.com/clumo/clumo" target="_blank" class="nav-github">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+        <a href="#get-started" class="nav-cta">
+          Download
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v8m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!--  1. HERO — The new standard for sales                         -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <section class="hero">
+    <div class="hero-badges">
+      <div class="hero-badge"><span class="dot"></span> Open source</div>
+      <div class="hero-badge">Run local, your data</div>
+      <div class="hero-badge">BYOK — your AI keys</div>
+    </div>
+
+    <h1>The new standard<br>for sales</h1>
+
+    <p class="hero-sub">
+      Clumo listens to your live sales calls and surfaces the perfect discovery question, case study, or proof point exactly when you need it. In real-time.
+    </p>
+
+    <div class="hero-actions">
+      <a href="#get-started" class="btn-primary">
+        Download Clumo
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v8m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+      <a href="#demo" class="btn-secondary">
+        Watch demo
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5 3l7 5-7 5V3z" fill="currentColor"/></svg>
+      </a>
+    </div>
+
+    <p class="hero-note">Free & open source under MIT License · <a href="https://github.com/clumo/clumo" target="_blank">View on GitHub</a></p>
+  </section>
+
+  <!-- ─── The New Standard: Feature Grid ─── -->
+  <section class="section section-center" id="standard">
+    <div class="section-label">Why Clumo</div>
+    <h2 class="section-heading">Never miss an opportunity</h2>
+    <p class="section-desc">
+      Ever felt that moment of panic in a sales call where you don't know the answer? Or perhaps you missed the opportunity to ask the killer question? Or talk about the perfect case study? That's where Clumo helps. It's like having an A-player on every call with you.
+    </p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg></div>
+        <div class="feature-title">Realtime coaching</div>
+        <div class="feature-text">Suggestions streamed as you talk — discovery questions, case studies, and proof points surfaced at exactly the right moment. Not after the call. During it.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></div>
+        <div class="feature-title">Your private knowledge base</div>
+        <div class="feature-text">Train Clumo with your website, battle cards, and docs. Your KB is stored locally on your machine — private, encrypted, and never shared. Only used by your instance of Clumo.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 3v18"/></svg></div>
+        <div class="feature-title">Inbuilt sales frameworks</div>
+        <div class="feature-text">Choose from MEDDPICC, SPIN, or BANT. Clumo tracks qualification criteria in real-time as the conversation progresses. See gaps live, not in a post-call review.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/><circle cx="12" cy="16" r="1"/></svg></div>
+        <div class="feature-title">Bring your own keys</div>
+        <div class="feature-text">Works with Azure OpenAI or OpenAI. Your keys, your data, your costs. Keys are encrypted at rest on your machine. No middleman, no data sharing, no telemetry.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <div class="feature-title">Windows · macOS · Linux</div>
+        <div class="feature-text">Desktop app that works with any meeting platform — Zoom, Teams, Meet, or anything running on your machine. No browser extension. No Docker. Just download and run.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+        <div class="feature-title">Post-call analysis</div>
+        <div class="feature-text">Automatic call notes, CRM-ready summaries, and follow-up emails generated from the full conversation context.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!--  2. WHO IS CLUMO FOR                                          -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <section class="section section-center" id="who">
+    <div class="section-label">Who it's for</div>
+    <h2 class="section-heading">Built for people on the front line of sales</h2>
+    <p class="section-desc">
+      Whether you're closing deals, leading a team, or building a company. Clumo gives you a real-time edge on every call.
+    </p>
+
+    <div class="persona-tabs">
+      <div class="persona-tab-buttons">
+        <button class="persona-tab-btn active" onclick="switchPersona(0)">Account Executives</button>
+        <button class="persona-tab-btn" onclick="switchPersona(1)">Sales Leaders</button>
+        <button class="persona-tab-btn" onclick="switchPersona(2)">Founder-led Sales</button>
+        <button class="persona-tab-btn" onclick="switchPersona(3)">Technical Sales</button>
+      </div>
+      <div class="persona-tab-panels">
+        <div class="persona-panel active" data-panel="0">
+          <div class="persona-panel-inner">
+            <div class="persona-panel-title">Your AI co-pilot on every discovery call</div>
+            <div class="persona-panel-text">Discovery questions suggested in real-time based on what the prospect just said. Qualification frameworks like MEDDPICC, SPIN, and BANT tracked automatically as the conversation progresses. Stop taking notes and start closing deals — Clumo remembers everything so you can focus on the relationship.</div>
+            <div class="persona-panel-tags">
+              <span class="persona-tag">Realtime discovery questions</span>
+              <span class="persona-tag">Auto qualification tracking</span>
+              <span class="persona-tag">Post-call summaries</span>
+            </div>
+          </div>
+        </div>
+        <div class="persona-panel" data-panel="1">
+          <div class="persona-panel-inner">
+            <div class="persona-panel-title">Give every rep the recall of your best performer</div>
+            <div class="persona-panel-text">Load your team's battle cards, case studies, and playbooks into Clumo's knowledge base and every rep gets the same real-time coaching on every call. Consistent messaging, consistent qualification, from day one. New hires ramp in weeks, not months — they have your entire organisation's knowledge from their very first call.</div>
+            <div class="persona-panel-tags">
+              <span class="persona-tag">Team-wide knowledge base</span>
+              <span class="persona-tag">Consistent messaging</span>
+              <span class="persona-tag">Faster onboarding</span>
+            </div>
+          </div>
+        </div>
+        <div class="persona-panel" data-panel="2">
+          <div class="persona-panel-inner">
+            <div class="persona-panel-title">You know the product — Clumo knows the playbook</div>
+            <div class="persona-panel-text">You built the product and know it inside out, but sales calls are a different skill. Clumo gives you the structure of a seasoned sales team on every call — surfacing the right case study when a prospect mentions a pain point, suggesting the killer question you didn't think to ask, and tracking qualification so nothing falls through the cracks.</div>
+            <div class="persona-panel-tags">
+              <span class="persona-tag">Structured discovery</span>
+              <span class="persona-tag">Case study surfacing</span>
+              <span class="persona-tag">Sales framework guidance</span>
+            </div>
+          </div>
+        </div>
+        <div class="persona-panel" data-panel="3">
+          <div class="persona-panel-inner">
+            <div class="persona-panel-title">Surface the right proof point before the moment passes</div>
+            <div class="persona-panel-text">SEs, solutions architects, and pre-sales engineers — you're running live demos and deep technical conversations where one perfectly-timed case study or architecture reference can change the outcome. Clumo listens to the conversation context and surfaces exactly the right asset from your knowledge base. Never get caught without the proof point when a prospect pushes back.</div>
+            <div class="persona-panel-tags">
+              <span class="persona-tag">Live demo coaching</span>
+              <span class="persona-tag">Proof point recall</span>
+              <span class="persona-tag">Technical objection handling</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!--  3. GET STARTED                                                -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <section class="section section-center" id="get-started">
+    <div class="section-label">Get started</div>
+    <h2 class="section-heading">Up and running in 5 minutes</h2>
+    <p class="section-desc">
+      Download the app, paste your API key, and train it with your website. That's it.
+    </p>
+
+    <div class="qs-frame">
+      <div class="qs-topbar">
+        <div class="qs-topbar-dot r"></div>
+        <div class="qs-topbar-dot y"></div>
+        <div class="qs-topbar-dot g"></div>
+        <div class="qs-topbar-title">quickstart</div>
+      </div>
+      <div class="qs-body">
+        <div class="qs-comment"># Get up and running in 5 minutes.</div>
+        <br>
+        <div class="qs-line">
+          <span class="qs-prompt">1.</span>
+          <span class="qs-command">Download <span class="qs-highlight">Clumo</span> for your platform</span>
+        </div>
+        <div class="qs-comment">&nbsp;&nbsp;&nbsp;Grab the installer from GitHub Releases — Windows, macOS, or Linux.</div>
+        <br>
+        <div class="qs-line">
+          <span class="qs-prompt">2.</span>
+          <span class="qs-command">Paste your <span class="qs-highlight">API key</span></span>
+        </div>
+        <div class="qs-comment">&nbsp;&nbsp;&nbsp;Azure OpenAI or OpenAI. Your keys stay encrypted on your machine.</div>
+        <br>
+        <div class="qs-line">
+          <span class="qs-prompt">3.</span>
+          <span class="qs-command">Train with your <span class="qs-highlight">website</span> &amp; <span class="qs-highlight">documents</span></span>
+        </div>
+        <div class="qs-comment">&nbsp;&nbsp;&nbsp;Enter a URL or upload battle cards, case studies, playbooks. Clumo builds your KB.</div>
+        <br>
+        <div class="qs-line">
+          <span class="qs-prompt">4.</span>
+          <span class="qs-command">Join a <span class="qs-highlight">call</span> &amp; start coaching</span>
+        </div>
+        <div class="qs-comment">&nbsp;&nbsp;&nbsp;Pick the audio source, hit Start, and let Clumo do the rest.</div>
+        <br>
+        <div class="qs-success">
+          <span class="qs-success-check">&#10003;</span>
+          Never miss an opportunity again.
+        </div>
+      </div>
+    </div>
+
+    <div class="qs-sub">
+      Available for Windows, macOS, and Linux · <a href="https://github.com/clumo/clumo/releases" target="_blank">Download from GitHub Releases →</a>
+    </div>
+
+    <div class="platform-badges">
+      <div class="platform-badge">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+        Windows
+      </div>
+      <div class="platform-badge">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 1.5c1.863 0 3.582.614 4.97 1.647C16.496 5.686 14.69 7.5 12 7.5S7.504 5.686 7.03 5.147A8.464 8.464 0 0112 3.5zm-6.95 4.2C6.3 8.99 8.744 10.5 12 10.5s5.7-1.51 6.95-2.8a8.453 8.453 0 011.55 4.8H3.5a8.453 8.453 0 011.55-4.8zM12 20.5a8.46 8.46 0 01-7.23-4.1h14.46a8.46 8.46 0 01-7.23 4.1z"/></svg>
+        macOS
+      </div>
+      <div class="platform-badge">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.368 1.884 1.43.39.03.8-.066 1.094-.37a.839.839 0 00.14-.15c.535.066 1.208-.174 1.619-.477.49-.361.69-.752.689-1.084-.003-.072-.023-.14-.046-.206.6-.328.59-.84.393-1.312-.22-.53-.58-.98-.88-1.173-.192-.125-.42-.184-.654-.204l-.076-.082c-.08-.088-.146-.2-.2-.314-.14-.3-.2-.646-.226-.998-.09-1.108.16-2.388.16-3.478 0-1.27-.34-2.66-1.26-3.666-.22-.242-.5-.4-.79-.6-.28-.2-.57-.4-.87-.7-1.09-1.09-1.55-2.04-1.635-3.04-.084-1 .087-2.06.087-3.12 0-.5-.034-1-.104-1.46-.135-.81-.404-1.56-.924-2.22A4.69 4.69 0 0012.504 0z"/></svg>
+        Linux
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!--  4. WATCH A DEMO                                               -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <section class="section section-center" id="demo">
+    <div class="section-label">See it in action</div>
+    <h2 class="section-heading">Watch Clumo in a live call</h2>
+    <p class="section-desc">
+      See how Clumo surfaces the right insight at exactly the right moment — without disrupting the conversation flow.
+    </p>
+
+    <div class="demo-frame" id="demo-placeholder" onclick="loadYouTube()">
+      <div class="demo-play-icon">
+        <svg viewBox="0 0 24 24"><polygon points="8,5 20,12 8,19"/></svg>
+      </div>
+      <div class="demo-label">Watch the demo</div>
+      <div class="demo-sub">YouTube video — click to play</div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!--  5. ROADMAP                                                    -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <section class="section section-center" id="roadmap">
+    <div class="section-label">Roadmap</div>
+    <h2 class="section-heading">Where we're headed</h2>
+    <p class="section-desc">
+      Clumo is built in the open. Here's what's shipped, what's in progress, and what's coming next.
+    </p>
+
+    <div class="roadmap-grid">
+      <div class="roadmap-card">
+        <div class="roadmap-phase">v1.0</div>
+        <div class="roadmap-status shipped">Shipped</div>
+        <div class="roadmap-title">Core Desktop App</div>
+        <ul class="roadmap-items">
+          <li>Electron app (Win/Mac/Linux)</li>
+          <li>BYOK — Azure OpenAI + OpenAI</li>
+          <li>Live call coaching</li>
+          <li>Knowledge base onboarding</li>
+          <li>Session history & post-call analysis</li>
+          <li>MEDDPICC tracking</li>
+        </ul>
+      </div>
+      <div class="roadmap-card">
+        <div class="roadmap-phase">v1.1</div>
+        <div class="roadmap-status building">Building</div>
+        <div class="roadmap-title">Polish & Performance</div>
+        <ul class="roadmap-items">
+          <li>Auto-updates</li>
+          <li>Economy mode (Whisper batch)</li>
+          <li>Cost tracking in the UI</li>
+          <li>Improved macOS audio capture</li>
+          <li>Dark mode</li>
+        </ul>
+      </div>
+      <div class="roadmap-card">
+        <div class="roadmap-phase">v2.0</div>
+        <div class="roadmap-status planned">Planned</div>
+        <div class="roadmap-title">Team & Integrations</div>
+        <ul class="roadmap-items">
+          <li>Organisation / team mode</li>
+          <li>Shared knowledge bases</li>
+          <li>CRM integrations</li>
+          <li>Analytics dashboard</li>
+          <li>Pluggable cloud storage</li>
+        </ul>
+      </div>
+      <div class="roadmap-card">
+        <div class="roadmap-phase">Future</div>
+        <div class="roadmap-status planned">Exploring</div>
+        <div class="roadmap-title">Platform Expansion</div>
+        <ul class="roadmap-items">
+          <li>Web deployment option</li>
+          <li>Mobile companion app</li>
+          <li>Plugin / extension system</li>
+          <li>Multi-language support</li>
+          <li>Community knowledge packs</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!--  6. DOCUMENTATION                                              -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <section class="section section-center" id="docs">
+    <div class="section-label">Documentation</div>
+    <h2 class="section-heading">Everything you need to get started</h2>
+    <p class="section-desc">
+      From first install to advanced configuration — clear guides built for people who'd rather be selling.
+    </p>
+
+    <div class="docs-grid">
+      <a href="https://github.com/clumo/clumo/blob/main/docs/quickstart.md" target="_blank" class="doc-card">
+        <div class="doc-icon">⚡</div>
+        <div class="doc-title">Quickstart Guide</div>
+        <div class="doc-text">Download, install, paste your API key, onboard your knowledge base, and run your first coached call in under 5 minutes.</div>
+        <div class="doc-link">Read guide <span class="arrow">→</span></div>
+      </a>
+      <a href="https://github.com/clumo/clumo/blob/main/docs/api-keys.md" target="_blank" class="doc-card">
+        <div class="doc-icon">🔐</div>
+        <div class="doc-title">API Key Setup</div>
+        <div class="doc-text">Step-by-step instructions for configuring Azure OpenAI or OpenAI. Required models, deployment names, and cost estimates.</div>
+        <div class="doc-link">Read guide <span class="arrow">→</span></div>
+      </a>
+      <a href="https://github.com/clumo/clumo/blob/main/docs/audio-setup.md" target="_blank" class="doc-card">
+        <div class="doc-icon">🎧</div>
+        <div class="doc-title">Audio Setup</div>
+        <div class="doc-text">How desktop audio capture works, picking the right source, macOS permissions, and virtual audio cable setup for advanced configs.</div>
+        <div class="doc-link">Read guide <span class="arrow">→</span></div>
+      </a>
+      <a href="https://github.com/clumo/clumo/blob/main/README.md" target="_blank" class="doc-card">
+        <div class="doc-icon">📖</div>
+        <div class="doc-title">README</div>
+        <div class="doc-text">Project overview, architecture, feature list, and contribution guidelines. The best place to start understanding how Clumo works.</div>
+        <div class="doc-link">Read on GitHub <span class="arrow">→</span></div>
+      </a>
+      <a href="https://github.com/clumo/clumo/blob/main/CONTRIBUTING.md" target="_blank" class="doc-card">
+        <div class="doc-icon">🤝</div>
+        <div class="doc-title">Contributing</div>
+        <div class="doc-text">Want to help build Clumo? Here's how to set up the dev environment, coding standards, and how to submit a pull request.</div>
+        <div class="doc-link">Read guide <span class="arrow">→</span></div>
+      </a>
+      <a href="https://github.com/clumo/clumo/issues" target="_blank" class="doc-card">
+        <div class="doc-icon">🐛</div>
+        <div class="doc-title">Issues & Feedback</div>
+        <div class="doc-text">Found a bug? Have a feature request? Open an issue on GitHub and help shape the future of Clumo.</div>
+        <div class="doc-link">Open an issue <span class="arrow">→</span></div>
+      </a>
+    </div>
+  </section>
+
+  <!-- ─── Open Source CTA Banner ─── -->
+  <div class="oss-banner">
+    <div class="oss-banner-inner">
+      <h2>Built in the open, for everyone</h2>
+      <p>
+        Clumo is free, open source, and built by sales engineers who got tired of forgetting the perfect proof point mid-call. Join us.
+      </p>
+      <div class="oss-actions">
+        <a href="#get-started" class="btn-white">
+          Download Clumo
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v8m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+        <a href="https://github.com/clumo/clumo" target="_blank" class="btn-outline-light">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          Star on GitHub
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Footer ─── -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <div class="footer-logo">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 128 128">
+            <rect width="128" height="128" rx="24" fill="#1a1a1a"/>
+            <text x="64" y="85" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="#ffffff" text-anchor="middle">C</text>
+          </svg>
+          Clumo
+        </div>
+        <div class="footer-copy">© 2026 Clumo · Open source under MIT License · London, United Kingdom</div>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/clumo/clumo" target="_blank" class="footer-link">GitHub</a>
+        <a href="https://github.com/clumo/clumo/releases" target="_blank" class="footer-link">Releases</a>
+        <a href="#docs" class="footer-link">Docs</a>
+        <a href="#roadmap" class="footer-link">Roadmap</a>
+        <a href="https://github.com/clumo/clumo/issues" target="_blank" class="footer-link">Issues</a>
+        <a href="https://github.com/clumo/clumo/blob/main/LICENSE" target="_blank" class="footer-link">License</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ─── Persona tab switcher ─── -->
+  <script>
+    function switchPersona(index) {
+      document.querySelectorAll('.persona-tab-btn').forEach((btn, i) => {
+        btn.classList.toggle('active', i === index);
+      });
+      document.querySelectorAll('.persona-panel').forEach((panel, i) => {
+        panel.classList.toggle('active', i === index);
+      });
+    }
+  </script>
+
+  <!-- ─── Demo video placeholder script ─── -->
+  <script>
+    function loadYouTube() {
+      const placeholder = document.getElementById('demo-placeholder');
+      // Replace YOUR_VIDEO_ID with your actual YouTube video ID
+      const videoId = 'YOUR_VIDEO_ID';
+      placeholder.outerHTML = `
+        <div style="max-width:840px;width:100%;border-radius:14px;overflow:hidden;aspect-ratio:16/9;">
+          <iframe
+            width="100%" height="100%"
+            src="https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0"
+            title="Clumo Demo"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen
+            style="border-radius:14px;"
+          ></iframe>
+        </div>
+      `;
+    }
+  </script>
+
+</body>
+</html>
