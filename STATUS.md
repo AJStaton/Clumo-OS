@@ -16,9 +16,9 @@
 - [x] 2.3 Add managed mode note
 
 ## Phase 3: Simplified Audio Source Selection
-- [ ] 3.1 Add get-meeting-sources IPC handler in main.js
-- [ ] 3.2 Update preload.js
-- [ ] 3.3 Rewrite AudioSourcePicker.jsx
-- [ ] 3.4 Platform warnings
+- [x] 3.1 Add get-meeting-sources IPC handler in main.js
+- [x] 3.2 Update preload.js
+- [x] 3.3 Rewrite AudioSourcePicker.jsx
+- [x] 3.4 Platform warnings
 
-## Current: Phase 2 complete, starting Phase 3
+## Current: All phases complete

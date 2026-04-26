@@ -66,6 +66,56 @@ app.whenReady().then(async () => {
     }
   });
 
+  // Smart meeting source detection
+  const MEETING_PATTERNS = [
+    { pattern: /Zoom Meeting|^Zoom$/i, label: 'Zoom' },
+    { pattern: /Microsoft Teams/i, label: 'Microsoft Teams' },
+    { pattern: /Webex/i, label: 'Webex' },
+    { pattern: /Meet\s*[-\u2013]\s*.+/i, label: 'Google Meet' },
+    { pattern: /teams\.microsoft\.com/i, label: 'Teams (browser)' },
+    { pattern: /zoom\.us/i, label: 'Zoom (browser)' }
+  ];
+
+  ipcMain.handle('get-meeting-sources', async () => {
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['window', 'screen'],
+        fetchWindowIcons: true
+      });
+
+      const meetings = [];
+      const screens = [];
+      const allSources = [];
+
+      for (const source of sources) {
+        const mapped = {
+          id: source.id,
+          name: source.name,
+          thumbnail: source.thumbnail.toDataURL()
+        };
+
+        allSources.push(mapped);
+
+        if (source.id.startsWith('screen:')) {
+          screens.push(mapped);
+          continue;
+        }
+
+        for (const { pattern, label } of MEETING_PATTERNS) {
+          if (pattern.test(source.name)) {
+            meetings.push({ ...mapped, meetingApp: label });
+            break;
+          }
+        }
+      }
+
+      return { meetings, screens, allSources };
+    } catch (err) {
+      console.error('[Electron] Failed to get meeting sources:', err);
+      return { meetings: [], screens: [], allSources: [] };
+    }
+  });
+
   ipcMain.handle('get-server-port', () => {
     return serverManager.getPort();
   });

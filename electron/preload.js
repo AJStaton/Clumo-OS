@@ -7,6 +7,9 @@ contextBridge.exposeInMainWorld('clumo', {
   // Get available audio sources (windows, screens) for capture
   getAudioSources: () => ipcRenderer.invoke('get-audio-sources'),
 
+  // Get categorized meeting sources (detected meetings, screens, all)
+  getMeetingSources: () => ipcRenderer.invoke('get-meeting-sources'),
+
   // Get the server port (so the web UI knows where to connect)
   getServerPort: () => ipcRenderer.invoke('get-server-port'),
 
