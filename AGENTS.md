@@ -106,3 +106,14 @@ All searchable data for the knowledge base and suggestion engine must remain on 
 - No TypeScript. Plain JavaScript throughout
 - Graceful shutdown handling (SIGINT/SIGTERM) in server and Electron
 - Error handling at system boundaries (API responses, file I/O, WebSocket). Trust internal code
+
+### Working on a plan.md file
+
+After each major milestone:
+- Update STATUS.md with what you completed and what's next
+- Run npm run dev to verify it builds
+- Commit with a descriptive message so rollback is possible
+- If context gets compacted, re-read STATUS.md and PLAN.md
+and keep going.
+
+At the end of a successful plan execution session, always `git push` to sync the completed work to the remote.
