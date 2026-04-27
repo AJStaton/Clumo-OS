@@ -52,10 +52,6 @@ export default function Call() {
   }, [status]);
 
   async function startListening() {
-    if (!audioSourceId) {
-      setError('Please select an audio source');
-      return;
-    }
 
     setStatus('connecting');
     setError(null);
@@ -68,18 +64,29 @@ export default function Call() {
       let stream;
       const isElectron = !!window.clumo?.isElectron;
 
-      if (isElectron && audioSourceId !== 'microphone' && audioSourceId !== 'screen-share') {
-        // Electron desktopCapturer source
+      // Resolve source ID, falling back to auto-detection if not yet set
+      let sourceId = audioSourceId;
+      if (!sourceId && isElectron) {
+        const sources = await window.clumo.getAudioSources();
+        const screen = sources.find(s => s.id.startsWith('screen:'));
+        if (screen) sourceId = screen.id;
+      }
+      if (!sourceId && !isElectron) {
+        sourceId = 'screen-share';
+      }
+
+      if (isElectron && sourceId && sourceId !== 'microphone' && sourceId !== 'screen-share') {
+        // Electron: capture Entire Screen audio
         stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             mandatory: {
               chromeMediaSource: 'desktop',
-              chromeMediaSourceId: audioSourceId
+              chromeMediaSourceId: sourceId
             }
           },
           video: false
         });
-      } else if (audioSourceId === 'screen-share') {
+      } else if (sourceId === 'screen-share') {
         stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: false });
       } else {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -166,7 +173,6 @@ export default function Call() {
       {/* Top bar */}
       <div className="flex items-center gap-4 px-6 py-3 border-b border-gray-200 bg-white">
         <AudioSourcePicker onSourceSelected={setAudioSourceId} />
-
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${
             status === 'listening' ? 'bg-green-500 animate-pulse' :
