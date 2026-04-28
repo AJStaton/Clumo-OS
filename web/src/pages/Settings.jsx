@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 
 export default function Settings() {
   const [settings, setSettings] = useState(null);
@@ -224,18 +225,18 @@ export default function Settings() {
       <div className="bg-white rounded-lg border border-gray-200 p-6 mt-6">
         <h2 className="text-sm font-semibold text-gray-700 mb-4">Knowledge Base</h2>
         <div className="flex gap-3">
-          <a
-            href="/kb"
+          <Link
+            to="/kb"
             className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50"
           >
             Manage Knowledge Base
-          </a>
-          <a
-            href="/setup"
+          </Link>
+          <Link
+            to="/setup"
             className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50"
           >
             Re-run Onboarding
-          </a>
+          </Link>
         </div>
       </div>
     </div>

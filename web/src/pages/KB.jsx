@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 
 export default function KB() {
   const [kb, setKb] = useState(null);
@@ -144,7 +145,7 @@ export default function KB() {
       {!kb ? (
         <div className="text-center py-12 text-gray-500">
           <p>No knowledge base generated yet.</p>
-          <a href="/setup" className="text-blue-600 hover:underline text-sm">Run setup</a>
+          <Link to="/setup" className="text-blue-600 hover:underline text-sm">Run setup</Link>
         </div>
       ) : (
         <>
