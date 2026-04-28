@@ -136,13 +136,18 @@ router.post('/api/settings', async (req, res) => {
 
 // Test API key connectivity
 router.post('/api/settings/test', async (req, res) => {
-  const provider = loadProvider();
-  if (!provider) {
-    return res.status(400).json({ valid: false, error: 'No AI provider configured' });
-  }
+  try {
+    const provider = loadProvider();
+    if (!provider) {
+      return res.status(400).json({ valid: false, error: 'No AI provider configured' });
+    }
 
-  const result = await provider.validateConfig();
-  res.json(result);
+    const result = await provider.validateConfig();
+    res.json(result);
+  } catch (e) {
+    console.error('[Server] Test connection error:', e);
+    res.status(500).json({ valid: false, error: e.message || 'Connection test failed' });
+  }
 });
 
 // ============================================

@@ -75,7 +75,13 @@ export default function Settings() {
     }
 
     const testRes = await fetch('/api/settings/test', { method: 'POST' });
-    const result = await testRes.json();
+    const text = await testRes.text();
+    let result;
+    try {
+      result = JSON.parse(text);
+    } catch {
+      result = { valid: false, error: text || 'Connection test failed — no response from server' };
+    }
     setTestResult(result);
     if (result.valid) setSaved(true);
     setTesting(false);
