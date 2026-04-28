@@ -168,7 +168,13 @@ export default function Setup({ onComplete }) {
       }
 
       const res = await fetch('/api/settings/test', { method: 'POST' });
-      const data = await res.json();
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { valid: false, error: text || 'Connection test failed — no response from server' };
+      }
       setTestResult(data);
 
       if (data.valid) {
