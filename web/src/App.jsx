@@ -39,7 +39,9 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <div className="min-h-screen flex flex-col">
       {!needsSetup && <Nav />}
+      <main className="flex-1 w-full">
       <Routes>
         <Route path="/" element={needsSetup ? <Landing /> : <Navigate to="/call" />} />
         <Route path="/setup" element={<Setup onComplete={() => {
@@ -52,6 +54,8 @@ export default function App() {
         <Route path="/settings" element={needsSetup ? <Navigate to="/" /> : <Settings />} />
         <Route path="*" element={<Navigate to={needsSetup ? "/" : "/call"} />} />
       </Routes>
+      </main>
+      </div>
     </BrowserRouter>
   );
 }
