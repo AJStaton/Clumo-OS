@@ -223,8 +223,8 @@ export default function Settings() {
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 p-6 mt-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-4">Knowledge Base</h2>
-        <div className="flex gap-3">
+        <h2 className="text-sm font-semibold text-gray-700 mb-4 text-center">Knowledge Base</h2>
+        <div className="flex gap-3 justify-center">
           <Link
             to="/kb"
             className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50"
