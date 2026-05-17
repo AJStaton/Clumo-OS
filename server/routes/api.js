@@ -479,4 +479,59 @@ router.delete('/api/session/:sessionId', (req, res) => {
   res.json({ success: true });
 });
 
+// Rename a session
+router.patch('/api/session/:sessionId/rename', (req, res) => {
+  const { sessionId } = req.params;
+  const { name } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Name is required' });
+  }
+  db.updateSessionName(sessionId, name.trim());
+  res.json({ success: true });
+});
+
+// Export a session as JSON
+router.get('/api/session/:sessionId/export', (req, res) => {
+  const { sessionId } = req.params;
+  const session = db.getSession(sessionId);
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  const sessionData = storage.loadSession(sessionId);
+  const exportData = {
+    ...session,
+    transcript: sessionData?.transcript || [],
+    analysis: sessionData?.analysis || null,
+    suggestions: sessionData?.suggestions || []
+  };
+  const safeName = (session.name || sessionId).replace(/["\\\r\n]/g, '_');
+  res.setHeader('Content-Disposition', `attachment; filename="${safeName}.json"`);
+  res.json(exportData);
+});
+
+// ============================================
+// PREFERENCES
+// ============================================
+
+router.get('/api/preferences', (req, res) => {
+  const methodology = db.getConfig('methodology') || 'meddpicc';
+  const theme = db.getConfig('theme') || 'system';
+  res.json({ methodology, theme });
+});
+
+router.patch('/api/preferences', (req, res) => {
+  const { methodology, theme } = req.body;
+  if (methodology && ['meddpicc', 'bant'].includes(methodology)) {
+    db.setConfig('methodology', methodology);
+  }
+  if (theme && ['light', 'dark', 'system'].includes(theme)) {
+    db.setConfig('theme', theme);
+  }
+  const current = {
+    methodology: db.getConfig('methodology') || 'meddpicc',
+    theme: db.getConfig('theme') || 'system'
+  };
+  res.json(current);
+});
+
 module.exports = router;
