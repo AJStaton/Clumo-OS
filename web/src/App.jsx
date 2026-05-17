@@ -7,6 +7,9 @@ import Sessions from './pages/Sessions';
 import Session from './pages/Session';
 import KB from './pages/KB';
 import Settings from './pages/Settings';
+import AiModelsSettings from './pages/AiModelsSettings';
+import IntegrationsSettings from './pages/IntegrationsSettings';
+import AutomationSettings from './pages/AutomationSettings';
 import Nav from './components/Nav';
 
 export default function App() {
@@ -43,16 +46,22 @@ export default function App() {
       {!needsSetup && <Nav />}
       <main className="flex-1 w-full">
       <Routes>
-        <Route path="/" element={needsSetup ? <Landing /> : <Navigate to="/call" />} />
+        <Route path="/" element={needsSetup ? <Landing /> : <Navigate to="/session" />} />
         <Route path="/setup" element={<Setup onComplete={() => {
           fetch('/api/status').then(r => r.json()).then(setStatus);
         }} />} />
-        <Route path="/call" element={needsSetup ? <Navigate to="/" /> : <Call />} />
-        <Route path="/sessions" element={needsSetup ? <Navigate to="/" /> : <Sessions />} />
+        <Route path="/session" element={needsSetup ? <Navigate to="/" /> : <Call />} />
+        <Route path="/history" element={needsSetup ? <Navigate to="/" /> : <Sessions />} />
         <Route path="/session/:sessionId" element={needsSetup ? <Navigate to="/" /> : <Session />} />
         <Route path="/kb" element={needsSetup ? <Navigate to="/" /> : <KB />} />
-        <Route path="/settings" element={needsSetup ? <Navigate to="/" /> : <Settings />} />
-        <Route path="*" element={<Navigate to={needsSetup ? "/" : "/call"} />} />
+        <Route path="/settings" element={needsSetup ? <Navigate to="/" /> : <Settings />}>
+          <Route path="ai-models" element={<AiModelsSettings />} />
+          <Route path="integrations" element={<IntegrationsSettings />} />
+          <Route path="automation" element={<AutomationSettings />} />
+        </Route>
+        <Route path="/call" element={<Navigate to="/session" />} />
+        <Route path="/sessions" element={<Navigate to="/history" />} />
+        <Route path="*" element={<Navigate to={needsSetup ? "/" : "/session"} />} />
       </Routes>
       </main>
       </div>

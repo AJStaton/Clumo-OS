@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 function SecurityModal({ onClose }) {
   return (
@@ -121,6 +121,7 @@ export default function Setup({ onComplete }) {
   const [showSecurity, setShowSecurity] = useState(false);
 
   // Onboarding state
+  const fileInputRef = useRef(null);
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [files, setFiles] = useState([]);
   const [uploadedFiles, setUploadedFiles] = useState([]);
@@ -511,18 +512,29 @@ export default function Setup({ onComplete }) {
                     onChange={e => setWebsiteUrl(e.target.value)}
                   />
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       Upload documents (optional)
                     </label>
                     <input
+                      ref={fileInputRef}
                       type="file"
                       multiple
                       accept=".pdf,.docx,.pptx,.md,.txt"
-                      className="text-sm"
+                      className="hidden"
                       onChange={e => setFiles(Array.from(e.target.files))}
                     />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current.click()}
+                      className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:border-gray-900 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      Choose Files
+                    </button>
                     {files.length > 0 && (
-                      <p className="text-xs text-gray-500 mt-1">{files.length} file(s) selected</p>
+                      <p className="text-sm text-gray-600 mt-2 font-medium">{files.length} file(s) selected</p>
                     )}
                   </div>
                 </div>

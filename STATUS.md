@@ -21,4 +21,21 @@
 - [x] 3.3 Rewrite AudioSourcePicker.jsx
 - [x] 3.4 Platform warnings
 
-## Current: All phases complete
+## Phase 4: UI Improvements (In Progress)
+
+### Feature 1: Prominent File Upload Button
+- [x] 4.1 Replace native file input with styled button in Setup.jsx
+
+### Feature 2: Rename Navigation Labels and Routes
+- [x] 4.2 Update Nav.jsx labels and paths
+- [x] 4.3 Update App.jsx routes and redirects
+- [x] 4.4 Update Sessions.jsx heading and text
+- [x] 4.5 Update Session.jsx "Call Notes" → "Session Notes"
+- [x] 4.6 Fix Settings NavLink active state for sub-routes
+
+### Feature 3: Settings Sidebar with Nested Routes
+- [x] 4.7 Rewrite Settings.jsx as layout with sidebar
+- [x] 4.8 Create AiModelsSettings.jsx (extract from Settings)
+- [x] 4.9 Create IntegrationsSettings.jsx (MCP status cards)
+- [x] 4.10 Create AutomationSettings.jsx (CRUD with localStorage)
+- [x] 4.11 Update App.jsx with nested settings routes
