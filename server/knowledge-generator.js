@@ -78,11 +78,16 @@ class KnowledgeGenerator {
     const proofPoints = await this.generateProofPoints(allContent, companyAnalysis, merge);
     console.log(`[Knowledge Generator] LLM returned ${proofPoints.length} proof points`);
 
+    // Phase 4b: Generate Product Truths
+    if (onProgress) onProgress({ stage: 'product_truths', message: merge ? 'Extracting new product truths...' : 'Building product truths...' });
+    const productTruths = await this.generateProductTruths(allContent, companyAnalysis, merge);
+    console.log(`[Knowledge Generator] LLM returned ${productTruths.length} product truths`);
+
     // Phase 5: Generate embeddings for all KB items
     if (this.embeddingProvider && typeof this.embeddingProvider.generateEmbedding === 'function') {
       if (onProgress) onProgress({ stage: 'embeddings', message: 'Generating embeddings...' });
-      await this.generateEmbeddings(discoveryQuestions, caseStudies, proofPoints);
-      console.log(`[Knowledge Generator] Embeddings generated for ${discoveryQuestions.length} DQs, ${caseStudies.length} CSs, ${proofPoints.length} PPs`);
+      await this.generateEmbeddings(discoveryQuestions, caseStudies, proofPoints, productTruths);
+      console.log(`[Knowledge Generator] Embeddings generated for ${discoveryQuestions.length} DQs, ${caseStudies.length} CSs, ${proofPoints.length} PPs, ${productTruths.length} PTs`);
     }
 
     let knowledgeBase = {
@@ -98,7 +103,8 @@ class KnowledgeGenerator {
       generatedAt: new Date().toISOString(),
       caseStudies,
       discoveryQuestions,
-      proofPoints
+      proofPoints,
+      productTruths
     };
 
     // If not merging, delete existing KB first
@@ -116,11 +122,12 @@ class KnowledgeGenerator {
       const beforeMerge = {
         dq: knowledgeBase.discoveryQuestions.length,
         cs: knowledgeBase.caseStudies.length,
-        pp: knowledgeBase.proofPoints.length
+        pp: knowledgeBase.proofPoints.length,
+        pt: knowledgeBase.productTruths.length
       };
       knowledgeBase = await this.mergeWithExisting(knowledgeBase, userId);
-      console.log(`[Knowledge Generator] Before merge: ${beforeMerge.dq} DQs, ${beforeMerge.cs} CSs, ${beforeMerge.pp} PPs`);
-      console.log(`[Knowledge Generator] After merge+dedup: ${knowledgeBase.discoveryQuestions.length} DQs, ${knowledgeBase.caseStudies.length} CSs, ${knowledgeBase.proofPoints.length} PPs`);
+      console.log(`[Knowledge Generator] Before merge: ${beforeMerge.dq} DQs, ${beforeMerge.cs} CSs, ${beforeMerge.pp} PPs, ${beforeMerge.pt} PTs`);
+      console.log(`[Knowledge Generator] After merge+dedup: ${knowledgeBase.discoveryQuestions.length} DQs, ${knowledgeBase.caseStudies.length} CSs, ${knowledgeBase.proofPoints.length} PPs, ${(knowledgeBase.productTruths || []).length} PTs`);
     }
 
     // Save to local storage
@@ -132,7 +139,8 @@ class KnowledgeGenerator {
       counts: {
         discoveryQuestions: knowledgeBase.discoveryQuestions.length,
         caseStudies: knowledgeBase.caseStudies.length,
-        proofPoints: knowledgeBase.proofPoints.length
+        proofPoints: knowledgeBase.proofPoints.length,
+        productTruths: knowledgeBase.productTruths.length
       }
     });
 
@@ -140,7 +148,8 @@ class KnowledgeGenerator {
       counts: {
         discoveryQuestions: knowledgeBase.discoveryQuestions.length,
         caseStudies: knowledgeBase.caseStudies.length,
-        proofPoints: knowledgeBase.proofPoints.length
+        proofPoints: knowledgeBase.proofPoints.length,
+        productTruths: knowledgeBase.productTruths.length
       }
     };
   }
@@ -386,7 +395,59 @@ Return ONLY a JSON array (no markdown):
     return this.parseJsonArray(response.choices[0].message.content, 'pp');
   }
 
-  // Process pre-extracted case studies from the hybrid scraper
+  // Phase 4b: Generate Product Truths
+  async generateProductTruths(content, analysis, isAdditional = false) {
+    const quantityInstruction = isAdditional
+      ? `Extract ALL factual product statements that are DIRECTLY supported by specific content in the documents. Focus on technical capabilities, security features, platform specifications, compliance certifications, and architectural facts.`
+      : `Generate factual product truth statements that are DIRECTLY grounded in the provided content. Product truths are objective, verifiable statements about the product's capabilities, architecture, security, compliance, or performance that a salesperson can confidently state during a call.
+
+Aim for 8-15 product truths covering:
+- Security & compliance features
+- Platform capabilities and specifications
+- Technical architecture facts
+- Performance guarantees or SLAs
+- Integration capabilities
+- Deployment options`;
+
+    const response = await this.openai.chat.completions.create({
+      messages: [
+        {
+          role: 'system',
+          content: `You are a sales enablement specialist. Generate product truth entries for ${analysis.companyName}'s sales team.
+
+The company: ${analysis.productDescription}
+Differentiators: ${analysis.differentiators?.join(', ')}
+
+${quantityInstruction}
+
+For each product truth, generate 10-15 trigger keywords - words/phrases a PROSPECT might say when asking about capabilities or features.
+
+TRIGGER EXAMPLES:
+- Technical questions: "how does", "can it", "does it support", "what about"
+- Security concerns: "security", "privacy", "compliance", "data protection"
+- Platform specifics: "regions", "availability", "sla", "uptime"
+
+Return ONLY a JSON array (no markdown):
+[
+  {
+    "id": "pt1",
+    "fact": "the factual product statement",
+    "category": "Security|Platform|Infrastructure|Data|Reliability|Integration",
+    "triggers": ["keyword1", "keyword2", ...]
+  }
+]`
+        },
+        {
+          role: 'user',
+          content: `Generate product truths from this content:\n\n${content.substring(0, 20000)}`
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 4000
+    });
+
+    return this.parseJsonArray(response.choices[0].message.content, 'pt');
+  }
   processExtractedCaseStudies(extractedCaseStudies) {
     try {
       if (!Array.isArray(extractedCaseStudies)) return [];
@@ -408,7 +469,7 @@ Return ONLY a JSON array (no markdown):
   }
 
   // Generate embeddings for all KB items using the provider
-  async generateEmbeddings(discoveryQuestions, caseStudies, proofPoints) {
+  async generateEmbeddings(discoveryQuestions, caseStudies, proofPoints, productTruths = []) {
     // Build semantic text for each item type
     const dqTexts = discoveryQuestions.map(dq =>
       `${dq.question} ${dq.context || ''}`
@@ -418,6 +479,9 @@ Return ONLY a JSON array (no markdown):
     );
     const ppTexts = proofPoints.map(pp =>
       `${pp.stat} ${pp.source}`
+    );
+    const ptTexts = productTruths.map(pt =>
+      `${pt.fact} ${pt.category}`
     );
 
     // Batch embed each type (OpenAI supports array input)
@@ -440,6 +504,13 @@ Return ONLY a JSON array (no markdown):
       const embeddings = await embedder.generateEmbedding(ppTexts);
       for (let i = 0; i < proofPoints.length; i++) {
         proofPoints[i].embedding = embeddings[i];
+      }
+    }
+
+    if (ptTexts.length > 0) {
+      const embeddings = await embedder.generateEmbedding(ptTexts);
+      for (let i = 0; i < productTruths.length; i++) {
+        productTruths[i].embedding = embeddings[i];
       }
     }
   }
@@ -491,6 +562,7 @@ Return ONLY a JSON array (no markdown):
       const maxDqId = this.getMaxId(existing.discoveryQuestions, 'dq');
       const maxCsId = this.getMaxId(existing.caseStudies, 'cs');
       const maxPpId = this.getMaxId(existing.proofPoints, 'pp');
+      const maxPtId = this.getMaxId(existing.productTruths || [], 'pt');
 
       // Re-number new items to avoid ID conflicts
       const newDqs = newKb.discoveryQuestions.map((dq, i) => ({
@@ -508,13 +580,19 @@ Return ONLY a JSON array (no markdown):
         id: `pp${maxPpId + i + 1}`
       }));
 
+      const newPt = (newKb.productTruths || []).map((pt, i) => ({
+        ...pt,
+        id: `pt${maxPtId + i + 1}`
+      }));
+
       return this.deduplicate({
         companyName: existing.companyName || newKb.companyName,
         companyProfile: existing.companyProfile || newKb.companyProfile || {},
         generatedAt: new Date().toISOString(),
         discoveryQuestions: [...existing.discoveryQuestions, ...newDqs],
         caseStudies: [...existing.caseStudies, ...newCs],
-        proofPoints: [...existing.proofPoints, ...newPp]
+        proofPoints: [...existing.proofPoints, ...newPp],
+        productTruths: [...(existing.productTruths || []), ...newPt]
       });
     } catch (e) {
       return newKb;
@@ -541,7 +619,13 @@ Return ONLY a JSON array (no markdown):
       (item) => item.stat.toLowerCase().trim()
     );
 
-    console.log(`[Knowledge Generator] After dedup: ${kb.discoveryQuestions.length} questions, ${kb.caseStudies.length} case studies, ${kb.proofPoints.length} proof points`);
+    kb.productTruths = this.deduplicateItems(
+      kb.productTruths || [],
+      'pt',
+      (item) => item.fact.toLowerCase().trim()
+    );
+
+    console.log(`[Knowledge Generator] After dedup: ${kb.discoveryQuestions.length} questions, ${kb.caseStudies.length} case studies, ${kb.proofPoints.length} proof points, ${kb.productTruths.length} product truths`);
     return kb;
   }
 

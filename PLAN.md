@@ -13,6 +13,30 @@ Backend fully implemented: get-meeting-sources IPC handler with meeting pattern 
 
 ---
 
+## Phase 5: Post-Call Features & Enhancements ✓
+
+### Feature 1: Grey out Integrations & Automation in Settings ✓
+Integrations and Automation sidebar links are disabled with "Coming soon" labels. Routes redirect to /settings/ai-models.
+
+### Feature 2: Auto-generate post-call analysis ✓
+- `server/analysis.js`: Generates structured MEDDPICC scoring, follow-up email, and next meeting prep via GPT
+- Auto-triggers on session close (ws.js), manual trigger via POST /api/session/:id/analyze
+- Session.jsx renders structured CRM Update (MEDDPICC table + next steps), Next Meeting (gaps + topics), Follow-up Email
+
+### Feature 3: Product Truth knowledge base type ✓
+- Added `productTruths` array to default KB (6 default facts across Security, Platform, Infrastructure, Data, Reliability)
+- KnowledgeGenerator produces product truths from scraped content
+- SuggestionEngine matches product truths via triggers and semantic search
+- KB.jsx shows Product Truths tab; SuggestionCard renders product_truth type in amber
+
+### Feature 4: Sessions list enhancements ✓
+- GET /api/sessions includes `hasAnalysis` field
+- Sessions.jsx: search filter, "Analyzed" badge, delete with two-click confirmation
+
+---
+
+## Archived: Phase 4 UI Improvements ✓
+
 ## Next Features (Phase 4: UI Improvements)
 
 ### Feature 1: Prominent File Upload Button (Setup Step 2)

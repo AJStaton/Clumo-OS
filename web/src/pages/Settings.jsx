@@ -9,8 +9,8 @@ export default function Settings() {
 
   const sidebarLinks = [
     { to: '/settings/ai-models', label: 'AI Models' },
-    { to: '/settings/integrations', label: 'Integrations' },
-    { to: '/settings/automation', label: 'Automation' },
+    { to: '/settings/integrations', label: 'Integrations', disabled: true },
+    { to: '/settings/automation', label: 'Automation', disabled: true },
   ];
 
   const linkClass = ({ isActive }) =>
@@ -25,11 +25,21 @@ export default function Settings() {
       <aside className="w-56 border-r border-gray-200 bg-white p-4">
         <h1 className="text-lg font-bold mb-4 px-3">Settings</h1>
         <nav className="space-y-1">
-          {sidebarLinks.map(link => (
-            <NavLink key={link.to} to={link.to} className={linkClass}>
-              {link.label}
-            </NavLink>
-          ))}
+          {sidebarLinks.map(link =>
+            link.disabled ? (
+              <span
+                key={link.to}
+                title="Coming soon"
+                className="block px-3 py-2 rounded-md text-sm font-medium text-gray-300 cursor-not-allowed"
+              >
+                {link.label}
+              </span>
+            ) : (
+              <NavLink key={link.to} to={link.to} className={linkClass}>
+                {link.label}
+              </NavLink>
+            )
+          )}
         </nav>
       </aside>
       <div className="flex-1 p-6">

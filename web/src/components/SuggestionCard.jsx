@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 const TYPE_STYLES = {
   case_study: { label: 'Case Study', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800' },
   discovery: { label: 'Discovery Question', bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-800' },
-  proof_point: { label: 'Proof Point', bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-800' }
+  proof_point: { label: 'Proof Point', bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-800' },
+  product_truth: { label: 'Product Truth', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-800' }
 };
 
 export default function SuggestionCard({ suggestion, onUse, onDismiss }) {
@@ -74,6 +75,13 @@ export default function SuggestionCard({ suggestion, onUse, onDismiss }) {
         <>
           <p className="font-semibold text-sm">{item.stat}</p>
           {item.source && <p className="text-xs text-gray-500 mt-1">Source: {item.source}</p>}
+        </>
+      )}
+
+      {suggestion.type === 'product_truth' && (
+        <>
+          <p className="font-semibold text-sm">{item.fact}</p>
+          {item.category && <p className="text-xs text-gray-500 mt-1">{item.category}</p>}
         </>
       )}
     </div>

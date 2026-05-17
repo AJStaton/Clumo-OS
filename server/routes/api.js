@@ -14,6 +14,7 @@ const { getKnowledgeBase } = require('../knowledge-base');
 const HybridWebsiteScraper = require('../hybrid-website-scraper');
 const DocumentParser = require('../document-parser');
 const KnowledgeGenerator = require('../knowledge-generator');
+const { generateAnalysis, formatSessionName } = require('../analysis');
 
 const router = express.Router();
 
@@ -368,13 +369,15 @@ router.get('/api/sessions', (req, res) => {
   const dbSessions = db.listSessions();
   for (const s of dbSessions) {
     if (s.status === 'completed') {
+      const sessionData = storage.loadSession(s.id);
       sessions.push({
         sessionId: s.id,
         status: 'completed',
         name: s.name,
         startTime: s.start_time,
         endTime: s.end_time,
-        suggestionCount: s.suggestion_count
+        suggestionCount: s.suggestion_count,
+        hasAnalysis: !!(sessionData && sessionData.analysis)
       });
     }
   }
@@ -410,6 +413,7 @@ router.get('/api/session/:sessionId', (req, res) => {
 // Post-call analysis
 router.post('/api/session/:sessionId/analyze', async (req, res) => {
   const { sessionId } = req.params;
+  const force = req.query.force === 'true';
 
   if (getActiveSessions().has(sessionId)) {
     return res.status(400).json({ error: 'Session is still active' });
@@ -424,8 +428,8 @@ router.post('/api/session/:sessionId/analyze', async (req, res) => {
     return res.status(404).json({ error: 'Session not found' });
   }
 
-  // Return cached analysis
-  if (sessionData.analysis) {
+  // Return cached analysis (unless force regenerate)
+  if (sessionData.analysis && !force) {
     return res.json(sessionData.analysis);
   }
 
@@ -439,61 +443,26 @@ router.post('/api/session/:sessionId/analyze', async (req, res) => {
     return res.status(400).json({ error: 'No transcript data available' });
   }
 
-  const suggestionsSummary = (sessionData.suggestions || []).map(s => {
-    if (s.type === 'discovery') return `Discovery: ${s.suggestion.question}`;
-    if (s.type === 'case_study') return `Case Study: ${s.suggestion.company} - ${s.suggestion.headline}`;
-    if (s.type === 'proof_point') return `Proof Point: ${s.suggestion.stat}`;
-    return '';
-  }).filter(Boolean).join('\n');
-
   try {
-    const response = await provider.chatCompletion([
-      {
-        role: 'system',
-        content: `You are a sales call analyst. Given a sales call transcript and the suggestions that were surfaced during the call, generate a comprehensive post-call analysis.
-
-Return ONLY valid JSON with these three fields:
-
-{
-  "callNotes": ["bullet point 1", "bullet point 2", ...],
-  "crmUpdate": "A formatted note suitable for pasting into a CRM activity/notes field.",
-  "followUpEmail": {
-    "subject": "Email subject line",
-    "body": "Full email body text."
-  }
-}
-
-Guidelines:
-- callNotes: 5-8 bullet points capturing the most important discussion points, objections, commitments, and next steps
-- crmUpdate: Structured for quick scanning with line breaks between sections
-- followUpEmail: Write as if from the salesperson to the prospect. Reference specific topics discussed.`
-      },
-      {
-        role: 'user',
-        content: `CALL TRANSCRIPT:\n"${transcriptText.slice(-5000)}"\n\n${suggestionsSummary ? `SUGGESTIONS SURFACED:\n${suggestionsSummary}\n\n` : ''}Generate the post-call analysis.`
-      }
-    ], { temperature: 0.3, max_tokens: 2000 });
-
-    let content = response.choices[0].message.content.trim();
-    if (content.startsWith('```')) {
-      content = content.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
-    }
-
-    let analysis;
-    try {
-      analysis = JSON.parse(content);
-    } catch (parseErr) {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        analysis = JSON.parse(jsonMatch[0]);
-      } else {
-        throw parseErr;
-      }
+    const analysis = await generateAnalysis(sessionId, sessionData, provider);
+    if (!analysis) {
+      return res.status(400).json({ error: 'No transcript data available' });
     }
 
     // Cache and persist
     sessionData.analysis = analysis;
     storage.saveSession(sessionId, sessionData);
+    getCompletedSessions().set(sessionId, sessionData);
+
+    // Auto-rename session if this is a fresh analysis
+    try {
+      const newName = formatSessionName(analysis, sessionData.startTime);
+      if (newName) {
+        db.updateSessionName(sessionId, newName);
+      }
+    } catch (renameErr) {
+      console.error('[API] Session rename failed:', renameErr.message);
+    }
 
     res.json(analysis);
   } catch (error) {

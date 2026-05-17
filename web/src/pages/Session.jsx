@@ -112,6 +112,7 @@ export default function Session() {
                       {s.type === 'case_study' && `Case Study: ${s.suggestion?.company}`}
                       {s.type === 'discovery' && `Discovery: ${s.suggestion?.question}`}
                       {s.type === 'proof_point' && `Proof Point: ${s.suggestion?.stat}`}
+                      {s.type === 'product_truth' && `Product Truth: ${s.suggestion?.fact}`}
                     </span>
                     {s.timestamp && (
                       <span className="text-gray-400 text-xs ml-2">
@@ -144,11 +145,32 @@ export default function Session() {
 
             <div className="col-span-3 bg-white rounded-lg border border-gray-200 overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100">
-                <h2 className="text-sm font-semibold text-gray-700">CRM Update</h2>
+                <h2 className="text-sm font-semibold text-gray-700">CRM Update — MEDDPICC</h2>
               </div>
-              <pre className="p-4 text-sm text-gray-700 whitespace-pre-wrap font-sans">
-                {analysis.crmUpdate}
-              </pre>
+              <div className="p-4">
+                {analysis.crmUpdate?.meddpicc ? (
+                  <div className="space-y-2">
+                    {Object.entries(analysis.crmUpdate.meddpicc).map(([key, value]) => (
+                      <div key={key} className="flex gap-3 text-sm">
+                        <span className="font-mono font-semibold text-gray-900 w-8 shrink-0">{key}</span>
+                        <span className={value === 'Not discussed in this call' ? 'text-gray-400 italic' : 'text-gray-700'}>
+                          {value}
+                        </span>
+                      </div>
+                    ))}
+                    {analysis.crmUpdate.nextSteps && (
+                      <div className="mt-4 pt-3 border-t border-gray-100">
+                        <p className="text-sm font-medium text-gray-700 mb-1">Next Steps</p>
+                        <p className="text-sm text-gray-600">{analysis.crmUpdate.nextSteps}</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">
+                    {typeof analysis.crmUpdate === 'string' ? analysis.crmUpdate : JSON.stringify(analysis.crmUpdate, null, 2)}
+                  </pre>
+                )}
+              </div>
             </div>
 
             {analysis.followUpEmail && (
@@ -160,9 +182,44 @@ export default function Session() {
                   <p className="text-sm font-medium text-gray-700 mb-2">
                     Subject: {analysis.followUpEmail.subject}
                   </p>
-                  <pre className="text-sm text-gray-600 whitespace-pre-wrap font-sans">
+                  <p className="text-sm text-gray-600 whitespace-pre-wrap">
                     {analysis.followUpEmail.body}
-                  </pre>
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {analysis.nextMeeting && (
+              <div className="col-span-3 bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <h2 className="text-sm font-semibold text-gray-700">Next Meeting Prep</h2>
+                </div>
+                <div className="p-4 space-y-3">
+                  {analysis.nextMeeting.meddpiccGaps?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 mb-1">MEDDPICC Gaps to Address</p>
+                      <div className="flex gap-2 flex-wrap">
+                        {analysis.nextMeeting.meddpiccGaps.map(gap => (
+                          <span key={gap} className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-xs font-mono font-medium">
+                            {gap}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {analysis.nextMeeting.suggestedTopics?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 mb-1">Suggested Topics</p>
+                      <ul className="space-y-1">
+                        {analysis.nextMeeting.suggestedTopics.map((topic, i) => (
+                          <li key={i} className="text-sm text-gray-700 flex gap-2">
+                            <span className="text-gray-400">•</span>
+                            <span>{topic}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
