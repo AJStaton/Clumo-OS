@@ -37,12 +37,12 @@ export default function Sessions() {
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-xl font-bold mb-6">Sessions</h1>
+      <h1 className="text-xl font-bold mb-6">History</h1>
 
       {sessions.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
           <p>No sessions yet.</p>
-          <p className="text-sm mt-1">Start a call from the <Link to="/call" className="text-blue-600 hover:underline">Call</Link> page.</p>
+          <p className="text-sm mt-1">Start a session from the <Link to="/session" className="text-blue-600 hover:underline">Session</Link> page.</p>
         </div>
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
