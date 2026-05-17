@@ -1,5 +1,42 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import MeddpiccTracker from './MeddpiccTracker';
+
+function CopyButton({ text, label = 'Copy' }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+    >
+      {copied ? '✓ Copied' : label}
+    </button>
+  );
+}
+
+function formatCrmText(crmUpdate, methodologyLabel) {
+  const fields = crmUpdate.meddpicc || crmUpdate.bant || {};
+  let text = `${methodologyLabel} Update\n\n`;
+  for (const [key, value] of Object.entries(fields)) {
+    text += `${key}: ${value}\n`;
+  }
+  if (crmUpdate.nextSteps) {
+    text += `\nNext Steps: ${crmUpdate.nextSteps}`;
+  }
+  return text;
+}
+
+function formatFollowUpText(followUpEmail) {
+  return `Subject: ${followUpEmail.subject}\n\n${followUpEmail.body}`;
+}
 
 export default function SessionSummary({ session, analysis, badge, onAnalyze, analyzing }) {
   const methodology = analysis?.crmUpdate?.methodology || 'meddpicc';
@@ -33,34 +70,32 @@ export default function SessionSummary({ session, analysis, badge, onAnalyze, an
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        {/* Transcript */}
-        <div className="col-span-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Transcript</h2>
+      <div className="space-y-6">
+        {/* Row 1: MEDDPICC + Session Notes side-by-side */}
+        <div className="grid grid-cols-3 gap-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <MeddpiccTracker meddpicc={session.meddpicc} methodology={methodology} />
           </div>
-          <div className="p-4 max-h-96 overflow-y-auto space-y-2">
-            {(session.fullTranscript || []).map((entry, i) => (
-              <div key={i} className="text-sm">
-                <span className="text-gray-400 dark:text-gray-500 text-xs mr-2">
-                  {entry.timestamp && new Date(entry.timestamp).toLocaleTimeString()}
-                </span>
-                <span className="text-gray-700 dark:text-gray-300">{entry.text}</span>
-              </div>
-            ))}
-            {(!session.fullTranscript || session.fullTranscript.length === 0) && (
-              <p className="text-gray-400 dark:text-gray-500 text-sm">No transcript data</p>
-            )}
-          </div>
-        </div>
 
-        {/* MEDDPICC / BANT Tracker */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-          <MeddpiccTracker meddpicc={session.meddpicc} methodology={methodology} />
+          {analysis?.callNotes?.length > 0 && (
+            <div className="col-span-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Session Notes</h2>
+              </div>
+              <ul className="p-4 space-y-2">
+                {analysis.callNotes.map((note, i) => (
+                  <li key={i} className="text-sm text-gray-700 dark:text-gray-300 flex gap-2">
+                    <span className="text-gray-400 dark:text-gray-500">-</span>
+                    <span>{note}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* Suggestions */}
-        <div className="col-span-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
               Suggestions ({(session.suggestions || []).length})
@@ -91,33 +126,17 @@ export default function SessionSummary({ session, analysis, badge, onAnalyze, an
           </div>
         </div>
 
-        {/* Analysis sections — only shown when analysis exists */}
+        {/* Analysis sections */}
         {analysis && (
           <>
-            {/* Session Notes */}
-            {analysis.callNotes?.length > 0 && (
-              <div className="col-span-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                  <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Session Notes</h2>
-                </div>
-                <ul className="p-4 space-y-2">
-                  {analysis.callNotes.map((note, i) => (
-                    <li key={i} className="text-sm text-gray-700 dark:text-gray-300 flex gap-2">
-                      <span className="text-gray-400 dark:text-gray-500">-</span>
-                      <span>{note}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
             {/* CRM Update */}
             {analysis.crmUpdate && (
-              <div className="col-span-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                   <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                     CRM Update — {methodologyLabel}
                   </h2>
+                  <CopyButton text={formatCrmText(analysis.crmUpdate, methodologyLabel)} label="Copy" />
                 </div>
                 <div className="p-4">
                   {crmFields ? (
@@ -148,7 +167,7 @@ export default function SessionSummary({ session, analysis, badge, onAnalyze, an
 
             {/* Next Meeting Prep */}
             {analysis.nextMeeting && (
-              <div className="col-span-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
                   <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Next Meeting Prep</h2>
                 </div>
@@ -184,9 +203,10 @@ export default function SessionSummary({ session, analysis, badge, onAnalyze, an
 
             {/* Follow-up Email */}
             {analysis.followUpEmail && (
-              <div className="col-span-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                   <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Follow-up</h2>
+                  <CopyButton text={formatFollowUpText(analysis.followUpEmail)} label="Copy" />
                 </div>
                 <div className="p-4">
                   <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -200,6 +220,26 @@ export default function SessionSummary({ session, analysis, badge, onAnalyze, an
             )}
           </>
         )}
+
+        {/* Transcript — at the bottom */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Transcript</h2>
+          </div>
+          <div className="p-4 max-h-96 overflow-y-auto space-y-2">
+            {(session.fullTranscript || []).map((entry, i) => (
+              <div key={i} className="text-sm">
+                <span className="text-gray-400 dark:text-gray-500 text-xs mr-2">
+                  {entry.timestamp && new Date(entry.timestamp).toLocaleTimeString()}
+                </span>
+                <span className="text-gray-700 dark:text-gray-300">{entry.text}</span>
+              </div>
+            ))}
+            {(!session.fullTranscript || session.fullTranscript.length === 0) && (
+              <p className="text-gray-400 dark:text-gray-500 text-sm">No transcript data</p>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
