@@ -504,7 +504,8 @@ router.get('/api/session/:sessionId/export', (req, res) => {
     analysis: sessionData?.analysis || null,
     suggestions: sessionData?.suggestions || []
   };
-  res.setHeader('Content-Disposition', `attachment; filename="${session.name || sessionId}.json"`);
+  const safeName = (session.name || sessionId).replace(/["\\\r\n]/g, '_');
+  res.setHeader('Content-Disposition', `attachment; filename="${safeName}.json"`);
   res.json(exportData);
 });
 

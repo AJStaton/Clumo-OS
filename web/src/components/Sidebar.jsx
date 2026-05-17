@@ -30,13 +30,15 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
 
   async function handleRename(sessionId) {
     if (!renameValue.trim()) return;
-    await fetch(`/api/session/${sessionId}/rename`, {
+    const res = await fetch(`/api/session/${sessionId}/rename`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: renameValue.trim() })
     });
-    setRenaming(null);
-    refreshSessions();
+    if (res.ok) {
+      setRenaming(null);
+      refreshSessions();
+    }
   }
 
   async function handleDelete(sessionId) {
