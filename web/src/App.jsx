@@ -61,7 +61,7 @@ export default function App() {
               collapsed={sidebarCollapsed}
               onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
             />
-            <main className="flex-1 overflow-hidden">
+            <main className="flex-1 overflow-y-auto">
               <Routes>
                 <Route path="/" element={<Navigate to="/session" />} />
                 <Route path="/session" element={<Call onListeningChange={(listening) => {
