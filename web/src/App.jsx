@@ -56,8 +56,8 @@ export default function App() {
         <Route path="/kb" element={needsSetup ? <Navigate to="/" /> : <KB />} />
         <Route path="/settings" element={needsSetup ? <Navigate to="/" /> : <Settings />}>
           <Route path="ai-models" element={<AiModelsSettings />} />
-          <Route path="integrations" element={<IntegrationsSettings />} />
-          <Route path="automation" element={<AutomationSettings />} />
+          <Route path="integrations" element={<Navigate to="/settings/ai-models" replace />} />
+          <Route path="automation" element={<Navigate to="/settings/ai-models" replace />} />
         </Route>
         <Route path="/call" element={<Navigate to="/session" />} />
         <Route path="/sessions" element={<Navigate to="/history" />} />

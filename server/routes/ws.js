@@ -6,6 +6,7 @@ const SuggestionEngine = require('../suggestion-engine');
 const { loadProvider, loadEmbeddingProvider } = require('../ai-provider');
 const storage = require('../storage');
 const db = require('../db');
+const { generateAnalysis, formatSessionName } = require('../analysis');
 
 // Active and completed sessions (in-memory)
 const activeSessions = new Map();
@@ -271,6 +272,34 @@ function setupWebSocket(httpServer) {
       storage.saveSession(sessionId, finalSessionData);
 
       console.log(`[WS] Session completed: ${sessionId} (${finalSessionData.totalSuggestions} suggestions)`);
+
+      // Auto-generate analysis (fire-and-forget)
+      const analysisProvider = loadProvider();
+      if (analysisProvider) {
+        generateAnalysis(sessionId, finalSessionData, analysisProvider)
+          .then(analysis => {
+            if (analysis) {
+              finalSessionData.analysis = analysis;
+              storage.saveSession(sessionId, finalSessionData);
+              completedSessions.set(sessionId, finalSessionData);
+              console.log(`[WS] Auto-analysis complete for session: ${sessionId}`);
+
+              // Auto-rename session
+              try {
+                const newName = formatSessionName(analysis, finalSessionData.startTime);
+                if (newName) {
+                  db.updateSessionName(sessionId, newName);
+                  console.log(`[WS] Session renamed: ${newName}`);
+                }
+              } catch (renameErr) {
+                console.error(`[WS] Session rename failed:`, renameErr.message);
+              }
+            }
+          })
+          .catch(err => {
+            console.error(`[WS] Auto-analysis failed for session ${sessionId}:`, err.message);
+          });
+      }
     });
 
     clientWs.on('error', (error) => {

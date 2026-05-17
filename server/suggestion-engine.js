@@ -219,7 +219,8 @@ Keep evidence snippets to 1 short sentence each. Only include evidence actually 
     const matches = {
       caseStudies: [],
       discoveryQuestions: [],
-      proofPoints: []
+      proofPoints: [],
+      productTruths: []
     };
 
     for (const cs of this.knowledgeBase.caseStudies) {
@@ -246,9 +247,18 @@ Keep evidence snippets to 1 short sentence each. Only include evidence actually 
       }
     }
 
+    for (const pt of (this.knowledgeBase.productTruths || [])) {
+      if (this.suggestedIds.has(pt.id)) continue;
+      const matchCount = pt.triggers.filter(t => lowerText.includes(t.toLowerCase())).length;
+      if (matchCount >= 2) {
+        matches.productTruths.push({ ...pt, matchCount });
+      }
+    }
+
     matches.caseStudies.sort((a, b) => b.matchCount - a.matchCount);
     matches.discoveryQuestions.sort((a, b) => b.matchCount - a.matchCount);
     matches.proofPoints.sort((a, b) => b.matchCount - a.matchCount);
+    matches.productTruths.sort((a, b) => b.matchCount - a.matchCount);
 
     return matches;
   }
@@ -261,7 +271,8 @@ Keep evidence snippets to 1 short sentence each. Only include evidence actually 
     const matches = {
       caseStudies: [],
       discoveryQuestions: [],
-      proofPoints: []
+      proofPoints: [],
+      productTruths: []
     };
 
     for (const cs of this.knowledgeBase.caseStudies) {
@@ -288,6 +299,14 @@ Keep evidence snippets to 1 short sentence each. Only include evidence actually 
       }
     }
 
+    for (const pt of (this.knowledgeBase.productTruths || [])) {
+      if (this.suggestedIds.has(pt.id) || !pt.embedding) continue;
+      const similarity = cosineSimilarity(textEmbedding, pt.embedding);
+      if (similarity >= SIMILARITY_THRESHOLD) {
+        matches.productTruths.push({ ...pt, similarity });
+      }
+    }
+
     // Sort by similarity descending, keep top 3 per type
     matches.caseStudies.sort((a, b) => b.similarity - a.similarity);
     matches.caseStudies = matches.caseStudies.slice(0, 3);
@@ -295,8 +314,10 @@ Keep evidence snippets to 1 short sentence each. Only include evidence actually 
     matches.discoveryQuestions = matches.discoveryQuestions.slice(0, 3);
     matches.proofPoints.sort((a, b) => b.similarity - a.similarity);
     matches.proofPoints = matches.proofPoints.slice(0, 3);
+    matches.productTruths.sort((a, b) => b.similarity - a.similarity);
+    matches.productTruths = matches.productTruths.slice(0, 3);
 
-    console.log(`[Suggestion] Semantic matches: ${matches.discoveryQuestions.length} DQs, ${matches.caseStudies.length} CSs, ${matches.proofPoints.length} PPs`);
+    console.log(`[Suggestion] Semantic matches: ${matches.discoveryQuestions.length} DQs, ${matches.caseStudies.length} CSs, ${matches.proofPoints.length} PPs, ${matches.productTruths.length} PTs`);
 
     return matches;
   }
@@ -323,7 +344,8 @@ Keep evidence snippets to 1 short sentence each. Only include evidence actually 
     const hasMatches = 
       matches.caseStudies.length > 0 || 
       matches.discoveryQuestions.length > 0 || 
-      matches.proofPoints.length > 0;
+      matches.proofPoints.length > 0 ||
+      matches.productTruths.length > 0;
     
     if (!hasMatches) {
       return null;
@@ -361,9 +383,10 @@ PRIORITIES:
 - Discovery questions: When the customer reveals a need, challenge, or goal
 - Case studies: When discussing specific use cases, challenges, or comparing solutions
 - Proof points: When the customer expresses skepticism, asks for evidence, or needs validation
+- Product truths: When the customer asks about technical capabilities, security, or platform specifics
 
 Respond ONLY with valid JSON:
-{"suggest": true, "confidence": 0.85, "type": "discovery|case_study|proof_point", "id": "the_item_id", "trigger": "the specific words/phrase from the CUSTOMER'S conversation that matched - NOT the question or suggestion text", "reasoning": "brief explanation"}
+{"suggest": true, "confidence": 0.85, "type": "discovery|case_study|proof_point|product_truth", "id": "the_item_id", "trigger": "the specific words/phrase from the CUSTOMER'S conversation that matched - NOT the question or suggestion text", "reasoning": "brief explanation"}
 or
 {"suggest": false, "confidence": 0}
 
@@ -435,6 +458,16 @@ IMPORTANT: The "trigger" field must contain the actual words spoken in the conve
             trigger: decision.trigger
           };
         }
+      } else if (decision.type === 'product_truth') {
+        suggestion = (this.knowledgeBase.productTruths || []).find(pt => pt.id === decision.id);
+        if (suggestion) {
+          suggestion = {
+            type: 'product_truth',
+            fact: suggestion.fact,
+            category: suggestion.category,
+            trigger: decision.trigger
+          };
+        }
       }
 
       if (suggestion) {
@@ -476,6 +509,14 @@ IMPORTANT: The "trigger" field must contain the actual words spoken in the conve
       prompt += `PROOF POINTS:\n`;
       matches.proofPoints.slice(0, 3).forEach(pp => {
         prompt += `- ID: ${pp.id} | ${pp.stat} (Source: ${pp.source})\n`;
+      });
+      prompt += '\n';
+    }
+
+    if (matches.productTruths && matches.productTruths.length > 0) {
+      prompt += `PRODUCT TRUTHS:\n`;
+      matches.productTruths.slice(0, 3).forEach(pt => {
+        prompt += `- ID: ${pt.id} | ${pt.fact} (Category: ${pt.category})\n`;
       });
       prompt += '\n';
     }

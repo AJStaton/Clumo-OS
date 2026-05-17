@@ -143,6 +143,10 @@ function listSessions() {
   ).all();
 }
 
+function updateSessionName(id, name) {
+  getDb().prepare('UPDATE sessions SET name = ? WHERE id = ?').run(name, id);
+}
+
 function deleteSession(id) {
   getDb().prepare('DELETE FROM sessions WHERE id = ?').run(id);
 }
@@ -180,6 +184,7 @@ module.exports = {
   completeSession,
   getSession,
   listSessions,
+  updateSessionName,
   deleteSession,
   isSetupComplete,
   isOnboardingComplete,

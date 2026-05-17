@@ -73,7 +73,8 @@ export default function KB() {
   const tabs = {
     caseStudies: { label: 'Case Studies', items: kb?.caseStudies || [] },
     discoveryQuestions: { label: 'Discovery Questions', items: kb?.discoveryQuestions || [] },
-    proofPoints: { label: 'Proof Points', items: kb?.proofPoints || [] }
+    proofPoints: { label: 'Proof Points', items: kb?.proofPoints || [] },
+    productTruths: { label: 'Product Truths', items: kb?.productTruths || [] }
   };
 
   return (
@@ -196,6 +197,19 @@ export default function KB() {
                   <>
                     <p className="font-semibold text-sm">{item.stat}</p>
                     {item.source && <p className="text-sm text-gray-500 mt-1">Source: {item.source}</p>}
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {(item.triggers || []).slice(0, 5).map((t, j) => (
+                        <span key={j} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{t}</span>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {tab === 'productTruths' && (
+                  <>
+                    <p className="font-semibold text-sm">{item.fact}</p>
+                    {item.category && (
+                      <span className="inline-block mt-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{item.category}</span>
+                    )}
                     <div className="mt-2 flex flex-wrap gap-1">
                       {(item.triggers || []).slice(0, 5).map((t, j) => (
                         <span key={j} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{t}</span>
