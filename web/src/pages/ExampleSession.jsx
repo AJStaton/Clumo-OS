@@ -1,5 +1,4 @@
-import { Link } from 'react-router-dom';
-import MeddpiccTracker from '../components/MeddpiccTracker';
+import SessionSummary from '../components/SessionSummary';
 
 const EXAMPLE_SESSION = {
   name: 'Example-AcmeCorp-23rd April',
@@ -30,14 +29,14 @@ const EXAMPLE_SESSION = {
     { type: 'discovery', suggestion: { question: "What criteria will Rachel use to evaluate ROI from the pilot?" }, timestamp: '2025-04-23T10:05:45Z' },
   ],
   meddpicc: {
-    M: { score: 7, notes: 'Quantified: 18 hours/week manager time on data wrangling across 6 managers' },
-    E: { score: 6, notes: 'CFO Rachel is economic buyer for purchases over $50K. VP Sales James Chen is champion' },
-    D: { score: 5, notes: 'Need pilot with one team first, then ROI data for full rollout' },
-    D2: { score: 5, notes: '6-week pilot evaluation, then CFO approval required' },
-    P: { score: 3, notes: 'Paper process not yet discussed' },
-    I: { score: 8, notes: 'Clear pain: spreadsheet chaos with 40 reps, managers spending 3hrs/week on admin vs coaching' },
-    C: { score: 7, notes: 'VP Sales James Chen actively pushing for solution' },
-    C2: { score: 5, notes: 'Competing with Gong and Clari; differentiated on real-time coaching' },
+    M: { score: 4, notes: 'Quantified: 18 hours/week manager time on data wrangling across 6 managers' },
+    E: { score: 3, notes: 'CFO Rachel is economic buyer for purchases over $50K. VP Sales James Chen is champion' },
+    D: { score: 3, notes: 'Need pilot with one team first, then ROI data for full rollout' },
+    D2: { score: 3, notes: '6-week pilot evaluation, then CFO approval required' },
+    P: { score: 1, notes: 'Paper process not yet discussed' },
+    I: { score: 4, notes: 'Clear pain: spreadsheet chaos with 40 reps, managers spending 3hrs/week on admin vs coaching' },
+    C: { score: 4, notes: 'VP Sales James Chen actively pushing for solution' },
+    C2: { score: 3, notes: 'Competing with Gong and Clari; differentiated on real-time coaching' },
   }
 };
 
@@ -97,153 +96,11 @@ Best,
 };
 
 export default function ExampleSession() {
-  const session = EXAMPLE_SESSION;
-  const analysis = EXAMPLE_ANALYSIS;
-
   return (
-    <div className="max-w-5xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <Link to="/session" className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">&larr; Back</Link>
-          <div className="flex items-center gap-2 mt-1">
-            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{session.name}</h1>
-            <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-[10px] font-medium rounded-full">EXAMPLE</span>
-          </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {new Date(session.startTime).toLocaleString()} — {session.totalSuggestions} suggestions
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-6">
-        {/* Transcript */}
-        <div className="col-span-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Transcript</h2>
-          </div>
-          <div className="p-4 max-h-96 overflow-y-auto space-y-2">
-            {session.fullTranscript.map((entry, i) => (
-              <div key={i} className="text-sm">
-                <span className="text-gray-400 dark:text-gray-500 text-xs mr-2">
-                  {new Date(entry.timestamp).toLocaleTimeString()}
-                </span>
-                <span className="text-gray-700 dark:text-gray-300">{entry.text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* MEDDPICC */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-          <MeddpiccTracker meddpicc={session.meddpicc} />
-        </div>
-
-        {/* Suggestions */}
-        <div className="col-span-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Suggestions ({session.suggestions.length})
-            </h2>
-          </div>
-          <div className="p-4">
-            <div className="space-y-2">
-              {session.suggestions.map((s, i) => (
-                <div key={i} className="text-sm p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
-                  <span className="font-medium text-gray-700 dark:text-gray-300">
-                    {s.type === 'case_study' && `Case Study: ${s.suggestion?.company} — ${s.suggestion?.headline}`}
-                    {s.type === 'discovery' && `Discovery: ${s.suggestion?.question}`}
-                    {s.type === 'proof_point' && `Proof Point: ${s.suggestion?.stat}`}
-                  </span>
-                  <span className="text-gray-400 dark:text-gray-500 text-xs ml-2">
-                    {new Date(s.timestamp).toLocaleTimeString()}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Session Notes */}
-        <div className="col-span-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Session Notes</h2>
-          </div>
-          <ul className="p-4 space-y-2">
-            {analysis.callNotes.map((note, i) => (
-              <li key={i} className="text-sm text-gray-700 dark:text-gray-300 flex gap-2">
-                <span className="text-gray-400 dark:text-gray-500">-</span>
-                <span>{note}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* CRM Update */}
-        <div className="col-span-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">CRM Update — MEDDPICC</h2>
-          </div>
-          <div className="p-4 space-y-2">
-            {Object.entries(analysis.crmUpdate.meddpicc).map(([key, value]) => (
-              <div key={key} className="flex gap-3 text-sm">
-                <span className="font-mono font-semibold text-gray-900 dark:text-gray-100 w-8 shrink-0">{key}</span>
-                <span className={value === 'Not discussed in this call' ? 'text-gray-400 dark:text-gray-500 italic' : 'text-gray-700 dark:text-gray-300'}>
-                  {value}
-                </span>
-              </div>
-            ))}
-            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Next Steps</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{analysis.crmUpdate.nextSteps}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Follow-up Email */}
-        <div className="col-span-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Follow-up Email</h2>
-          </div>
-          <div className="p-4">
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Subject: {analysis.followUpEmail.subject}
-            </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
-              {analysis.followUpEmail.body}
-            </p>
-          </div>
-        </div>
-
-        {/* Next Meeting Prep */}
-        <div className="col-span-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Next Meeting Prep</h2>
-          </div>
-          <div className="p-4 space-y-3">
-            <div>
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Gaps to Address</p>
-              <div className="flex gap-2 flex-wrap">
-                {analysis.nextMeeting.gaps.map(gap => (
-                  <span key={gap} className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 rounded text-xs font-mono font-medium">
-                    {gap}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Suggested Topics</p>
-              <ul className="space-y-1">
-                {analysis.nextMeeting.suggestedTopics.map((topic, i) => (
-                  <li key={i} className="text-sm text-gray-700 dark:text-gray-300 flex gap-2">
-                    <span className="text-gray-400 dark:text-gray-500">•</span>
-                    <span>{topic}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <SessionSummary
+      session={EXAMPLE_SESSION}
+      analysis={EXAMPLE_ANALYSIS}
+      badge="EXAMPLE"
+    />
   );
 }
