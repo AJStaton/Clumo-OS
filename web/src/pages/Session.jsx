@@ -145,12 +145,14 @@ export default function Session() {
 
             <div className="col-span-3 bg-white rounded-lg border border-gray-200 overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100">
-                <h2 className="text-sm font-semibold text-gray-700">CRM Update — MEDDPICC</h2>
+                <h2 className="text-sm font-semibold text-gray-700">
+                  CRM Update — {analysis.crmUpdate?.methodology === 'bant' ? 'BANT' : 'MEDDPICC'}
+                </h2>
               </div>
               <div className="p-4">
-                {analysis.crmUpdate?.meddpicc ? (
+                {(analysis.crmUpdate?.meddpicc || analysis.crmUpdate?.bant) ? (
                   <div className="space-y-2">
-                    {Object.entries(analysis.crmUpdate.meddpicc).map(([key, value]) => (
+                    {Object.entries(analysis.crmUpdate.meddpicc || analysis.crmUpdate.bant).map(([key, value]) => (
                       <div key={key} className="flex gap-3 text-sm">
                         <span className="font-mono font-semibold text-gray-900 w-8 shrink-0">{key}</span>
                         <span className={value === 'Not discussed in this call' ? 'text-gray-400 italic' : 'text-gray-700'}>
@@ -195,11 +197,11 @@ export default function Session() {
                   <h2 className="text-sm font-semibold text-gray-700">Next Meeting Prep</h2>
                 </div>
                 <div className="p-4 space-y-3">
-                  {analysis.nextMeeting.meddpiccGaps?.length > 0 && (
+                  {(analysis.nextMeeting.gaps || analysis.nextMeeting.meddpiccGaps)?.length > 0 && (
                     <div>
-                      <p className="text-xs font-medium text-gray-500 mb-1">MEDDPICC Gaps to Address</p>
+                      <p className="text-xs font-medium text-gray-500 mb-1">Gaps to Address</p>
                       <div className="flex gap-2 flex-wrap">
-                        {analysis.nextMeeting.meddpiccGaps.map(gap => (
+                        {(analysis.nextMeeting.gaps || analysis.nextMeeting.meddpiccGaps).map(gap => (
                           <span key={gap} className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-xs font-mono font-medium">
                             {gap}
                           </span>

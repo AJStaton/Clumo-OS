@@ -10,14 +10,15 @@ const STATUS_LABELS = {
   confirmed: 'Found'
 };
 
-export default function MeddpiccTracker({ meddpicc }) {
+export default function MeddpiccTracker({ meddpicc, methodology = 'meddpicc' }) {
   if (!meddpicc) return null;
 
   const criteria = Object.entries(meddpicc);
+  const title = methodology === 'bant' ? 'BANT' : 'MEDDPICC';
 
   return (
     <div className="p-4 space-y-3">
-      <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">MEDDPICC</h3>
+      <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">{title}</h3>
       {criteria.map(([key, data]) => (
         <div key={key} className="flex items-center gap-3">
           <span className="text-xs font-mono font-bold text-gray-500 w-6">{key}</span>

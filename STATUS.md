@@ -35,34 +35,41 @@
 - [x] 4.11 Update App.jsx with nested settings routes
 
 ## Phase 5: Post-Call Features & Enhancements
+- [x] All features complete (see previous status)
 
-### Feature 1: Grey out Integrations & Automation in Settings
-- [x] 5.1 Disable Integrations and Automation sidebar links (marked "Coming soon")
-- [x] 5.2 Routes redirect to /settings/ai-models
+## Phase 6: UI Sidebar Redesign
 
-### Feature 2: Auto-generate post-call analysis
-- [x] 5.3 Create server/analysis.js with generateAnalysis + formatSessionName
-- [x] 5.4 Wire auto-analysis in ws.js on session close (fire-and-forget)
-- [x] 5.5 Add POST /api/session/:id/analyze endpoint
-- [x] 5.6 Session.jsx: "Generate Analysis" button for manual trigger
-- [x] 5.7 Session.jsx: Render structured CRM Update (MEDDPICC table + next steps)
-- [x] 5.8 Session.jsx: Render Next Meeting Prep (gaps + suggested topics)
-- [x] 5.9 Session.jsx: Handle product_truth suggestion type in display
+### Layout & Navigation
+- [x] 6.1 Create AppContext (sessions, preferences, connectionStatus)
+- [x] 6.2 Create Sidebar component (260px, Summaries + Settings sections)
+- [x] 6.3 Restructure App.jsx (sidebar + main flex layout, remove Nav.jsx)
+- [x] 6.4 Remove standalone /history route (Summaries in sidebar only)
+- [x] 6.5 Move Knowledge Base into /settings/knowledge-base
+- [x] 6.6 Delete Nav.jsx, IntegrationsSettings.jsx, AutomationSettings.jsx
 
-### Feature 3: Product Truth knowledge base type
-- [x] 5.10 Add productTruths array to default KB in knowledge-base.js
-- [x] 5.11 Add generateProductTruths method to KnowledgeGenerator
-- [x] 5.12 Update generateEmbeddings to handle product truths
-- [x] 5.13 Update SuggestionEngine findTriggerMatches for product truths
-- [x] 5.14 Update SuggestionEngine findSemanticMatches for product truths
-- [x] 5.15 Update SuggestionEngine getBestSuggestion prompt + item lookup
-- [x] 5.16 Update buildPrompt to include product truths
-- [x] 5.17 Add Product Truths tab to KB.jsx
-- [x] 5.18 Update SuggestionCard.jsx with product_truth styling
+### Sidebar Features
+- [x] 6.7 Summaries list with search, AI names, analyzed badge
+- [x] 6.8 Session "..." context menu (Rename, Export JSON, Delete with confirm)
+- [x] 6.9 Empty-state onboarding card for first-run users
+- [x] 6.10 Settings nav links (KB, Preferences, AI Models, greyed Integrations/Automations)
+- [x] 6.11 Connection status indicator at bottom
+- [x] 6.12 Sidebar auto-collapse to icon rail during active calls
 
-### Feature 4: Sessions list enhancements
-- [x] 5.19 Add hasAnalysis field to GET /api/sessions response
-- [x] 5.20 Add search/filter input to Sessions.jsx
-- [x] 5.21 Add "Analyzed" badge to sessions with analysis
-- [x] 5.22 Add delete button with confirmation to Sessions.jsx
-- [x] 5.23 DELETE /api/session/:id endpoint (already existed)
+### Call Page
+- [x] 6.13 Hero heading with subtitle for idle/pre-call state
+- [x] 6.14 Large red "Start listening" CTA with Ctrl+L hint
+- [x] 6.15 Methodology letters (MEDDPICC/BANT) vertical with hover tooltips
+- [x] 6.16 Ctrl+L keyboard shortcut (toggle listening)
+- [x] 6.17 Sidebar collapse notified on listening state change
+
+### Preferences & Methodology
+- [x] 6.18 Preferences settings page (MEDDPICC vs BANT radio toggle)
+- [x] 6.19 Server GET/PATCH /api/preferences endpoints
+- [x] 6.20 Analysis module supports BANT prompt + scoring
+- [x] 6.21 MeddpiccTracker component supports methodology prop
+- [x] 6.22 Session detail page renders BANT or MEDDPICC analysis
+
+### Server Endpoints
+- [x] 6.23 PATCH /api/session/:id/rename
+- [x] 6.24 GET /api/session/:id/export (JSON download)
+- [x] 6.25 Settings page simplified (no own sidebar, uses main sidebar)

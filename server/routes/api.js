@@ -479,4 +479,51 @@ router.delete('/api/session/:sessionId', (req, res) => {
   res.json({ success: true });
 });
 
+// Rename a session
+router.patch('/api/session/:sessionId/rename', (req, res) => {
+  const { sessionId } = req.params;
+  const { name } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Name is required' });
+  }
+  db.updateSessionName(sessionId, name.trim());
+  res.json({ success: true });
+});
+
+// Export a session as JSON
+router.get('/api/session/:sessionId/export', (req, res) => {
+  const { sessionId } = req.params;
+  const session = db.getSession(sessionId);
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  const sessionData = storage.loadSession(sessionId);
+  const exportData = {
+    ...session,
+    transcript: sessionData?.transcript || [],
+    analysis: sessionData?.analysis || null,
+    suggestions: sessionData?.suggestions || []
+  };
+  res.setHeader('Content-Disposition', `attachment; filename="${session.name || sessionId}.json"`);
+  res.json(exportData);
+});
+
+// ============================================
+// PREFERENCES
+// ============================================
+
+router.get('/api/preferences', (req, res) => {
+  const methodology = db.getConfig('methodology') || 'meddpicc';
+  res.json({ methodology });
+});
+
+router.patch('/api/preferences', (req, res) => {
+  const { methodology } = req.body;
+  if (methodology && ['meddpicc', 'bant'].includes(methodology)) {
+    db.setConfig('methodology', methodology);
+  }
+  const current = db.getConfig('methodology') || 'meddpicc';
+  res.json({ methodology: current });
+});
+
 module.exports = router;
