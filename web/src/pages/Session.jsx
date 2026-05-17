@@ -112,7 +112,7 @@ export default function Session() {
                       {s.type === 'case_study' && `Case Study: ${s.suggestion?.company}`}
                       {s.type === 'discovery' && `Discovery: ${s.suggestion?.question}`}
                       {s.type === 'proof_point' && `Proof Point: ${s.suggestion?.stat}`}
-                        {s.type === 'product_truth' && `Product Truth: ${s.suggestion?.fact}`}
+                      {s.type === 'product_truth' && `Product Truth: ${s.suggestion?.fact}`}
                     </span>
                     {s.timestamp && (
                       <span className="text-gray-400 text-xs ml-2">

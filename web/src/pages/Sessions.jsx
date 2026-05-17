@@ -35,8 +35,14 @@ export default function Sessions() {
 
   async function handleDelete(sessionId) {
     if (deleting === sessionId) {
-      await fetch(`/api/session/${sessionId}`, { method: 'DELETE' });
-      setSessions(sessions.filter(s => s.sessionId !== sessionId));
+      try {
+        const resp = await fetch(`/api/session/${sessionId}`, { method: 'DELETE' });
+        if (resp.ok) {
+          setSessions(sessions.filter(s => s.sessionId !== sessionId));
+        }
+      } catch (e) {
+        console.error('Delete failed:', e);
+      }
       setDeleting(null);
     } else {
       setDeleting(sessionId);

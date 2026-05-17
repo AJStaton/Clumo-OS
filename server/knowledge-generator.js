@@ -122,11 +122,12 @@ class KnowledgeGenerator {
       const beforeMerge = {
         dq: knowledgeBase.discoveryQuestions.length,
         cs: knowledgeBase.caseStudies.length,
-        pp: knowledgeBase.proofPoints.length
+        pp: knowledgeBase.proofPoints.length,
+        pt: knowledgeBase.productTruths.length
       };
       knowledgeBase = await this.mergeWithExisting(knowledgeBase, userId);
-      console.log(`[Knowledge Generator] Before merge: ${beforeMerge.dq} DQs, ${beforeMerge.cs} CSs, ${beforeMerge.pp} PPs`);
-      console.log(`[Knowledge Generator] After merge+dedup: ${knowledgeBase.discoveryQuestions.length} DQs, ${knowledgeBase.caseStudies.length} CSs, ${knowledgeBase.proofPoints.length} PPs`);
+      console.log(`[Knowledge Generator] Before merge: ${beforeMerge.dq} DQs, ${beforeMerge.cs} CSs, ${beforeMerge.pp} PPs, ${beforeMerge.pt} PTs`);
+      console.log(`[Knowledge Generator] After merge+dedup: ${knowledgeBase.discoveryQuestions.length} DQs, ${knowledgeBase.caseStudies.length} CSs, ${knowledgeBase.proofPoints.length} PPs, ${(knowledgeBase.productTruths || []).length} PTs`);
     }
 
     // Save to local storage
@@ -561,6 +562,7 @@ Return ONLY a JSON array (no markdown):
       const maxDqId = this.getMaxId(existing.discoveryQuestions, 'dq');
       const maxCsId = this.getMaxId(existing.caseStudies, 'cs');
       const maxPpId = this.getMaxId(existing.proofPoints, 'pp');
+      const maxPtId = this.getMaxId(existing.productTruths || [], 'pt');
 
       // Re-number new items to avoid ID conflicts
       const newDqs = newKb.discoveryQuestions.map((dq, i) => ({
@@ -578,13 +580,19 @@ Return ONLY a JSON array (no markdown):
         id: `pp${maxPpId + i + 1}`
       }));
 
+      const newPt = (newKb.productTruths || []).map((pt, i) => ({
+        ...pt,
+        id: `pt${maxPtId + i + 1}`
+      }));
+
       return this.deduplicate({
         companyName: existing.companyName || newKb.companyName,
         companyProfile: existing.companyProfile || newKb.companyProfile || {},
         generatedAt: new Date().toISOString(),
         discoveryQuestions: [...existing.discoveryQuestions, ...newDqs],
         caseStudies: [...existing.caseStudies, ...newCs],
-        proofPoints: [...existing.proofPoints, ...newPp]
+        proofPoints: [...existing.proofPoints, ...newPp],
+        productTruths: [...(existing.productTruths || []), ...newPt]
       });
     } catch (e) {
       return newKb;
@@ -611,7 +619,13 @@ Return ONLY a JSON array (no markdown):
       (item) => item.stat.toLowerCase().trim()
     );
 
-    console.log(`[Knowledge Generator] After dedup: ${kb.discoveryQuestions.length} questions, ${kb.caseStudies.length} case studies, ${kb.proofPoints.length} proof points`);
+    kb.productTruths = this.deduplicateItems(
+      kb.productTruths || [],
+      'pt',
+      (item) => item.fact.toLowerCase().trim()
+    );
+
+    console.log(`[Knowledge Generator] After dedup: ${kb.discoveryQuestions.length} questions, ${kb.caseStudies.length} case studies, ${kb.proofPoints.length} proof points, ${kb.productTruths.length} product truths`);
     return kb;
   }
 
