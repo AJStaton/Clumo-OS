@@ -8,7 +8,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="flex-1 p-6 overflow-y-auto">
+    <div className="flex-1 p-6 overflow-y-auto bg-white dark:bg-gray-800">
       <Outlet />
     </div>
   );

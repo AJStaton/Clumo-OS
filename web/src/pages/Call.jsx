@@ -71,13 +71,17 @@ export default function Call({ onListeningChange }) {
     }
   }, [status]);
 
-  // Notify parent (App.jsx) when listening state changes for sidebar auto-collapse
+  // Auto-collapse sidebar when listening starts; refresh sessions when stopped
+  const prevStatusRef = useRef(null);
   useEffect(() => {
-    if (onListeningChange) {
-      onListeningChange(status === 'listening');
-    }
-    if (status === 'stopped') {
-      refreshSessions();
+    if (prevStatusRef.current !== status) {
+      if (status === 'listening' && onListeningChange) {
+        onListeningChange(true);
+      }
+      if (status === 'stopped') {
+        refreshSessions();
+      }
+      prevStatusRef.current = status;
     }
   }, [status, onListeningChange, refreshSessions]);
 
@@ -219,12 +223,12 @@ export default function Call({ onListeningChange }) {
   const isActive = status === 'listening' || status === 'connecting';
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-white dark:bg-gray-800">
       {isIdle && !sessionId ? (
         /* Hero state — shown before first call or between calls */
         <div className="flex-1 flex flex-col items-center justify-center px-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Current meeting</h1>
-          <p className="text-sm text-gray-500 mb-8 text-center max-w-md">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1">Current meeting</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-8 text-center max-w-md">
             Realtime AI-powered sales coaching. Start a call to get live suggestions and qualification tracking.
           </p>
 
@@ -234,46 +238,46 @@ export default function Call({ onListeningChange }) {
           >
             Start listening
           </button>
-          <span className="text-xs text-gray-400 mt-2">Ctrl+L</span>
+          <span className="text-xs text-gray-400 dark:text-gray-500 mt-2">Ctrl+L</span>
 
           {error && (
-            <div className="mt-4 px-4 py-2 bg-red-50 border border-red-200 rounded-md text-sm text-red-700 max-w-md">
+            <div className="mt-4 px-4 py-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-md text-sm text-red-700 dark:text-red-300 max-w-md">
               {error}
             </div>
           )}
 
           {/* Methodology tracker — minimal vertical letters */}
           <div className="mt-12 flex flex-col items-center gap-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">
               {preferences.methodology === 'bant' ? 'BANT' : 'MEDDPICC'} Tracker
             </h3>
             <div className="flex gap-2">
               {methodologyLetters.map((item, i) => (
                 <div
                   key={i}
-                  className="w-8 h-8 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-sm font-bold text-gray-400 cursor-default"
+                  className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center text-sm font-bold text-gray-400 dark:text-gray-500 cursor-default"
                   title={item.label}
                 >
                   {item.letter}
                 </div>
               ))}
             </div>
-            <p className="text-[10px] text-gray-400 mt-1">Scores fill during your call</p>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">Scores fill during your call</p>
           </div>
         </div>
       ) : (
         /* Active/stopped-with-session state — 3-panel layout */
         <>
           {/* Top bar */}
-          <div className="flex items-center gap-4 px-6 py-3 border-b border-gray-200 bg-white flex-shrink-0">
+          <div className="flex items-center gap-4 px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
             <AudioSourcePicker onSourceSelected={setAudioSourceId} />
             <div className="flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full ${
                 status === 'listening' ? 'bg-green-500 animate-pulse' :
                 status === 'connecting' ? 'bg-yellow-500 animate-pulse' :
-                'bg-gray-300'
+                'bg-gray-300 dark:bg-gray-600'
               }`} />
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
                 {status === 'idle' && 'Ready'}
                 {status === 'connecting' && 'Connecting...'}
                 {status === 'listening' && 'Listening'}
@@ -284,7 +288,7 @@ export default function Call({ onListeningChange }) {
             {status === 'idle' || status === 'stopped' ? (
               <button
                 onClick={startListening}
-                className="ml-auto px-4 py-1.5 bg-gray-900 text-white rounded-md text-sm font-medium hover:bg-gray-800"
+                className="ml-auto px-4 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-md text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-200"
               >
                 Start Listening
               </button>
@@ -300,7 +304,7 @@ export default function Call({ onListeningChange }) {
             {sessionId && status === 'stopped' && (
               <a
                 href={`/session/${sessionId}`}
-                className="px-4 py-1.5 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50"
+                className="px-4 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 View Summary
               </a>
@@ -308,7 +312,7 @@ export default function Call({ onListeningChange }) {
           </div>
 
           {error && (
-            <div className="px-6 py-2 bg-red-50 border-b border-red-200 text-sm text-red-700">
+            <div className="px-6 py-2 bg-red-50 dark:bg-red-900/30 border-b border-red-200 dark:border-red-700 text-sm text-red-700 dark:text-red-300">
               {error}
             </div>
           )}
@@ -316,18 +320,18 @@ export default function Call({ onListeningChange }) {
           {/* Main content: 3-panel layout */}
           <div className="flex-1 flex overflow-hidden">
             {/* Left: Transcript */}
-            <div className="w-1/3 border-r border-gray-200 bg-white overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100">
-                <h2 className="text-sm font-semibold text-gray-700">Transcript</h2>
+            <div className="w-1/3 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Transcript</h2>
               </div>
               <Transcript entries={transcript} />
             </div>
 
             {/* Center: Suggestions */}
-            <div className="w-1/3 border-r border-gray-200 bg-gray-50 overflow-y-auto p-4">
-              <h2 className="text-sm font-semibold text-gray-700 mb-3">Suggestions</h2>
+            <div className="w-1/3 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 overflow-y-auto p-4">
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Suggestions</h2>
               {suggestions.length === 0 && (
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-gray-400 dark:text-gray-500">
                   {status === 'listening'
                     ? 'Listening for relevant moments...'
                     : 'Suggestions will appear here during a call'}
@@ -344,10 +348,10 @@ export default function Call({ onListeningChange }) {
             </div>
 
             {/* Right: Methodology Tracker */}
-            <div className="w-1/3 bg-white overflow-y-auto">
+            <div className="w-1/3 bg-white dark:bg-gray-800 overflow-y-auto">
               <MeddpiccTracker meddpicc={meddpicc} methodology={preferences.methodology} />
               {!meddpicc && (
-                <p className="text-sm text-gray-400 p-4">
+                <p className="text-sm text-gray-400 dark:text-gray-500 p-4">
                   {preferences.methodology === 'bant' ? 'BANT' : 'MEDDPICC'} tracking will begin when the call starts
                 </p>
               )}

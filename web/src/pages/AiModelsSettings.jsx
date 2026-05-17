@@ -87,39 +87,39 @@ export default function AiModelsSettings() {
     setTesting(false);
   }
 
-  if (loading) return <div className="p-6 text-gray-500">Loading...</div>;
+  if (loading) return <div className="p-6 text-gray-500 dark:text-gray-400">Loading...</div>;
 
   return (
     <div className="max-w-lg">
-      <h2 className="text-lg font-bold mb-4">AI Models</h2>
+      <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">AI Models</h2>
 
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-sm font-semibold text-gray-700 mb-4">AI Provider</h3>
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">AI Provider</h3>
 
         <div className="flex gap-3 mb-6">
           <button
             onClick={() => { setProviderMode('managed'); setProvider(''); setConfig({}); setTestResult(null); setSaved(false); }}
             className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium text-left ${
-              providerMode === 'managed' ? 'border-gray-900 bg-gray-50' : 'border-gray-200 hover:border-gray-300'
+              providerMode === 'managed' ? 'border-gray-900 dark:border-gray-100 bg-gray-50 dark:bg-gray-700' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
             }`}
           >
-            <div>Managed Models</div>
-            <div className="text-xs text-gray-500 font-normal mt-0.5">No API keys needed</div>
+            <div className="text-gray-900 dark:text-gray-100">Managed Models</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 font-normal mt-0.5">No API keys needed</div>
           </button>
           <button
             onClick={() => { setProviderMode('byok'); setTestResult(null); setSaved(false); }}
             className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium text-left ${
-              providerMode === 'byok' ? 'border-gray-900 bg-gray-50' : 'border-gray-200 hover:border-gray-300'
+              providerMode === 'byok' ? 'border-gray-900 dark:border-gray-100 bg-gray-50 dark:bg-gray-700' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
             }`}
           >
-            <div>Bring Your Own Key</div>
-            <div className="text-xs text-gray-500 font-normal mt-0.5">Use your own API keys</div>
+            <div className="text-gray-900 dark:text-gray-100">Bring Your Own Key</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 font-normal mt-0.5">Use your own API keys</div>
           </button>
         </div>
 
         {providerMode === 'managed' && (
-          <div className="bg-gray-50 rounded-md p-3 border border-gray-200 mb-4">
-            <p className="text-sm text-gray-600">
+          <div className="bg-gray-50 dark:bg-gray-700 rounded-md p-3 border border-gray-200 dark:border-gray-600 mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
               Clumo will handle all AI processing. Your data is sent over encrypted connections and is not stored on any server.
             </p>
           </div>
@@ -129,16 +129,16 @@ export default function AiModelsSettings() {
           <div className="flex gap-3 mb-6">
             <button
               onClick={() => { setProvider('azure'); setConfig({}); setTestResult(null); }}
-              className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium ${
-                provider === 'azure' ? 'border-gray-900 bg-gray-50' : 'border-gray-200 hover:border-gray-300'
+              className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium text-gray-900 dark:text-gray-100 ${
+                provider === 'azure' ? 'border-gray-900 dark:border-gray-100 bg-gray-50 dark:bg-gray-700' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
               }`}
             >
               Azure OpenAI
             </button>
             <button
               onClick={() => { setProvider('openai'); setConfig({}); setTestResult(null); }}
-              className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium ${
-                provider === 'openai' ? 'border-gray-900 bg-gray-50' : 'border-gray-200 hover:border-gray-300'
+              className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium text-gray-900 dark:text-gray-100 ${
+                provider === 'openai' ? 'border-gray-900 dark:border-gray-100 bg-gray-50 dark:bg-gray-700' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
               }`}
             >
               OpenAI
@@ -148,61 +148,25 @@ export default function AiModelsSettings() {
 
         {provider === 'azure' && (
           <div className="space-y-3">
-            <input
-              type="text"
-              placeholder="Endpoint"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-              value={config.endpoint || ''}
-              onChange={e => setConfig({ ...config, endpoint: e.target.value })}
-            />
-            <input
-              type="password"
-              placeholder={settings?.hasApiKey ? 'API Key (leave blank to keep current)' : 'API Key'}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-              value={config.apiKey || ''}
-              onChange={e => setConfig({ ...config, apiKey: e.target.value })}
-            />
-            <input
-              type="text"
-              placeholder="Chat deployment name"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-              value={config.chatDeployment || ''}
-              onChange={e => setConfig({ ...config, chatDeployment: e.target.value })}
-            />
-            <input
-              type="text"
-              placeholder="Realtime deployment name"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-              value={config.realtimeDeployment || ''}
-              onChange={e => setConfig({ ...config, realtimeDeployment: e.target.value })}
-            />
-            <input
-              type="text"
-              placeholder="Embedding deployment name (e.g. text-embedding-3-small)"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-              value={config.embeddingDeployment || ''}
-              onChange={e => setConfig({ ...config, embeddingDeployment: e.target.value })}
-            />
+            <input type="text" placeholder="Endpoint" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.endpoint || ''} onChange={e => setConfig({ ...config, endpoint: e.target.value })} />
+            <input type="password" placeholder={settings?.hasApiKey ? 'API Key (leave blank to keep current)' : 'API Key'} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.apiKey || ''} onChange={e => setConfig({ ...config, apiKey: e.target.value })} />
+            <input type="text" placeholder="Chat deployment name" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.chatDeployment || ''} onChange={e => setConfig({ ...config, chatDeployment: e.target.value })} />
+            <input type="text" placeholder="Realtime deployment name" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.realtimeDeployment || ''} onChange={e => setConfig({ ...config, realtimeDeployment: e.target.value })} />
+            <input type="text" placeholder="Embedding deployment name (e.g. text-embedding-3-small)" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.embeddingDeployment || ''} onChange={e => setConfig({ ...config, embeddingDeployment: e.target.value })} />
           </div>
         )}
 
         {provider === 'openai' && (
           <div className="space-y-3">
-            <input
-              type="password"
-              placeholder={settings?.hasApiKey ? 'API Key (leave blank to keep current)' : 'API Key (sk-...)'}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-              value={config.apiKey || ''}
-              onChange={e => setConfig({ ...config, apiKey: e.target.value })}
-            />
+            <input type="password" placeholder={settings?.hasApiKey ? 'API Key (leave blank to keep current)' : 'API Key (sk-...)'} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.apiKey || ''} onChange={e => setConfig({ ...config, apiKey: e.target.value })} />
           </div>
         )}
 
         {testResult && (
           <div className={`mt-4 p-3 rounded-md text-sm ${
             testResult.valid
-              ? 'bg-green-50 text-green-800 border border-green-200'
-              : 'bg-red-50 text-red-800 border border-red-200'
+              ? 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-700'
+              : 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-700'
           }`}>
             {testResult.valid ? 'Connection successful. Settings saved.' : `Failed: ${testResult.error}`}
           </div>
@@ -212,26 +176,20 @@ export default function AiModelsSettings() {
           <button
             onClick={handleSave}
             disabled={testing}
-            className="mt-6 w-full px-4 py-2 bg-gray-900 text-white rounded-md text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
+            className="mt-6 w-full px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-md text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-50"
           >
             {testing ? 'Saving...' : providerMode === 'managed' ? 'Save' : 'Save & Test Connection'}
           </button>
         )}
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 p-6 mt-6">
-        <h3 className="text-sm font-semibold text-gray-700 mb-4 text-center">Knowledge Base</h3>
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mt-6">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 text-center">Knowledge Base</h3>
         <div className="flex gap-3 justify-center">
-          <Link
-            to="/kb"
-            className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50"
-          >
+          <Link to="/kb" className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
             Manage Knowledge Base
           </Link>
-          <Link
-            to="/setup"
-            className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50"
-          >
+          <Link to="/setup" className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
             Re-run Onboarding
           </Link>
         </div>

@@ -4,9 +4,10 @@ const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
   const [sessions, setSessions] = useState([]);
-  const [preferences, setPreferences] = useState({ methodology: 'meddpicc' });
+  const [preferences, setPreferences] = useState({ methodology: 'meddpicc', theme: 'system' });
   const [connectionStatus, setConnectionStatus] = useState('unknown'); // unknown, connected, disconnected, listening
   const [activeSessionId, setActiveSessionId] = useState(null);
+  const [kbConfigured, setKbConfigured] = useState(null); // null=loading, true, false
 
   const refreshSessions = useCallback(async () => {
     try {
@@ -71,6 +72,46 @@ export function AppProvider({ children }) {
     checkConnection();
   }, []);
 
+  // Check if knowledge base has items
+  useEffect(() => {
+    async function checkKB() {
+      try {
+        const res = await fetch('/api/onboarding/knowledge-base');
+        if (res.ok) {
+          const data = await res.json();
+          const hasItems = data && data.items && data.items.length > 0;
+          setKbConfigured(hasItems);
+        } else {
+          setKbConfigured(false);
+        }
+      } catch {
+        setKbConfigured(false);
+      }
+    }
+    checkKB();
+  }, []);
+
+  // Apply theme to document root
+  useEffect(() => {
+    const theme = preferences.theme || 'system';
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else if (theme === 'light') {
+      root.classList.remove('dark');
+    } else {
+      // System preference
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      const apply = () => {
+        if (mq.matches) root.classList.add('dark');
+        else root.classList.remove('dark');
+      };
+      apply();
+      mq.addEventListener('change', apply);
+      return () => mq.removeEventListener('change', apply);
+    }
+  }, [preferences.theme]);
+
   const value = {
     sessions,
     preferences,
@@ -78,6 +119,7 @@ export function AppProvider({ children }) {
     setConnectionStatus,
     activeSessionId,
     setActiveSessionId,
+    kbConfigured,
     refreshSessions,
     refreshPreferences,
     updatePreferences

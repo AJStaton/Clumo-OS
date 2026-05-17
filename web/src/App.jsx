@@ -28,10 +28,10 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900">
         <div className="text-center">
-          <div className="text-2xl font-bold tracking-tight mb-2">Clumo</div>
-          <div className="text-gray-500">Loading...</div>
+          <div className="text-2xl font-bold tracking-tight mb-2 text-gray-900 dark:text-gray-100">Clumo</div>
+          <div className="text-gray-500 dark:text-gray-400">Loading...</div>
         </div>
       </div>
     );
@@ -55,7 +55,7 @@ export default function App() {
             </main>
           </div>
         ) : (
-          <div className="h-screen flex overflow-hidden">
+          <div className="h-screen flex overflow-hidden bg-white dark:bg-gray-800">
             <Sidebar
               collapsed={sidebarCollapsed}
               onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -65,7 +65,6 @@ export default function App() {
                 <Route path="/" element={<Navigate to="/session" />} />
                 <Route path="/session" element={<Call onListeningChange={(listening) => {
                   if (listening) setSidebarCollapsed(true);
-                  else setSidebarCollapsed(false);
                 }} />} />
                 <Route path="/session/:sessionId" element={<Session />} />
                 <Route path="/settings" element={<Settings />}>

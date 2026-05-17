@@ -515,16 +515,23 @@ router.get('/api/session/:sessionId/export', (req, res) => {
 
 router.get('/api/preferences', (req, res) => {
   const methodology = db.getConfig('methodology') || 'meddpicc';
-  res.json({ methodology });
+  const theme = db.getConfig('theme') || 'system';
+  res.json({ methodology, theme });
 });
 
 router.patch('/api/preferences', (req, res) => {
-  const { methodology } = req.body;
+  const { methodology, theme } = req.body;
   if (methodology && ['meddpicc', 'bant'].includes(methodology)) {
     db.setConfig('methodology', methodology);
   }
-  const current = db.getConfig('methodology') || 'meddpicc';
-  res.json({ methodology: current });
+  if (theme && ['light', 'dark', 'system'].includes(theme)) {
+    db.setConfig('theme', theme);
+  }
+  const current = {
+    methodology: db.getConfig('methodology') || 'meddpicc',
+    theme: db.getConfig('theme') || 'system'
+  };
+  res.json(current);
 });
 
 module.exports = router;
