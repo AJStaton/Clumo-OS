@@ -177,7 +177,8 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
             <div className="space-y-2">
               {/* Example summary card */}
               <div
-                className="group relative flex items-center gap-2 px-2 py-1.5 rounded-md bg-gray-100 dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-600 cursor-default"
+                className="group relative flex items-center gap-2 px-2 py-1.5 rounded-md bg-gray-100 dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                onClick={() => navigate('/session/example')}
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">Example-AcmeCorp-23rd April</p>
@@ -189,12 +190,12 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
               {/* KB setup prompt */}
               {kbConfigured === false && (
                 <div
-                  className="px-2 py-2.5 rounded-md bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors"
+                  className="px-2 py-2.5 rounded-md bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors animate-[pulse-subtle_3s_ease-in-out_infinite]"
                   onClick={() => navigate('/settings/knowledge-base')}
                 >
-                  <p className="text-xs font-medium text-amber-800 dark:text-amber-300">Setup Knowledge Base</p>
-                  <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5 leading-relaxed">
-                    Add product info to get smarter suggestions during calls.
+                  <p className="text-xs font-medium text-gray-800 dark:text-gray-200">Setup Knowledge Base</p>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">
+                    Run knowledge base setup to get smarter suggestions during calls.
                   </p>
                 </div>
               )}

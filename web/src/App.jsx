@@ -5,6 +5,7 @@ import Landing from './pages/Landing';
 import Setup from './pages/Setup';
 import Call from './pages/Call';
 import Session from './pages/Session';
+import ExampleSession from './pages/ExampleSession';
 import KB from './pages/KB';
 import Settings from './pages/Settings';
 import AiModelsSettings from './pages/AiModelsSettings';
@@ -66,6 +67,7 @@ export default function App() {
                 <Route path="/session" element={<Call onListeningChange={(listening) => {
                   if (listening) setSidebarCollapsed(true);
                 }} />} />
+                <Route path="/session/example" element={<ExampleSession />} />
                 <Route path="/session/:sessionId" element={<Session />} />
                 <Route path="/settings" element={<Settings />}>
                   <Route index element={<Navigate to="/settings/ai-models" replace />} />
