@@ -38,6 +38,21 @@ export default function KB() {
     setSetupStatus('running');
     setSetupMessages([]);
 
+    // Pre-check: verify AI provider is configured
+    try {
+      const statusRes = await fetch('/api/status');
+      const status = await statusRes.json();
+      if (!status.setupComplete) {
+        setSetupMessages(['AI provider not configured. Go to Settings → AI Models to add your API key first.']);
+        setSetupStatus('error');
+        return;
+      }
+    } catch (e) {
+      setSetupMessages(['Could not check server status. Is the server running?']);
+      setSetupStatus('error');
+      return;
+    }
+
     // Upload files first if any
     let filesToSend = [];
     if (setupFiles.length > 0) {
@@ -73,7 +88,10 @@ export default function KB() {
     }
 
     const { sseToken } = await startRes.json();
-    const eventSource = new EventSource(`/api/onboarding/stream?token=${sseToken}`);
+
+    // First verify the stream endpoint is accessible (handles provider-not-configured errors)
+    const streamUrl = `/api/onboarding/stream?token=${sseToken}`;
+    const eventSource = new EventSource(streamUrl);
 
     eventSource.addEventListener('progress', (e) => {
       const data = JSON.parse(e.data);
@@ -93,7 +111,7 @@ export default function KB() {
         const data = JSON.parse(e.data);
         setSetupMessages(prev => [...prev, `Error: ${data.message}`]);
       } catch {
-        setSetupMessages(prev => [...prev, 'Connection lost']);
+        setSetupMessages(prev => [...prev, 'AI provider not configured or connection failed. Go to Settings → AI Models to configure your provider.']);
       }
       setSetupStatus('error');
       eventSource.close();
