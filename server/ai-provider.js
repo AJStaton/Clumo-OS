@@ -8,7 +8,7 @@ class AzureOpenAIProvider {
   constructor(config) {
     this.endpoint = config.endpoint;
     this.apiKey = config.apiKey;
-    this.apiVersion = config.apiVersion || '2024-10-01-preview';
+    this.apiVersion = config.apiVersion || '2024-10-21';
     this.chatDeployment = config.chatDeployment;
     this.realtimeDeployment = config.realtimeDeployment;
     this.embeddingDeployment = config.embeddingDeployment;
@@ -140,7 +140,7 @@ class ManagedProvider {
   constructor(endpoint, apiKey) {
     this.endpoint = endpoint;
     this.apiKey = apiKey;
-    this.apiVersion = '2024-10-01-preview';
+    this.apiVersion = '2024-10-21';
     this.embeddingDeployment = 'text-embedding-3-small';
     this.client = null;
   }
@@ -242,7 +242,7 @@ function saveProviderConfig(providerType, config) {
     if (config.apiKey) {
       setSecureConfig('azure_api_key', config.apiKey);
     }
-    setConfig('azure_api_version', config.apiVersion || '2024-10-01-preview');
+    setConfig('azure_api_version', config.apiVersion || '2024-10-21');
     setConfig('azure_chat_deployment', config.chatDeployment);
     setConfig('azure_realtime_deployment', config.realtimeDeployment);
     setConfig('azure_embedding_deployment', config.embeddingDeployment);
