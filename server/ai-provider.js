@@ -155,7 +155,10 @@ class ManagedProvider {
       apiKey: this.apiKey,
       baseURL: this.baseUrl + '/models',
       defaultQuery: { 'api-version': this.apiVersion },
-      defaultHeaders: { 'api-key': this.apiKey }
+      defaultHeaders: {
+        'api-key': this.apiKey,
+        'x-ms-model-mesh-model-name': this.chatModel
+      }
     });
     return this.client;
   }

@@ -10,10 +10,12 @@ class KnowledgeGenerator {
     // or a raw OpenAI client for backward compatibility
     if (provider && typeof provider.chatCompletion === 'function') {
       this.provider = provider;
-      this.openai = provider.getClient();
     } else {
-      this.provider = null;
-      this.openai = provider;
+      // Wrap raw client in a provider-like interface
+      this.provider = {
+        chatCompletion: (messages, options) => provider.chat.completions.create({ messages, ...options }),
+        getClient: () => provider
+      };
     }
     // Optional separate embedding provider (e.g. managed mode)
     this.embeddingProvider = embeddingProvider || this.provider;
