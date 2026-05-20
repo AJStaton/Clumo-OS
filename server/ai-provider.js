@@ -144,7 +144,7 @@ class ManagedProvider {
     this.apiVersion = '2024-05-01-preview';
     this.chatModel = config.chatModel || 'gpt-4o-mini';
     this.realtimeModel = config.realtimeModel || 'gpt-realtime-mini';
-    this.embeddingModel = config.embeddingModel || 'text-embedding-3-small';
+    this.embeddingModel = config.embeddingModel || 'text-embedding-ada-002';
     this.client = null;
   }
 
@@ -181,9 +181,21 @@ class ManagedProvider {
   }
 
   async generateEmbedding(text) {
-    const client = this.getClient();
+    // Use a separate client for embeddings with the correct model header
+    if (!this._embeddingClient) {
+      const OpenAI = require('openai');
+      this._embeddingClient = new OpenAI({
+        apiKey: this.apiKey,
+        baseURL: this.baseUrl + '/models',
+        defaultQuery: { 'api-version': this.apiVersion },
+        defaultHeaders: {
+          'api-key': this.apiKey,
+          'x-ms-model-mesh-model-name': this.embeddingModel
+        }
+      });
+    }
     const input = Array.isArray(text) ? text : [text];
-    const response = await client.embeddings.create({
+    const response = await this._embeddingClient.embeddings.create({
       model: this.embeddingModel,
       input
     });
