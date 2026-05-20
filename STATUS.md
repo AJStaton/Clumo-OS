@@ -73,3 +73,13 @@
 - [x] 6.23 PATCH /api/session/:id/rename
 - [x] 6.24 GET /api/session/:id/export (JSON download)
 - [x] 6.25 Settings page simplified (no own sidebar, uses main sidebar)
+
+## Phase 7: Azure AI Foundry (Managed Provider) Fixes
+- [x] 7.1 Rewrote ManagedProvider for Azure AI Model Inference API
+- [x] 7.2 Fixed endpoint format (base URL + /models, no project path)
+- [x] 7.3 Fixed api-version (2024-05-01-preview for Foundry)
+- [x] 7.4 Added model field injection for all chat/embedding calls
+- [x] 7.5 Switched embedding model to text-embedding-ada-002
+- [x] 7.6 Separate embedding client with correct model header
+- [x] 7.7 Wrapped OpenAI client in knowledge-generator + api.js for model injection
+- [x] 7.8 Full KB generation pipeline verified end-to-end
