@@ -198,6 +198,34 @@ const window = await app.firstWindow();
 
 ---
 
+## 5b. Provider integration tests (Polly.js HTTP recordings)
+
+The `chatCompletion` / `transcribe` / `embedding` paths through `ai-provider.js` are exercised against **frozen recordings of real OpenAI / Azure responses** rather than hand-written mocks. A recording is one HTTP request/response pair, captured once against the real API and replayed deterministically forever.
+
+```bash
+npm run test:integration            # replay committed fixtures (default, $0)
+npm run test:integration:record     # hit real APIs, overwrite fixtures (~$0.01/run)
+```
+
+Required env vars for `record` mode: `OPENAI_API_KEY` and/or `AZURE_OPENAI_ENDPOINT` + `AZURE_OPENAI_KEY` + `AZURE_OPENAI_DEPLOYMENT`.
+
+**These tests are excluded from the default `npm test` run** because a fresh clone may not yet have committed fixtures. They only run via `test:integration`. See `server/tests/integration/fixtures/README.md` for the full record/replay workflow, redaction rules, and re-record cadence.
+
+**Why this is more powerful than mocks:** mocks verify your code *calls* a function. Recordings verify your code correctly **parses, error-handles, and reacts to actual provider responses** — including headers, edge fields, refusals, and quirks you'd never invent.
+
+**Critical guardrails baked in (`server/tests/support/polly.js`):**
+- `Authorization`, `api-key`, `x-api-key`, `openai-organization` headers are replaced with `[REDACTED]` before any file is written.
+- Date / request-ID headers are normalized so re-recordings produce stable diffs.
+- Recording bodies are JSON-scanned for any field matching `/api[_-]?key|secret|token/i` and redacted defensively.
+
+**Adding a new recording:**
+1. Add a test in `server/tests/integration/` using `startPolly('your-slug')`.
+2. Run `npm run test:integration:record` with real keys.
+3. Open `server/tests/integration/fixtures/your-slug_*.har` and **verify no secrets leaked**.
+4. Commit the fixture.
+
+---
+
 ## 6. Coverage
 
 Coverage uses V8 (no Babel). Run:

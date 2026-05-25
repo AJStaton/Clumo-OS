@@ -8,6 +8,10 @@ module.exports = defineConfig({
     environment: 'node',
     globals: true,
     include: ['tests/**/*.test.js'],
+    // Integration tests run against recorded HTTP fixtures and are opt-in via
+    // `npm run test:integration` so a fresh clone with no recordings doesn't
+    // turn `npm test` red. See server/tests/integration/README.md.
+    exclude: ['node_modules', 'tests/integration/**'],
     setupFiles: ['./tests/setup.js'],
     coverage: {
       provider: 'v8',

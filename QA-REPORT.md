@@ -47,10 +47,11 @@ Severity scale: **CRIT** ship-blocker · **HIGH** real bug · **MED** likely-to-
 
 ## Fixes shipped (atomic commits on `QA`)
 
-1. **`fix(api): session export uses fullTranscript field`** — F-13. Bug: exported `.json` sessions had `transcript: undefined`. Root cause: API read `sessionData?.transcript` while `SuggestionEngine.getSessionHistory()` returns `fullTranscript`. Covered by regression test in `server/tests/routes/api.test.js`.
-2. **`feat(test): bootstrap Vitest + Playwright`** — added per-workspace configs, root scripts, setup files, devDeps. Added `CLUMO_TEST_DATA_DIR` env override in `db.js` + `storage.js` so each test gets an isolated temp dir.
-3. **`test: add 100 unit/integration tests`** — server modules (db, storage, ai-provider, analysis), REST endpoints (routes/api), web components (SuggestionCard, Transcript), pure-JS (ws-client).
-4. **`fix(storage): atomic JSON writes`** — F-04. `saveKB`/`saveSession` now write to a sibling `.tmp` file, `fsync`, then `rename`. Prevents truncated user data on crash or power loss.
+1. **`fix(api): session export uses fullTranscript field`** — F-13.
+2. **`feat(test): bootstrap Vitest + Playwright`** — per-workspace configs, scripts, setup files.
+3. **`test: add 100 unit/integration tests`** — server modules, REST endpoints, web components.
+4. **`fix(storage): atomic JSON writes`** — F-04.
+5. **`test(integration): Polly.js HTTP recording layer for AI providers`** — Layer 1 of the LLM-testing pyramid. Opt-in `test:integration` script, `test:integration:record` for re-recording, redaction + normalization helpers in `server/tests/support/polly.js`. Fixtures committed after first real recording session.
 
 ---
 
@@ -74,11 +75,13 @@ Severity scale: **CRIT** ship-blocker · **HIGH** real bug · **MED** likely-to-
 | `server/tests/ai-provider.test.js` | 15 | Server unit |
 | `server/tests/analysis.test.js` | 11 | Server unit |
 | `server/tests/routes/api.test.js` | 24 | Server integration (supertest) |
+| `server/tests/integration/ai-provider.openai.test.js` | 1 | Provider integration (Polly recordings, opt-in) |
+| `server/tests/integration/ai-provider.azure.test.js` | 1 | Provider integration (Polly recordings, opt-in) |
 | `web/tests/components/SuggestionCard.test.jsx` | 9 | Web component |
 | `web/tests/components/Transcript.test.jsx` | 3 | Web component |
 | `web/tests/lib/ws-client.test.js` | 9 | Web unit |
 
-Runtime: ~3.5s server, ~5s web. CI-suitable.
+Default suite: **100 tests** in ~8s. Integration tests are opt-in via `npm run test:integration` once a contributor has done a one-time recording session with real API keys.
 
 ---
 
