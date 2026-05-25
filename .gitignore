@@ -16,3 +16,7 @@ server/uploads/*
 Thumbs.db
 .gstack/
 .claude/
+
+# SQLite runtime artifacts
+*.db-shm
+*.db-wal

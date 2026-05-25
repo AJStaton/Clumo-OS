@@ -154,6 +154,8 @@ function deleteSession(id) {
 // --- Setup status helpers ---
 
 function isSetupComplete() {
+  // Explicit flag takes priority (set after initial setup wizard completes)
+  if (getConfig('setup_complete') === 'true') return true;
   const providerMode = getConfig('provider_mode');
   if (providerMode === 'managed') return true;
   const provider = getConfig('ai_provider');

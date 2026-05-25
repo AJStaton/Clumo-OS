@@ -10,9 +10,22 @@ class KnowledgeGenerator {
     // or a raw OpenAI client for backward compatibility
     if (provider && typeof provider.chatCompletion === 'function') {
       this.provider = provider;
-      this.openai = provider.getClient();
+      // Create a wrapped client that always includes the model
+      const rawClient = provider.getClient();
+      const chatModel = provider.chatModel || provider.chatDeployment || 'gpt-4o-mini';
+      this.openai = {
+        chat: {
+          completions: {
+            create: (params) => rawClient.chat.completions.create({ model: chatModel, ...params })
+          }
+        }
+      };
     } else {
-      this.provider = null;
+      // Raw OpenAI client passed directly (backward compat)
+      this.provider = {
+        chatCompletion: (messages, options) => provider.chat.completions.create({ messages, ...options }),
+        getClient: () => provider
+      };
       this.openai = provider;
     }
     // Optional separate embedding provider (e.g. managed mode)

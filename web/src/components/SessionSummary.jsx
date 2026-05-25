@@ -79,8 +79,9 @@ export default function SessionSummary({ session, analysis, badge, onAnalyze, an
 
           {analysis?.callNotes?.length > 0 && (
             <div className="col-span-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+              <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Session Notes</h2>
+                <CopyButton text={analysis.callNotes.join('\n')} label="Copy" />
               </div>
               <ul className="p-4 space-y-2">
                 {analysis.callNotes.map((note, i) => (
