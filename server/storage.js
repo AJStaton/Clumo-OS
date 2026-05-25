@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.CLUMO_TEST_DATA_DIR || path.join(__dirname, 'data');
 const SESSIONS_DIR = path.join(DATA_DIR, 'sessions');
 const KB_PATH = path.join(DATA_DIR, 'knowledge-base.json');
 

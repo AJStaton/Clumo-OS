@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.CLUMO_TEST_DATA_DIR || path.join(__dirname, 'data');
 const DB_PATH = path.join(DATA_DIR, 'clumo.db');
 const KEY_PATH = path.join(DATA_DIR, 'clumo.key');
 
