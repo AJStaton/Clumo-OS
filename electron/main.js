@@ -5,8 +5,26 @@ const { app, BrowserWindow, ipcMain, desktopCapturer, session } = require('elect
 const path = require('path');
 const ServerManager = require('./server-manager');
 
+// --- Test-mode hook (used by Playwright Electron specs) ---
+// When launched with --test (or CLUMO_TEST_MODE=1), Chromium synthesizes
+// fake mic/desktopCapturer streams so GUI tests don't need real audio or
+// OS-level media permissions. Test mode also forwards CLUMO_FAKE_PROVIDER
+// into the embedded server so the AI provider returns canned responses
+// instead of calling OpenAI/Azure.
+const TEST_MODE = process.argv.includes('--test') || process.env.CLUMO_TEST_MODE === '1';
+if (TEST_MODE) {
+  app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
+  app.commandLine.appendSwitch('use-fake-device-for-media-stream');
+  console.log('[Electron] Running in TEST_MODE (fake media + fake provider)');
+}
+
 let mainWindow = null;
-const serverManager = new ServerManager();
+const serverManager = new ServerManager({
+  // In TEST_MODE always resolve the server entry from the dev layout so
+  // Playwright runs against the in-repo server (not a packaged build).
+  serverEntry: TEST_MODE ? path.join(__dirname, '..', 'server', 'index.js') : undefined,
+  extraEnv: TEST_MODE ? { CLUMO_FAKE_PROVIDER: '1' } : {}
+});
 
 function createWindow() {
   mainWindow = new BrowserWindow({

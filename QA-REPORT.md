@@ -66,7 +66,7 @@ Severity scale: **CRIT** ship-blocker · **HIGH** real bug · **MED** likely-to-
 
 ---
 
-## Test inventory (100 total)
+## Test inventory (106 total)
 
 | File | Tests | Layer |
 |---|---|---|
@@ -80,16 +80,22 @@ Severity scale: **CRIT** ship-blocker · **HIGH** real bug · **MED** likely-to-
 | `web/tests/components/SuggestionCard.test.jsx` | 9 | Web component |
 | `web/tests/components/Transcript.test.jsx` | 3 | Web component |
 | `web/tests/lib/ws-client.test.js` | 9 | Web unit |
+| `electron/tests/server-manager.test.js` | 6 | Electron unit (Node side) |
+| `e2e/electron/boot.spec.js` | 1 | Electron E2E (Playwright) |
+| `e2e/electron/preload-bridge.spec.js` | 4 | Electron E2E (Playwright) |
+| `e2e/electron/server-lifecycle.spec.js` | 1 | Electron E2E (Playwright) |
 
-Default suite: **100 tests** in ~8s. Integration tests are opt-in via `npm run test:integration` once a contributor has done a one-time recording session with real API keys.
+Default unit suite: **106 tests** in ~10s (server 79 + web 21 + electron 6).
+Electron E2E suite: **6 tests** in ~8s via `npm run test:e2e:electron`.
+Integration (Polly) tests are opt-in via `npm run test:integration` once a contributor has done a one-time recording session with real API keys.
 
 ---
 
 ## What was NOT done (deliberate scope cuts)
 
-These were scoped out either because (a) they require real GUI / mic / desktop-capture permissions that the CLI environment can't provide, or (b) they were lower-value polish that didn't pass the cost/benefit bar for this cycle:
+These were scoped out either because (a) they require real microphones / OS-level desktop-capture permissions that the CLI environment can't provide, or (b) they were lower-value polish that didn't pass the cost/benefit bar for this cycle:
 
-- Full Electron GUI E2E (Playwright `_electron`) — config is in place; specs not written.
+- Real microphone / desktopCapturer end-to-end audio capture validation (Chromium fake-media handles the synthetic-tone path; real OS audio still needs a human).
 - Page-level tests for every web route (Setup, Sessions, KB, Settings sub-pages).
 - Web E2E (Playwright browser) — config in place; specs not written.
 - `npm audit` remediation (21 vulnerabilities, mostly transitive).
@@ -104,8 +110,8 @@ These are tracked above as **Logged**. The framework is ready; each remaining ar
 
 ```bash
 # From clumo-electron/
-cd server && npm test     # 79 passing
-cd ../web && npm test     # 21 passing
+npm run test:unit            # 106 passing (server 79 + web 21 + electron 6)
+npm run test:e2e:electron    # 6 Playwright Electron specs
 ```
 
-Total: **100 / 100 passing**.
+Total: **106 / 106 unit + 6 / 6 Electron E2E passing**.

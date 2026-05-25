@@ -47,8 +47,16 @@ clumo-electron/
 │   │   └── pages/*.test.jsx      ← page-level tests
 │   └── vitest.config.js
 ├── electron/
-│   └── tests/                    ← Playwright Electron specs
-├── e2e/                          ← Playwright browser specs
+│   ├── tests/
+│   │   ├── fixtures/tiny-server.js   ← stub HTTP server for ServerManager unit tests
+│   │   ├── server-manager.test.js    ← Vitest unit tests (Node side)
+│   │   └── vitest.config.js
+├── e2e/
+│   ├── browser/                      ← Playwright browser specs (UI in chromium)
+│   └── electron/                     ← Playwright Electron specs (full app + IPC)
+│       ├── boot.spec.js              ← app launches, window opens, no console errors
+│       ├── preload-bridge.spec.js    ← window.clumo surface + contextIsolation
+│       └── server-lifecycle.spec.js  ← embedded server reachable, dies on close
 └── playwright.config.js
 ```
 
@@ -176,7 +184,7 @@ it('decrements timer', () => {
 ## 5. Writing E2E tests (Playwright)
 
 ```js
-// e2e/setup.spec.js
+// e2e/browser/setup.spec.js
 import { test, expect } from '@playwright/test';
 
 test('first-run setup', async ({ page }) => {
@@ -187,14 +195,71 @@ test('first-run setup', async ({ page }) => {
 });
 ```
 
-Browser specs run against the Vite dev server (`webServer` config auto-starts it).
-Electron specs use Playwright's `_electron` helper:
+Browser specs (`e2e/browser/`) run against the Node server (`webServer` config auto-starts it on port 3000).
+
+---
+
+## 5a. Writing Electron tests (Playwright + Vitest)
+
+The Electron shell has **two test layers**:
+
+### Layer 1 — Vitest unit tests (Node-only, no GUI)
+
+Lives in `electron/tests/`. Exercises Node-side helpers like `ServerManager` without launching the full Electron runtime. Uses `electron/tests/fixtures/tiny-server.js` as a stand-in for the real embedded server so tests don't need SQLite or the OpenAI client.
+
+```bash
+npm run test:electron        # ~3s, 6 tests
+```
+
+When testing `ServerManager`, inject `serverEntry`, `extraEnv`, `healthTimeoutMs`, and `healthPollIntervalMs` via the constructor so the test owns the lifecycle:
 
 ```js
-import { _electron as electron } from '@playwright/test';
-const app = await electron.launch({ args: ['electron/main.js', '--dev'] });
-const window = await app.firstWindow();
+const sm = new ServerManager({
+  serverEntry: path.join(__dirname, 'fixtures', 'tiny-server.js'),
+  extraEnv: { CLUMO_FAKE_PROVIDER: '1' },
+  healthTimeoutMs: 5000,
+  healthPollIntervalMs: 100
+});
 ```
+
+### Layer 2 — Playwright Electron specs (full app + IPC)
+
+Lives in `e2e/electron/`. Launches the actual packaged Electron main process with `--test` flag, which:
+
+- Enables Chromium's fake media stream (synthetic 440 Hz tone for `getUserMedia`, no permission prompts)
+- Sets `CLUMO_FAKE_PROVIDER=1` so the embedded server returns canned AI responses (no real OpenAI calls, no API keys needed)
+- Resolves the server entry from the in-repo dev layout (not `process.resourcesPath`)
+
+```js
+const { test, expect, _electron: electron } = require('@playwright/test');
+
+const app = await electron.launch({ args: ['electron/main.js', '--test'] });
+const win = await app.firstWindow();
+
+// Verify preload bridge surface
+const port = await win.evaluate(() => window.clumo.getServerPort());
+
+// Verify contextIsolation: Node globals must NOT leak
+const leak = await win.evaluate(() => typeof window.require);
+expect(leak).toBe('undefined');
+
+await app.close();
+```
+
+```bash
+npm run test:e2e:electron    # ~8s, 6 tests (boot + preload + lifecycle)
+```
+
+**Cross-platform note:** `test:e2e:electron` uses `cross-env CLUMO_E2E_NO_SERVER=1` so the global Playwright `webServer` (which boots the standalone HTTP server on port 3000) doesn't conflict with the Electron-embedded server which picks its own dynamic port.
+
+**Production-code hooks (intentional and minimal):**
+
+| Hook | Location | Purpose |
+|---|---|---|
+| `--test` flag / `CLUMO_TEST_MODE=1` | `electron/main.js` | Activates fake-media flags + fake provider |
+| `CLUMO_FAKE_PROVIDER=1` | `server/ai-provider.js` | Short-circuits `loadProvider()` to `server/tests/fixtures/fake-provider.js` |
+
+Both are no-ops in production. The fake provider implements the same interface as `AzureOpenAIProvider` / `OpenAIProvider` (chatCompletion, createRealtimeWebSocket, generateEmbedding, validateConfig) and echoes user input deterministically.
 
 ---
 

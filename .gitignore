@@ -20,3 +20,7 @@ Thumbs.db
 # SQLite runtime artifacts
 *.db-shm
 *.db-wal
+
+# Playwright
+playwright-report/
+test-results/

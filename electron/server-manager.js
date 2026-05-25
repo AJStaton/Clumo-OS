@@ -6,9 +6,18 @@ const path = require('path');
 const net = require('net');
 
 class ServerManager {
-  constructor() {
+  constructor(options = {}) {
     this.process = null;
     this.port = null;
+    // Optional overrides — primarily for tests.
+    // `serverEntry`: absolute path to the server entry JS to spawn.
+    // `nodeBin`: node executable (defaults to "node" on PATH).
+    // `extraEnv`: extra env vars merged into the spawned process env.
+    this.serverEntry = options.serverEntry || null;
+    this.nodeBin = options.nodeBin || 'node';
+    this.extraEnv = options.extraEnv || {};
+    this.healthTimeoutMs = options.healthTimeoutMs || 10000;
+    this.healthPollIntervalMs = options.healthPollIntervalMs || 200;
   }
 
   // Find an available port
@@ -26,19 +35,24 @@ class ServerManager {
   async start() {
     this.port = await this.findPort();
 
-    // In production (packaged), server is in resources/server/
-    // In development, it's at ../server/
-    const isDev = !process.resourcesPath || process.argv.includes('--dev');
-    const serverPath = isDev
-      ? path.join(__dirname, '..', 'server', 'index.js')
-      : path.join(process.resourcesPath, 'server', 'index.js');
+    // Resolve the server entry path: explicit override (tests) > prod > dev.
+    let serverPath;
+    if (this.serverEntry) {
+      serverPath = this.serverEntry;
+    } else {
+      const isDev = !process.resourcesPath || process.argv.includes('--dev');
+      serverPath = isDev
+        ? path.join(__dirname, '..', 'server', 'index.js')
+        : path.join(process.resourcesPath, 'server', 'index.js');
+    }
 
     return new Promise((resolve, reject) => {
       // Use spawn with system node instead of fork (avoids Electron's
       // bundled Node issues with native modules like better-sqlite3)
-      this.process = spawn('node', [serverPath], {
+      this.process = spawn(this.nodeBin, [serverPath], {
         env: {
           ...process.env,
+          ...this.extraEnv,
           PORT: String(this.port)
         },
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -64,7 +78,7 @@ class ServerManager {
       });
 
       // Poll the health endpoint until the server is ready
-      const maxAttempts = 50; // 10 seconds total
+      const maxAttempts = Math.ceil(this.healthTimeoutMs / this.healthPollIntervalMs);
       let attempts = 0;
       let resolved = false;
 
@@ -92,11 +106,11 @@ class ServerManager {
           reject(new Error('Server failed to start within timeout'));
           return;
         }
-        setTimeout(checkHealth, 200);
+        setTimeout(checkHealth, this.healthPollIntervalMs);
       };
 
       // Give the server a moment to initialize before first check
-      setTimeout(checkHealth, 1000);
+      setTimeout(checkHealth, Math.min(this.healthPollIntervalMs * 5, 1000));
     });
   }
 
