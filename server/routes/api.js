@@ -509,7 +509,7 @@ router.get('/api/session/:sessionId/export', (req, res) => {
   const sessionData = storage.loadSession(sessionId);
   const exportData = {
     ...session,
-    transcript: sessionData?.transcript || [],
+    transcript: sessionData?.fullTranscript || [],
     analysis: sessionData?.analysis || null,
     suggestions: sessionData?.suggestions || []
   };

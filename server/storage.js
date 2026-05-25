@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.CLUMO_TEST_DATA_DIR || path.join(__dirname, 'data');
 const SESSIONS_DIR = path.join(DATA_DIR, 'sessions');
 const KB_PATH = path.join(DATA_DIR, 'knowledge-base.json');
 
@@ -14,11 +14,26 @@ function ensureDir(dir) {
   }
 }
 
+// Write a JSON file atomically: write to a sibling temp file, fsync, then rename.
+// Prevents truncated/corrupted files if the process crashes mid-write.
+function atomicWriteJson(filePath, data) {
+  const dir = path.dirname(filePath);
+  ensureDir(dir);
+  const tmp = path.join(dir, `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`);
+  const fd = fs.openSync(tmp, 'w');
+  try {
+    fs.writeFileSync(fd, JSON.stringify(data, null, 2));
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  fs.renameSync(tmp, filePath);
+}
+
 // --- Knowledge Base ---
 
 function saveKB(data) {
-  ensureDir(DATA_DIR);
-  fs.writeFileSync(KB_PATH, JSON.stringify(data, null, 2));
+  atomicWriteJson(KB_PATH, data);
 }
 
 function loadKB() {
@@ -53,8 +68,7 @@ function getSessionPath(sessionId) {
 }
 
 function saveSession(sessionId, data) {
-  ensureDir(SESSIONS_DIR);
-  fs.writeFileSync(getSessionPath(sessionId), JSON.stringify(data));
+  atomicWriteJson(getSessionPath(sessionId), data);
 }
 
 function loadSession(sessionId) {

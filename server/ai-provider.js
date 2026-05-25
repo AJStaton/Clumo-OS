@@ -222,6 +222,14 @@ class ManagedProvider {
 // --- Factory: load provider from saved config ---
 
 function loadProvider() {
+  // Test hook: when CLUMO_FAKE_PROVIDER=1 is set, return a deterministic
+  // in-memory provider so E2E and Electron GUI tests can run without any
+  // real API key, network call, or cost. Production code paths are
+  // identical — this hook lives only at the factory boundary.
+  if (process.env.CLUMO_FAKE_PROVIDER === '1') {
+    return require('./tests/fixtures/fake-provider');
+  }
+
   const providerMode = getConfig('provider_mode');
 
   // In managed mode, use ManagedProvider for all AI operations
