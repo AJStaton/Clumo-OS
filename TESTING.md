@@ -1,0 +1,271 @@
+# Clumo-OS Testing Guide
+
+A cheat sheet for writing, running, and maintaining tests in this repo.
+
+> **Stack:** Vitest (unit/integration) + Playwright (E2E + Electron). No Jest, no Mocha, no Karma.
+
+---
+
+## 1. Quick start
+
+```bash
+# From repo root
+npm install                  # installs root + server + web + electron deps
+npm test                     # runs all unit/integration tests (server + web)
+npm run test:unit            # alias for the above
+npm run test:e2e             # runs Playwright browser specs
+npm run test:e2e:electron    # runs Playwright Electron specs
+npm run test:coverage        # generates V8 coverage reports
+```
+
+Per-workspace:
+
+```bash
+cd server && npm test        # server-only Vitest
+cd web && npm test           # web-only Vitest
+cd web && npm run test:ui    # interactive Vitest UI
+```
+
+---
+
+## 2. Folder layout
+
+```
+clumo-electron/
+├── server/
+│   ├── tests/
+│   │   ├── setup.js              ← test bootstrap (temp data dir)
+│   │   ├── *.test.js             ← per-module unit tests
+│   │   └── routes/
+│   │       └── api.test.js       ← supertest HTTP integration tests
+│   └── vitest.config.js
+├── web/
+│   ├── tests/
+│   │   ├── setup.js              ← jest-dom + window/global stubs
+│   │   ├── components/*.test.jsx ← component tests (Testing Library)
+│   │   ├── lib/*.test.js         ← pure-JS tests (ws-client, etc.)
+│   │   └── pages/*.test.jsx      ← page-level tests
+│   └── vitest.config.js
+├── electron/
+│   └── tests/                    ← Playwright Electron specs
+├── e2e/                          ← Playwright browser specs
+└── playwright.config.js
+```
+
+Naming convention: `*.test.js` for plain JS, `*.test.jsx` for React, `*.spec.js` for Playwright.
+
+---
+
+## 3. Writing server tests
+
+Server tests run in Node.js with Vitest globals. `describe`, `it`, `expect`, `vi`, `beforeEach`, `afterEach`, `afterAll` are **available without import** (`globals: true` in `server/vitest.config.js`).
+
+> ⚠️ Don't `require('vitest')` — Vitest is ESM-only and CommonJS `require` will throw. Use the globals.
+
+**Pattern: isolated SQLite + storage per test file**
+
+Every server module that touches disk honors `process.env.CLUMO_TEST_DATA_DIR`. Always set this to a fresh temp dir per file:
+
+```js
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+let tmpDir;
+let db;
+let storage;
+
+beforeEach(() => {
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clumo-test-'));
+  process.env.CLUMO_TEST_DATA_DIR = tmpDir;
+  // Force module re-evaluation so DATA_DIR is recomputed
+  delete require.cache[require.resolve('../db.js')];
+  delete require.cache[require.resolve('../storage.js')];
+  db = require('../db.js');
+  storage = require('../storage.js');
+});
+
+afterEach(() => {
+  if (db?.close) db.close();
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+```
+
+**Pattern: HTTP integration with supertest**
+
+```js
+const request = require('supertest');
+const express = require('express');
+
+let app;
+beforeEach(() => {
+  // …reset modules as above…
+  app = express();
+  app.use(express.json());
+  app.use('/api', require('../routes/api'));
+});
+
+it('GET /api/status returns 200', async () => {
+  const res = await request(app).get('/api/status');
+  expect(res.status).toBe(200);
+  expect(res.body).toHaveProperty('isConfigured');
+});
+```
+
+**Pattern: mocking the AI provider**
+
+```js
+vi.mock('../ai-provider.js', () => ({
+  loadProvider: () => ({
+    transcribe: vi.fn().mockResolvedValue('hello world'),
+    chat: vi.fn().mockResolvedValue({ content: 'reply' })
+  })
+}));
+```
+
+Never put a real API key in a test — even in a `.env.test`. Mock the provider.
+
+---
+
+## 4. Writing web component tests
+
+Web tests run in `happy-dom` with `@testing-library/react`. `jest-dom` matchers are loaded in `web/tests/setup.js`.
+
+**Boilerplate:**
+
+```jsx
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import MyComponent from '../../src/components/MyComponent.jsx';
+
+describe('MyComponent', () => {
+  it('renders the label', () => {
+    render(<MyComponent label="hi" />);
+    expect(screen.getByText('hi')).toBeInTheDocument();
+  });
+});
+```
+
+**Querying — preferred order** (per Testing Library guidance):
+1. `getByRole` (accessibility-first)
+2. `getByLabelText` (form fields)
+3. `getByPlaceholderText`
+4. `getByText`
+5. `getByDisplayValue`
+6. `getByAltText`
+7. `getByTitle`
+8. `getByTestId` (last resort, add `data-testid` only when nothing else works)
+
+**Faking time** (for components with `setInterval` like `SuggestionCard`):
+
+```js
+beforeEach(() => vi.useFakeTimers());
+afterEach(() => vi.useRealTimers());
+
+it('decrements timer', () => {
+  render(<SuggestionCard suggestion={…} />);
+  act(() => vi.advanceTimersByTime(1000));
+  expect(screen.getByText('14s')).toBeInTheDocument();
+});
+```
+
+**Stubbing globals (`window.clumo`, `fetch`, etc.):** done in `web/tests/setup.js`. Override per-test with `vi.stubGlobal`.
+
+---
+
+## 5. Writing E2E tests (Playwright)
+
+```js
+// e2e/setup.spec.js
+import { test, expect } from '@playwright/test';
+
+test('first-run setup', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: /Welcome to Clumo/i })).toBeVisible();
+  await page.getByRole('button', { name: /Get started/i }).click();
+  // …mock the API or use a seeded test server…
+});
+```
+
+Browser specs run against the Vite dev server (`webServer` config auto-starts it).
+Electron specs use Playwright's `_electron` helper:
+
+```js
+import { _electron as electron } from '@playwright/test';
+const app = await electron.launch({ args: ['electron/main.js', '--dev'] });
+const window = await app.firstWindow();
+```
+
+---
+
+## 6. Coverage
+
+Coverage uses V8 (no Babel). Run:
+
+```bash
+npm run test:coverage
+```
+
+HTML reports land in `server/coverage/` and `web/coverage/`. Open `index.html`.
+
+Targets:
+- Server modules: ≥80% lines (storage/db/ai-provider/routes are tier-1; aim for 90%+)
+- Web components: ≥70% lines (interaction-heavy components ≥85%)
+- Pure utilities (`ws-client`, `analysis` helpers): 100% achievable
+
+---
+
+## 7. Debugging flaky tests
+
+| Symptom | Tool |
+|---|---|
+| Component test fails sporadically | `npx vitest --ui` (web/) or `vi.useFakeTimers()` |
+| Playwright test fails in CI only | `npx playwright show-trace trace.zip` |
+| "Module not found" after refactor | `delete require.cache[…]` in `beforeEach` |
+| SQLite "database is locked" | Ensure `db.close()` in `afterEach` |
+| OneDrive locks test files on Windows | Use `os.tmpdir()` — never write under the OneDrive checkout root |
+
+---
+
+## 8. Best practices
+
+- **Isolation:** every test creates its own temp dir / fresh DB. No shared state.
+- **Determinism:** no real network calls, no real keys, no real time (`useFakeTimers` where relevant).
+- **Single-assertion intent:** prefer multiple small `expect`s over a single mega-assert with `toMatchObject`.
+- **Repro names:** test titles should read like sentences — "decrements counter when started" beats "test1".
+- **Regression tests for bugs:** every issue fixed during the QA cycle should have a regression test referencing the finding ID (e.g. `// regression: F-13`).
+- **No snapshot tests for HTML.** They rot too fast. Snapshot pure-data JSON (e.g. MEDDPICC score shapes) only.
+- **Mock at the edge.** Mock `fetch`/HTTP and filesystem at module boundaries, not deep internals.
+
+---
+
+## 9. CI integration (future)
+
+The test scripts are CI-friendly by default:
+
+```yaml
+# .github/workflows/test.yml (sketch)
+- run: npm ci
+- run: npm test                    # unit
+- run: npx playwright install --with-deps chromium
+- run: npm run test:e2e
+- uses: actions/upload-artifact@v4
+  if: failure()
+  with:
+    name: playwright-traces
+    path: test-results/
+```
+
+---
+
+## 10. Adding a new test file
+
+1. Decide the layer: server module → `server/tests/`; web component → `web/tests/components/`; full-app flow → `e2e/`.
+2. Copy the closest sibling test as a template.
+3. Run only that file while iterating: `npx vitest run path/to/file.test.js`.
+4. Verify it still passes when the rest of the suite runs: `npm test`.
+5. Commit with `test(<area>): <what is now covered>`.
+
+---
+
+**Last updated:** 2025 QA cycle. Owners: this repo's contributors.
