@@ -10,6 +10,9 @@ module.exports = defineConfig({
     environment: 'node',
     globals: true,
     include: ['tests/integration/**/*.test.js'],
+    // The realtime WebSocket test is opt-in via `npm run test:realtime` and
+    // would hit the live API if run here, so we exclude it from Polly replay.
+    exclude: ['tests/integration/ai-provider.azure-realtime.test.js'],
     setupFiles: ['./tests/setup.js'],
     // Network round-trips can be slow even when recorded.
     testTimeout: 30000

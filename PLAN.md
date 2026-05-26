@@ -35,6 +35,62 @@ Integrations and Automation sidebar links are disabled with "Coming soon" labels
 
 ---
 
+## Phase 6: Pre-Release Test Coverage ✓
+
+Two cheap, high-leverage additions that close the gap between "100 unit tests pass" and "the released installer actually works on a real machine talking to the real Azure OpenAI Realtime API."
+
+### Feature 1: Manual smoke test checklist ✓
+
+**File:** `e2e/manual/RELEASE-SMOKE-TEST.md`
+
+A ~10-minute checklist a human runs against a freshly built installer before every release. Lives in `e2e/manual/` to sit next to the other end-to-end layers (`e2e/browser/`, `e2e/electron/`) — this is the human-driven tier of the same pyramid.
+
+Walks the tester through six sections (~10 min total):
+
+1. **Pre-flight** — clean machine, no leftover `clumo.key` / `data/`, second device ready to drive a real Teams meeting, virtual audio driver installed on macOS.
+2. **Fresh install** — installer launches without smartscreen blocks, no console errors, lands on Setup.
+3. **Setup wizard** — BYOK toggle visible, provider Test Connection succeeds, file-upload button works, KB generation completes.
+4. **Live call with real Teams audio** — AudioSourcePicker detects Teams, transcripts appear live, at least one suggestion card renders within 60 s, MEDDPICC populates, post-call analysis completes.
+5. **Export** — exported session contains non-empty transcript (regression guard for F-13), MEDDPICC scores, follow-up email.
+6. **Restart resilience** — app reopens straight to Session page, history persists, API key field is masked (regression guard for the BYOK encryption invariant).
+
+Ends with a sign-off block (tester, date, commit SHA, installer build, OS, PASS/FAIL) and a failure protocol that ties back to `QA-REPORT.md`'s finding format. Cross-links to `npm run test:realtime` for the realtime-path failure case.
+
+### Feature 2: Real-API Realtime integration test ✓
+
+**Files:**
+- `server/tests/integration/ai-provider.azure-realtime.test.js` — the test
+- `server/tests/integration/fixtures/realtime-sample.wav` — committed audio fixture (16 kHz / mono / PCM16, ~118 KB, "The quick brown fox jumps over the lazy dog." generated via `espeak-ng`)
+- `server/vitest.realtime.config.js` — dedicated config (separate from Polly's `vitest.integration.config.js`)
+- `server/package.json` — new `test:realtime` script
+
+**Why a separate layer:** the Polly recordings (`test:integration`) cover HTTP-based chat/embedding paths. They cannot record WebSocket frames. Realtime transcription is the single most expensive code path to break unnoticed — every customer call goes through it — and it has no automated coverage today.
+
+**What it does:**
+1. Opens an Azure OpenAI Realtime WebSocket via `AzureOpenAIProvider.createRealtimeWebSocket()` — exercising the exact code path production uses.
+2. Sends `transcription_session.update` with the same `pcm16` / `whisper-1` / `server_vad` config as `server/routes/ws.js`.
+3. Streams the WAV in ~100 ms PCM16 chunks via `input_audio_buffer.append`, then `input_audio_buffer.commit`.
+4. Waits for `conversation.item.input_audio_transcription.completed` (or the older `transcription.text.done` — both are handled, matching `ws.js`).
+5. Asserts the transcript is a non-empty string and matches `/fox|quick|brown|lazy|dog/i` (soft regex — any one distinctive keyword passes, so Whisper version drift doesn't break the test).
+
+**Gating — opt-in, never red on a fresh clone:**
+- Runs only via `npm run test:realtime --workspace=server` (or `npm run test:realtime` from `server/`).
+- Excluded from default `npm test` (via `server/vitest.config.js`'s existing `tests/integration/**` exclusion).
+- Excluded from `npm run test:integration` (Polly replay) via an explicit `exclude` in `vitest.integration.config.js` — otherwise contributors replaying Polly fixtures would unexpectedly hit the live Realtime API.
+- When `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_KEY` / `AZURE_OPENAI_REALTIME_DEPLOYMENT` env vars are missing, the test **skips** (it does not fail) and a sentinel `it(...)` asserts the skip is intentional — so the suite still reports 1 test rather than 0.
+
+**Cost:** roughly $0.001 per run when credentials are set. Intended cadence: run before every release (linked from `RELEASE-SMOKE-TEST.md`), and ad-hoc whenever `ai-provider.js` or `routes/ws.js` realtime code changes.
+
+### Verification
+
+1. `npm test` from repo root → 106 tests pass, new realtime test is **not** picked up.
+2. `npm run test:integration --workspace=server` (no env vars) → existing Polly tests replay; realtime test is **not** picked up.
+3. `npm run test:realtime --workspace=server` (no env vars) → 1 skip + 1 sentinel pass, exit 0, ~1 s.
+4. `AZURE_OPENAI_ENDPOINT=… AZURE_OPENAI_KEY=… AZURE_OPENAI_REALTIME_DEPLOYMENT=… npm run test:realtime --workspace=server` → connects to live API, streams WAV, asserts transcript contains a fox/quick/brown/lazy/dog keyword, exit 0, ~5–15 s.
+5. `e2e/manual/RELEASE-SMOKE-TEST.md` is discoverable from `TESTING.md` and renders cleanly on GitHub.
+
+---
+
 ## Archived: Phase 4 UI Improvements ✓
 
 ## Next Features (Phase 4: UI Improvements)
