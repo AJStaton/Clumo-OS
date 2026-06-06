@@ -9,6 +9,7 @@
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.integration.config.js",
     "test:integration:record": "cross-env POLLY_MODE=record vitest run --config vitest.integration.config.js",
+    "test:realtime": "vitest run --config vitest.realtime.config.js",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {

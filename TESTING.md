@@ -291,6 +291,37 @@ Required env vars for `record` mode: `OPENAI_API_KEY` and/or `AZURE_OPENAI_ENDPO
 
 ---
 
+## 5c. Realtime WebSocket integration test (live API)
+
+`server/tests/integration/ai-provider.azure-realtime.test.js` connects to the **live** Azure OpenAI Realtime API over WebSocket, streams a small committed WAV (`server/tests/integration/fixtures/realtime-sample.wav`, 16 kHz mono PCM16), and asserts a transcript comes back. This is the only test that exercises `AzureOpenAIProvider.createRealtimeWebSocket()` end-to-end.
+
+```bash
+# Skips when env vars are missing (exit 0):
+npm run test:realtime --workspace=server
+
+# Hits the live API (~$0.001/run):
+AZURE_OPENAI_ENDPOINT=https://your.openai.azure.com \
+AZURE_OPENAI_KEY=...                                  \
+AZURE_OPENAI_REALTIME_DEPLOYMENT=gpt-4o-realtime-preview \
+  npm run test:realtime --workspace=server
+```
+
+Why it's separate from `test:integration`: Polly's HTTP adapter cannot record WebSocket frames, so this layer cannot use fixtures — every run with credentials is a real network call. It uses its own `server/vitest.realtime.config.js` and is explicitly excluded from the Polly config so a `test:integration` run never accidentally hits the live Realtime endpoint.
+
+Run cadence:
+- Before every release (referenced from `e2e/manual/RELEASE-SMOKE-TEST.md`).
+- Whenever `server/ai-provider.js` realtime code or `server/routes/ws.js` event handling changes.
+
+---
+
+## 5d. Pre-release manual smoke test
+
+`e2e/manual/RELEASE-SMOKE-TEST.md` is a ~10-minute human-driven checklist run against a freshly built installer before every release. It's the only layer that exercises the real desktopCapturer audio path, the real installer, real Teams audio, and the export-to-disk path end-to-end.
+
+The release manager fills out the sign-off block (tester, date, commit SHA, OS, PASS/FAIL) before shipping. A failed step blocks the release and gets a finding ID in `QA-REPORT.md`.
+
+---
+
 ## 6. Coverage
 
 Coverage uses V8 (no Babel). Run:
