@@ -345,6 +345,18 @@ router.get('/api/onboarding/knowledge-base', (req, res) => {
   }
 });
 
+// Delete the knowledge base (reset for re-onboarding)
+router.delete('/api/onboarding/knowledge-base', (req, res) => {
+  try {
+    storage.deleteKB();
+    db.setConfig('onboarding_complete', 'false');
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[API] Failed to delete KB:', e.message);
+    res.status(500).json({ error: 'Failed to delete knowledge base' });
+  }
+});
+
 // ============================================
 // SESSIONS
 // ============================================

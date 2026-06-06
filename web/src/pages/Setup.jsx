@@ -266,11 +266,20 @@ export default function Setup({ onComplete }) {
         const data = JSON.parse(e.data);
         setOnboardingMessages(prev => [...prev, `Error: ${data.message}`]);
       } catch {
-        setOnboardingMessages(prev => [...prev, 'Connection lost']);
+        // Custom 'error' event without parseable data
+        setOnboardingMessages(prev => [...prev, 'Error: Connection lost']);
       }
       setOnboardingStatus('error');
       eventSource.close();
     });
+
+    // Native onerror fires on connection drop/timeout (separate from custom 'error' event)
+    eventSource.onerror = () => {
+      if (eventSource.readyState === EventSource.CLOSED) return; // already handled
+      setOnboardingMessages(prev => [...prev, 'Error: Connection to server lost. The server may have crashed or timed out.']);
+      setOnboardingStatus('error');
+      eventSource.close();
+    };
   }
 
   function handleFinish() {
@@ -591,6 +600,13 @@ export default function Setup({ onComplete }) {
 
             {onboardingStatus === 'error' && (
               <div>
+                {onboardingMessages.length > 0 && (
+                  <div className="space-y-1 max-h-60 overflow-y-auto bg-gray-50 rounded-md p-3 text-sm text-gray-600 mb-4">
+                    {onboardingMessages.map((msg, i) => (
+                      <div key={i} className={msg.startsWith('Error:') ? 'text-red-600 font-medium' : ''}>{msg}</div>
+                    ))}
+                  </div>
+                )}
                 <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4">
                   <p className="text-sm text-red-800">Something went wrong. Check the log above.</p>
                 </div>
