@@ -45,7 +45,7 @@ export default function Call({ onListeningChange }) {
         setError(null);
         break;
       case '_disconnected':
-        if (status !== 'idle') setStatus('stopped');
+        setStatus(prev => prev !== 'idle' ? 'stopped' : prev);
         break;
       case '_error':
         setError(msg.message);
@@ -69,7 +69,7 @@ export default function Call({ onListeningChange }) {
         setError(msg.message);
         break;
     }
-  }, [status]);
+  }, []);
 
   // Auto-collapse sidebar when listening starts; refresh sessions when stopped
   const prevStatusRef = useRef(null);
@@ -137,7 +137,9 @@ export default function Call({ onListeningChange }) {
           video: false
         });
       } else if (sourceId === 'screen-share') {
-        stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: false });
+        stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+        // Only need audio — stop video tracks to save resources
+        stream.getVideoTracks().forEach(t => t.stop());
       } else {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       }

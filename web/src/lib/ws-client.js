@@ -4,7 +4,7 @@
 export function createWsClient(onMessage) {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = window.location.host;
-  const ws = new WebSocket(`${protocol}//${host}`);
+  const ws = new WebSocket(`${protocol}//${host}/ws`);
 
   ws.onopen = () => {
     onMessage({ type: '_connected' });

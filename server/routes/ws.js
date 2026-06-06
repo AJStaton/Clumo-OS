@@ -23,7 +23,17 @@ function getCompletedSessions() {
 }
 
 function setupWebSocket(httpServer) {
-  const wss = new WebSocket.Server({ server: httpServer });
+  const wss = new WebSocket.Server({ noServer: true });
+
+  httpServer.on('upgrade', (req, socket, head) => {
+    if (req.url === '/ws' || req.url === '/') {
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit('connection', ws, req);
+      });
+    } else {
+      socket.destroy();
+    }
+  });
 
   wss.on('connection', async (clientWs, req) => {
     console.log('[WS] Client connected');

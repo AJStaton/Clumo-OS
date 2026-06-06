@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { AppProvider } from './context/AppContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import Landing from './pages/Landing';
 import Setup from './pages/Setup';
 import Call from './pages/Call';
@@ -62,7 +63,8 @@ export default function App() {
               onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
             />
             <main className="flex-1 overflow-y-auto">
-              <Routes>
+              <ErrorBoundary>
+                <Routes>
                 <Route path="/" element={<Navigate to="/session" />} />
                 <Route path="/session" element={<Call onListeningChange={(listening) => {
                   if (listening) setSidebarCollapsed(true);
@@ -83,6 +85,7 @@ export default function App() {
                 <Route path="/sessions" element={<Navigate to="/session" replace />} />
                 <Route path="*" element={<Navigate to="/session" />} />
               </Routes>
+              </ErrorBoundary>
             </main>
           </div>
         )}
