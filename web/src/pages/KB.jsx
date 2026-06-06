@@ -19,6 +19,19 @@ export default function KB() {
   const [setupCounts, setSetupCounts] = useState(null);
   const setupFileRef = useRef(null);
 
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  async function handleResetKB() {
+    const res = await fetch('/api/onboarding/knowledge-base', { method: 'DELETE' });
+    if (res.ok) {
+      setKb(null);
+      setConfirmReset(false);
+      setSetupStatus('idle');
+      setSetupMessages([]);
+      setSetupCounts(null);
+    }
+  }
+
   useEffect(() => {
     loadKB();
   }, []);
@@ -179,14 +192,45 @@ export default function KB() {
           )}
         </div>
         {kb && (
-          <button
-            onClick={() => setAdding(!adding)}
-            className="px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-md text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-200"
-          >
-            {adding ? 'Cancel' : 'Add Content'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setConfirmReset(true)}
+              className="px-4 py-2 border border-red-300 dark:border-red-600 text-red-700 dark:text-red-400 rounded-md text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20"
+            >
+              Re-run Onboarding
+            </button>
+            <button
+              onClick={() => setAdding(!adding)}
+              className="px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-md text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-200"
+            >
+              {adding ? 'Cancel' : 'Add Content'}
+            </button>
+          </div>
         )}
       </div>
+
+      {/* Reset confirmation dialog */}
+      {confirmReset && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-4 mb-6">
+          <p className="text-sm font-medium text-red-800 dark:text-red-300 mb-3">
+            This will delete your entire knowledge base and restart the onboarding process. Are you sure?
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={handleResetKB}
+              className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700"
+            >
+              Yes, reset and re-run
+            </button>
+            <button
+              onClick={() => setConfirmReset(false)}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Add content panel (for existing KB) */}
       {adding && (
