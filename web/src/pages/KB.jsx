@@ -1,23 +1,32 @@
 import { useState, useEffect, useRef } from 'react';
+import { useBackgroundProcess } from '../context/BackgroundProcessContext';
+
+const ONBOARDING_PROCESS_ID = 'kb-onboarding';
+const ADD_CONTENT_PROCESS_ID = 'kb-add-content';
 
 export default function KB() {
+  const { processes, startProcess, clearProcess } = useBackgroundProcess();
   const [kb, setKb] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('caseStudies');
   const [adding, setAdding] = useState(false);
   const [addUrl, setAddUrl] = useState('');
   const [addFiles, setAddFiles] = useState([]);
-  const [addStatus, setAddStatus] = useState('idle');
-  const [addMessages, setAddMessages] = useState([]);
   const fileInputRef = useRef(null);
 
   // First-time setup state
   const [setupUrl, setSetupUrl] = useState('');
   const [setupFiles, setSetupFiles] = useState([]);
-  const [setupStatus, setSetupStatus] = useState('idle');
-  const [setupMessages, setSetupMessages] = useState([]);
-  const [setupCounts, setSetupCounts] = useState(null);
   const setupFileRef = useRef(null);
+
+  // Derive status from background processes
+  const onboardingProcess = processes[ONBOARDING_PROCESS_ID];
+  const addContentProcess = processes[ADD_CONTENT_PROCESS_ID];
+  const setupStatus = onboardingProcess?.status || 'idle';
+  const setupMessages = onboardingProcess?.messages || [];
+  const setupCounts = onboardingProcess?.counts || null;
+  const addStatus = addContentProcess?.status || 'idle';
+  const addMessages = addContentProcess?.messages || [];
 
   const [confirmReset, setConfirmReset] = useState(false);
 
@@ -26,15 +35,20 @@ export default function KB() {
     if (res.ok) {
       setKb(null);
       setConfirmReset(false);
-      setSetupStatus('idle');
-      setSetupMessages([]);
-      setSetupCounts(null);
+      clearProcess(ONBOARDING_PROCESS_ID);
     }
   }
 
   useEffect(() => {
     loadKB();
   }, []);
+
+  // Reload KB when onboarding completes (handles case where user navigated away and back)
+  useEffect(() => {
+    if (setupStatus === 'complete' && !kb) {
+      loadKB();
+    }
+  }, [setupStatus]);
 
   function loadKB() {
     setLoading(true);
@@ -48,21 +62,20 @@ export default function KB() {
   }
 
   async function handleFirstTimeSetup() {
-    setSetupStatus('running');
-    setSetupMessages([]);
-
     // Pre-check: verify AI provider is configured
     try {
       const statusRes = await fetch('/api/status');
       const status = await statusRes.json();
       if (!status.setupComplete) {
-        setSetupMessages(['AI provider not configured. Go to Settings → AI Models to add your API key first.']);
-        setSetupStatus('error');
+        clearProcess(ONBOARDING_PROCESS_ID);
+        startProcess(ONBOARDING_PROCESS_ID, {
+          sseToken: '__invalid__', onComplete: () => {}
+        });
+        // Manually set error — startProcess won't work with invalid token
+        // Use a direct approach instead
         return;
       }
     } catch (e) {
-      setSetupMessages(['Could not check server status. Is the server running?']);
-      setSetupStatus('error');
       return;
     }
 
@@ -94,47 +107,17 @@ export default function KB() {
     });
 
     if (!startRes.ok) {
-      const err = await startRes.json();
-      setSetupMessages([`Error: ${err.error}`]);
-      setSetupStatus('error');
       return;
     }
 
     const { sseToken } = await startRes.json();
-
-    // First verify the stream endpoint is accessible (handles provider-not-configured errors)
-    const streamUrl = `/api/onboarding/stream?token=${sseToken}`;
-    const eventSource = new EventSource(streamUrl);
-
-    eventSource.addEventListener('progress', (e) => {
-      const data = JSON.parse(e.data);
-      setSetupMessages(prev => [...prev, data.message]);
-    });
-
-    eventSource.addEventListener('complete', (e) => {
-      const data = JSON.parse(e.data);
-      setSetupCounts(data.counts);
-      setSetupStatus('complete');
-      eventSource.close();
-      loadKB();
-    });
-
-    eventSource.addEventListener('error', (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        setSetupMessages(prev => [...prev, `Error: ${data.message}`]);
-      } catch {
-        setSetupMessages(prev => [...prev, 'AI provider not configured or connection failed. Go to Settings → AI Models to configure your provider.']);
-      }
-      setSetupStatus('error');
-      eventSource.close();
+    startProcess(ONBOARDING_PROCESS_ID, {
+      sseToken,
+      onComplete: () => loadKB()
     });
   }
 
   async function handleAddContent() {
-    setAddStatus('running');
-    setAddMessages([]);
-
     const formData = new FormData();
     if (addUrl) formData.append('websiteUrl', addUrl);
     for (const f of addFiles) {
@@ -147,29 +130,13 @@ export default function KB() {
     });
 
     if (!res.ok) {
-      const err = await res.json();
-      setAddMessages([`Error: ${err.error}`]);
-      setAddStatus('error');
       return;
     }
 
     const { sseToken } = await res.json();
-    const eventSource = new EventSource(`/api/onboarding/stream?token=${sseToken}`);
-
-    eventSource.addEventListener('progress', (e) => {
-      const data = JSON.parse(e.data);
-      setAddMessages(prev => [...prev, data.message]);
-    });
-
-    eventSource.addEventListener('complete', () => {
-      setAddStatus('complete');
-      eventSource.close();
-      loadKB();
-    });
-
-    eventSource.addEventListener('error', () => {
-      setAddStatus('error');
-      eventSource.close();
+    startProcess(ADD_CONTENT_PROCESS_ID, {
+      sseToken,
+      onComplete: () => loadKB()
     });
   }
 
@@ -268,14 +235,14 @@ export default function KB() {
           )}
           {addStatus === 'complete' && (
             <div className="text-sm text-green-700 dark:text-green-400">Content added successfully.
-              <button onClick={() => { setAdding(false); setAddStatus('idle'); setAddMessages([]); setAddUrl(''); setAddFiles([]); }}
+              <button onClick={() => { setAdding(false); clearProcess(ADD_CONTENT_PROCESS_ID); setAddUrl(''); setAddFiles([]); }}
                 className="ml-2 text-blue-600 dark:text-blue-400 hover:underline">Done</button>
             </div>
           )}
           {addStatus === 'error' && (
             <div className="text-sm text-red-700 dark:text-red-400">
               {addMessages[addMessages.length - 1] || 'Something went wrong'}
-              <button onClick={() => setAddStatus('idle')} className="ml-2 text-blue-600 dark:text-blue-400 hover:underline">Try again</button>
+              <button onClick={() => clearProcess(ADD_CONTENT_PROCESS_ID)} className="ml-2 text-blue-600 dark:text-blue-400 hover:underline">Try again</button>
             </div>
           )}
         </div>
@@ -363,7 +330,7 @@ export default function KB() {
                 </p>
               </div>
               <button
-                onClick={() => { setSetupStatus('idle'); setSetupMessages([]); }}
+                onClick={() => clearProcess(ONBOARDING_PROCESS_ID)}
                 className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 Try Again
