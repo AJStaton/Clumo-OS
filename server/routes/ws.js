@@ -157,7 +157,7 @@ function setupWebSocket(httpServer) {
             transcriptBuffer += ' ' + transcript;
 
             // Check for MEDDPICC update
-            const meddpicc = suggestionEngine.getMeddpicc();
+            const meddpicc = suggestionEngine.meddpicc;
             if (meddpicc) {
               sendToClient({ type: 'meddpicc_update', meddpicc });
             }

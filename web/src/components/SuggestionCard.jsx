@@ -7,24 +7,9 @@ const TYPE_STYLES = {
   product_truth: { label: 'Product Truth', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-800' }
 };
 
-export default function SuggestionCard({ suggestion, onUse, onDismiss }) {
-  const [timeLeft, setTimeLeft] = useState(15);
+export default function SuggestionCard({ suggestion }) {
   const style = TYPE_STYLES[suggestion.type] || TYPE_STYLES.case_study;
   const item = suggestion.suggestion || suggestion;
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          onDismiss?.();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [onDismiss]);
 
   return (
     <div className={`${style.bg} ${style.border} border rounded-lg p-4 mb-3 relative animate-in`}>
@@ -32,23 +17,6 @@ export default function SuggestionCard({ suggestion, onUse, onDismiss }) {
         <span className={`text-xs font-semibold uppercase tracking-wide ${style.text}`}>
           {style.label}
         </span>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">{timeLeft}s</span>
-          <button
-            onClick={onUse}
-            className="w-6 h-6 flex items-center justify-center rounded hover:bg-white/50 text-green-600"
-            title="Used this"
-          >
-            &#10003;
-          </button>
-          <button
-            onClick={onDismiss}
-            className="w-6 h-6 flex items-center justify-center rounded hover:bg-white/50 text-gray-400"
-            title="Dismiss"
-          >
-            &#10005;
-          </button>
-        </div>
       </div>
 
       {suggestion.type === 'case_study' && (

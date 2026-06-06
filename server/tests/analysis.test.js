@@ -3,32 +3,36 @@
 const { formatSessionName, generateAnalysis } = require('../analysis.js');
 
 describe('formatSessionName', () => {
-  it('formats name with ordinal day suffix', () => {
+  it('formats as "{3-word topic} dd/mm"', () => {
     const out = formatSessionName(
-      { sessionMeta: { customer: 'Acme', topic: 'Demo' } },
+      { sessionMeta: { customer: 'Acme', topic: 'Platform demo discussion' } },
       new Date('2025-05-17T14:30:00')
     );
-    expect(out).toMatch(/^Acme - Demo - \d{2}:\d{2} - 17th May$/);
+    expect(out).toBe('Platform demo discussion 17/05');
   });
 
-  it('returns null when customer is missing', () => {
+  it('trims topic to at most 3 words', () => {
+    const out = formatSessionName(
+      { sessionMeta: { customer: 'Acme', topic: 'one two three four five' } },
+      new Date('2025-06-06T10:00:00')
+    );
+    expect(out).toBe('one two three 06/06');
+  });
+
+  it('falls back to customer when topic is missing', () => {
+    const out = formatSessionName(
+      { sessionMeta: { customer: 'Acme Corp Limited Group' } },
+      new Date('2025-05-01T10:00:00')
+    );
+    expect(out).toBe('Acme Corp Limited 01/05');
+  });
+
+  it('returns null when both topic and customer are missing', () => {
     expect(formatSessionName({ sessionMeta: {} }, new Date())).toBeNull();
   });
 
-  it('returns null when customer is Unknown', () => {
+  it('returns null when only customer is "Unknown" and no topic', () => {
     expect(formatSessionName({ sessionMeta: { customer: 'Unknown' } }, new Date())).toBeNull();
-  });
-
-  it('handles 11th/12th/13th teen suffix correctly', () => {
-    const meta = { sessionMeta: { customer: 'C', topic: 't' } };
-    expect(formatSessionName(meta, new Date('2025-05-11T10:00:00'))).toContain('11th');
-    expect(formatSessionName(meta, new Date('2025-05-12T10:00:00'))).toContain('12th');
-    expect(formatSessionName(meta, new Date('2025-05-13T10:00:00'))).toContain('13th');
-  });
-
-  it('falls back to default topic when missing', () => {
-    const out = formatSessionName({ sessionMeta: { customer: 'Acme' } }, new Date('2025-05-01T10:00:00'));
-    expect(out).toContain('Acme - Call');
   });
 
   it('returns null on malformed analysis (does not throw)', () => {
