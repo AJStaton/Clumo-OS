@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { AppProvider } from './context/AppContext';
+import { BackgroundProcessProvider } from './context/BackgroundProcessContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Landing from './pages/Landing';
 import Setup from './pages/Setup';
@@ -43,6 +44,7 @@ export default function App() {
 
   return (
     <AppProvider>
+      <BackgroundProcessProvider>
       <BrowserRouter>
         {needsSetup ? (
           <div className="min-h-screen flex flex-col">
@@ -90,6 +92,7 @@ export default function App() {
           </div>
         )}
       </BrowserRouter>
+      </BackgroundProcessProvider>
     </AppProvider>
   );
 }

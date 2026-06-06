@@ -8,6 +8,18 @@ const path = require('path');
 const apiRoutes = require('./routes/api');
 const { setupWebSocket, getActiveSessions, getCompletedSessions } = require('./routes/ws');
 const db = require('./db');
+const managedCreds = require('./managed-credentials');
+const { seedManagedCredentials } = require('./ai-provider');
+
+// Auto-seed managed credentials on first run if available
+if (managedCreds.isConfigured() && !db.getSecureConfig('managed_endpoint')) {
+  seedManagedCredentials(managedCreds.endpoint, managedCreds.apiKey, {
+    chatModel: managedCreds.chatModel,
+    realtimeModel: managedCreds.realtimeModel,
+    embeddingModel: managedCreds.embeddingModel
+  });
+  console.log('[Server] Managed AI credentials seeded from build config');
+}
 
 // Catch unhandled promise rejections
 process.on('unhandledRejection', (reason) => {

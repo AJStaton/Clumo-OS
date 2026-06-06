@@ -138,10 +138,10 @@ class OpenAIProvider {
 
 class ManagedProvider {
   constructor(config) {
-    // Azure AI Model Inference API (Foundry endpoints)
+    // Azure OpenAI endpoint
     this.baseUrl = (config.endpoint || '').replace(/\/$/, '');
     this.apiKey = config.apiKey;
-    this.apiVersion = '2024-05-01-preview';
+    this.apiVersion = config.apiVersion || '2024-10-21';
     this.chatModel = config.chatModel || 'gpt-4o-mini';
     this.realtimeModel = config.realtimeModel || 'gpt-realtime-mini';
     this.embeddingModel = config.embeddingModel || 'text-embedding-ada-002';
@@ -150,15 +150,12 @@ class ManagedProvider {
 
   getClient() {
     if (this.client) return this.client;
-    const OpenAI = require('openai');
-    this.client = new OpenAI({
+    const { AzureOpenAI } = require('openai');
+    this.client = new AzureOpenAI({
+      endpoint: this.baseUrl,
       apiKey: this.apiKey,
-      baseURL: this.baseUrl + '/models',
-      defaultQuery: { 'api-version': this.apiVersion },
-      defaultHeaders: {
-        'api-key': this.apiKey,
-        'x-ms-model-mesh-model-name': this.chatModel
-      }
+      apiVersion: this.apiVersion,
+      deployment: this.chatModel
     });
     return this.client;
   }
@@ -174,24 +171,23 @@ class ManagedProvider {
 
   createRealtimeWebSocket() {
     const host = this.baseUrl.replace('https://', '').replace('http://', '');
-    const url = `wss://${host}/models/realtime?api-version=${this.apiVersion}&model=${this.realtimeModel}`;
+    // Realtime API requires a preview api-version
+    const realtimeApiVersion = '2024-10-01-preview';
+    const url = `wss://${host}/openai/realtime?api-version=${realtimeApiVersion}&deployment=${this.realtimeModel}`;
     return new WebSocket(url, {
       headers: { 'api-key': this.apiKey }
     });
   }
 
   async generateEmbedding(text) {
-    // Use a separate client for embeddings with the correct model header
+    // Use a separate client for embeddings with the correct deployment
     if (!this._embeddingClient) {
-      const OpenAI = require('openai');
-      this._embeddingClient = new OpenAI({
+      const { AzureOpenAI } = require('openai');
+      this._embeddingClient = new AzureOpenAI({
+        endpoint: this.baseUrl,
         apiKey: this.apiKey,
-        baseURL: this.baseUrl + '/models',
-        defaultQuery: { 'api-version': this.apiVersion },
-        defaultHeaders: {
-          'api-key': this.apiKey,
-          'x-ms-model-mesh-model-name': this.embeddingModel
-        }
+        apiVersion: this.apiVersion,
+        deployment: this.embeddingModel
       });
     }
     const input = Array.isArray(text) ? text : [text];
@@ -237,7 +233,13 @@ function loadProvider() {
     const managedEndpoint = getSecureConfig('managed_endpoint');
     const managedKey = getSecureConfig('managed_api_key');
     if (managedEndpoint && managedKey) {
-      return new ManagedProvider({ endpoint: managedEndpoint, apiKey: managedKey });
+      return new ManagedProvider({
+        endpoint: managedEndpoint,
+        apiKey: managedKey,
+        chatModel: getConfig('managed_chat_model') || 'gpt-4o-mini',
+        realtimeModel: getConfig('managed_realtime_model') || 'gpt-realtime-mini',
+        embeddingModel: getConfig('managed_embedding_model') || 'text-embedding-ada-002'
+      });
     }
     // Fall through to BYOK check
   }
@@ -285,7 +287,13 @@ function loadEmbeddingProvider() {
     const managedEndpoint = getSecureConfig('managed_endpoint');
     const managedKey = getSecureConfig('managed_api_key');
     if (managedEndpoint && managedKey) {
-      return new ManagedProvider({ endpoint: managedEndpoint, apiKey: managedKey });
+      return new ManagedProvider({
+        endpoint: managedEndpoint,
+        apiKey: managedKey,
+        chatModel: getConfig('managed_chat_model') || 'gpt-4o-mini',
+        realtimeModel: getConfig('managed_realtime_model') || 'gpt-realtime-mini',
+        embeddingModel: getConfig('managed_embedding_model') || 'text-embedding-ada-002'
+      });
     }
     console.warn('[AI Provider] Managed mode selected but credentials not found');
     return null;
@@ -296,9 +304,12 @@ function loadEmbeddingProvider() {
 
 // --- Seed managed credentials into DB (called during setup or first run) ---
 
-function seedManagedCredentials(endpoint, apiKey) {
+function seedManagedCredentials(endpoint, apiKey, models = {}) {
   setSecureConfig('managed_endpoint', endpoint);
   setSecureConfig('managed_api_key', apiKey);
+  if (models.chatModel) setConfig('managed_chat_model', models.chatModel);
+  if (models.realtimeModel) setConfig('managed_realtime_model', models.realtimeModel);
+  if (models.embeddingModel) setConfig('managed_embedding_model', models.embeddingModel);
 }
 
 // --- Save provider config ---
