@@ -4,10 +4,34 @@ export default class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null };
+    this.handleWindowError = this.handleWindowError.bind(this);
+    this.handleRejection = this.handleRejection.bind(this);
   }
 
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
+  }
+
+  componentDidMount() {
+    window.addEventListener('error', this.handleWindowError);
+    window.addEventListener('unhandledrejection', this.handleRejection);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('error', this.handleWindowError);
+    window.removeEventListener('unhandledrejection', this.handleRejection);
+  }
+
+  handleWindowError(e) {
+    console.error('[ErrorBoundary] window error:', e.error || e.message);
+    // Only surface render-blocking errors; don't blank the UI for noisy script errors
+    if (e.error instanceof Error) {
+      this.setState({ hasError: true, error: e.error });
+    }
+  }
+
+  handleRejection(e) {
+    console.error('[ErrorBoundary] unhandled rejection:', e.reason);
   }
 
   componentDidCatch(error, errorInfo) {

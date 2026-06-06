@@ -173,7 +173,7 @@ class ManagedProvider {
     const host = this.baseUrl.replace('https://', '').replace('http://', '');
     // Realtime API requires a preview api-version
     const realtimeApiVersion = '2024-10-01-preview';
-    const url = `wss://${host}/openai/realtime?api-version=${realtimeApiVersion}&deployment=${this.realtimeModel}`;
+    const url = `wss://${host}/openai/realtime?api-version=${realtimeApiVersion}&deployment=${this.realtimeModel}&intent=transcription`;
     return new WebSocket(url, {
       headers: { 'api-key': this.apiKey }
     });

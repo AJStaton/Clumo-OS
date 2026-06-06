@@ -11,7 +11,7 @@ Return ONLY valid JSON with this exact structure:
 {
   "sessionMeta": {
     "customer": "Company or person name (extracted from transcript)",
-    "topic": "Brief topic summary (3-5 words)"
+    "topic": "Exactly 3 words summarising the call (e.g. 'Platform demo discussion')"
   },
   "callNotes": ["bullet 1", "bullet 2", ...],
   "crmUpdate": {
@@ -49,7 +49,7 @@ Return ONLY valid JSON with this exact structure:
 {
   "sessionMeta": {
     "customer": "Company or person name (extracted from transcript)",
-    "topic": "Brief topic summary (3-5 words)"
+    "topic": "Exactly 3 words summarising the call (e.g. 'Platform demo discussion')"
   },
   "callNotes": ["bullet 1", "bullet 2", ...],
   "crmUpdate": {
@@ -148,39 +148,33 @@ async function generateAnalysis(sessionId, sessionData, provider) {
 
 /**
  * Format a session name from analysis meta data.
- * Returns formatted name like "Acme Corp - Platform Demo - 14:30 - 17th May"
- * or null if extraction fails.
+ * Produces "{3-word summary} dd/mm" (e.g. "Legora platform demo 06/06").
+ * Returns null only if no topic can be extracted at all.
  */
 function formatSessionName(analysis, sessionStartTime) {
   try {
-    const meta = analysis.sessionMeta;
-    if (!meta || !meta.customer || meta.customer === 'Unknown') return null;
+    const meta = analysis && analysis.sessionMeta;
+    if (!meta) return null;
 
-    const customer = meta.customer;
-    const topic = meta.topic || 'Call';
+    const rawTopic = (meta.topic || '').trim();
+    const customer = (meta.customer || '').trim();
+
+    // Prefer a topic-based summary; fall back to customer if topic is empty
+    let summary = rawTopic || customer;
+    if (!summary || summary.toLowerCase() === 'unknown') return null;
+
+    // Constrain to exactly 3 words
+    const words = summary.split(/\s+/).filter(Boolean).slice(0, 3);
+    if (words.length === 0) return null;
+    summary = words.join(' ');
 
     const date = new Date(sessionStartTime);
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    const time = `${hours}:${minutes}`;
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
 
-    const day = date.getDate();
-    const suffix = getDaySuffix(day);
-    const month = date.toLocaleString('en-US', { month: 'long' });
-
-    return `${customer} - ${topic} - ${time} - ${day}${suffix} ${month}`;
-  } catch (e) {
+    return `${summary} ${dd}/${mm}`;
+  } catch {
     return null;
-  }
-}
-
-function getDaySuffix(day) {
-  if (day >= 11 && day <= 13) return 'th';
-  switch (day % 10) {
-    case 1: return 'st';
-    case 2: return 'nd';
-    case 3: return 'rd';
-    default: return 'th';
   }
 }
 

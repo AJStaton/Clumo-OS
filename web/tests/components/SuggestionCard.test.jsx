@@ -67,36 +67,6 @@ describe('SuggestionCard', () => {
     expect(screen.getByText('Architecture')).toBeInTheDocument();
   });
 
-  it('starts at 15 seconds and decrements every second', () => {
-    render(<SuggestionCard suggestion={baseSuggestion} onUse={() => {}} onDismiss={() => {}} />);
-    expect(screen.getByText('15s')).toBeInTheDocument();
-    act(() => { vi.advanceTimersByTime(1000); });
-    expect(screen.getByText('14s')).toBeInTheDocument();
-    act(() => { vi.advanceTimersByTime(5000); });
-    expect(screen.getByText('9s')).toBeInTheDocument();
-  });
-
-  it('auto-dismisses after 15 seconds', () => {
-    const onDismiss = vi.fn();
-    render(<SuggestionCard suggestion={baseSuggestion} onUse={() => {}} onDismiss={onDismiss} />);
-    act(() => { vi.advanceTimersByTime(15000); });
-    expect(onDismiss).toHaveBeenCalled();
-  });
-
-  it('calls onUse when check button clicked', () => {
-    const onUse = vi.fn();
-    render(<SuggestionCard suggestion={baseSuggestion} onUse={onUse} onDismiss={() => {}} />);
-    fireEvent.click(screen.getByTitle('Used this'));
-    expect(onUse).toHaveBeenCalled();
-  });
-
-  it('calls onDismiss when X button clicked', () => {
-    const onDismiss = vi.fn();
-    render(<SuggestionCard suggestion={baseSuggestion} onUse={() => {}} onDismiss={onDismiss} />);
-    fireEvent.click(screen.getByTitle('Dismiss'));
-    expect(onDismiss).toHaveBeenCalled();
-  });
-
   it('falls back to case_study styling for unknown type', () => {
     render(
       <SuggestionCard

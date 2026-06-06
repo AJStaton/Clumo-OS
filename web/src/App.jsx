@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { AppProvider } from './context/AppContext';
 import { BackgroundProcessProvider } from './context/BackgroundProcessContext';
+import { CallSessionProvider } from './context/CallSessionContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Landing from './pages/Landing';
 import Setup from './pages/Setup';
@@ -45,6 +46,7 @@ export default function App() {
   return (
     <AppProvider>
       <BackgroundProcessProvider>
+      <CallSessionProvider>
       <BrowserRouter>
         {needsSetup ? (
           <div className="min-h-screen flex flex-col">
@@ -59,14 +61,14 @@ export default function App() {
             </main>
           </div>
         ) : (
+          <ErrorBoundary>
           <div className="h-screen flex overflow-hidden bg-white dark:bg-gray-800">
             <Sidebar
               collapsed={sidebarCollapsed}
               onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
             />
             <main className="flex-1 overflow-y-auto">
-              <ErrorBoundary>
-                <Routes>
+              <Routes>
                 <Route path="/" element={<Navigate to="/session" />} />
                 <Route path="/session" element={<Call onListeningChange={(listening) => {
                   if (listening) setSidebarCollapsed(true);
@@ -87,11 +89,12 @@ export default function App() {
                 <Route path="/sessions" element={<Navigate to="/session" replace />} />
                 <Route path="*" element={<Navigate to="/session" />} />
               </Routes>
-              </ErrorBoundary>
             </main>
           </div>
+          </ErrorBoundary>
         )}
       </BrowserRouter>
+      </CallSessionProvider>
       </BackgroundProcessProvider>
     </AppProvider>
   );

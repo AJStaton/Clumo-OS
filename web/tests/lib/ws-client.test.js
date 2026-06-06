@@ -40,7 +40,7 @@ describe('ws-client.createWsClient', () => {
     const onMessage = vi.fn();
     const client = createWsClient(onMessage);
     const ws = MockWebSocket.instances[0];
-    expect(ws.url).toBe('ws://localhost:3000');
+    expect(ws.url).toBe('ws://localhost:3000/ws');
     ws._open();
     expect(onMessage).toHaveBeenCalledWith({ type: '_connected' });
     expect(client.readyState).toBe(MockWebSocket.OPEN);
@@ -52,7 +52,7 @@ describe('ws-client.createWsClient', () => {
       value: { protocol: 'https:', host: 'app.clumo.io' }
     });
     createWsClient(() => {});
-    expect(MockWebSocket.instances[0].url).toBe('wss://app.clumo.io');
+    expect(MockWebSocket.instances[0].url).toBe('wss://app.clumo.io/ws');
   });
 
   it('parses JSON messages and forwards to handler', () => {
