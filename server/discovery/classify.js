@@ -45,6 +45,21 @@ const NARROW_CASE_STUDY_LISTING = [
   /\/(solutions?|industries|industry|products?|sectors?|verticals?|use.?cases?)\/[^/]+\/(customers?|clients?|case.?stud(y|ies)|customer.?stor(y|ies)|success.?stor(y|ies)|client.?stor(y|ies))\/?$/i
 ];
 
+// Search / browse / filtered listing pages WITHIN a customer-stories section
+// (e.g. /customers/search, /case-studies/browse, /customer-stories/all). These are
+// JS-rendered browse pages that carry the seller's filters in their query string, so they
+// must be expanded headlessly rather than treated as a single story. Strict full-segment
+// match: individual slugs like /customers/allbirds or /customers/searchspring are NOT caught
+// because the trailing segment must be exactly a browse keyword.
+const CASE_STUDY_BROWSE = [
+  /\/(customers?|clients?|case.?stud(y|ies)|customer.?stor(y|ies)|success.?stor(y|ies)|client.?stor(y|ies)|stories|references?)\/(search|browse|explore|find|results?|library|directory|index|filter|filters|all)\/?$/i
+];
+
+// Filter-like query params that mark a listing page as a deliberately scoped browse
+// (?filters=..., ?product=..., ?industry=...). Only ever used to BOOST an already
+// listing-like URL — never to reclassify an individual story slug.
+const FILTER_QUERY = /(?:^|[?&])(filters?|product|products|industry|industries|topic|topics|category|categories|tag|tags|sector|sectors|solution|solutions|persona|personas|type|usecase|use-case)=/i;
+
 const BLOG = [/\/blog/i, /\/resources?/i, /\/insights?/i, /\/research/i, /\/news/i, /\/article/i, /\/report/i, /\/roi/i, /\/benchmark/i];
 const DOCS = [/\/docs?/i, /\/documentation/i, /\/learn/i, /\/developer/i, /\/api\b/i, /\/reference/i, /\/guides?/i, /\/support\/docs/i];
 const PRODUCT = [/\/product/i, /\/platform/i, /\/features?/i, /\/solutions?/i, /\/capabilit/i, /\/use.?cases?/i, /\/why/i, /\/pricing/i, /\/security/i];
@@ -77,6 +92,14 @@ function stripLocalePath(path) {
 function isNarrowCaseStudyListing(path) {
   return anyMatch(NARROW_CASE_STUDY_LISTING, path);
 }
+// Utility/nav segments that can appear directly under a customer-stories section but are NOT
+// individual stories (locale switchers, region pickers, auth, generic hubs). Used to reject the
+// broad /customers/<seg> individual match so these don't get harvested as fake case studies.
+const NON_STORY_SEGMENT = /\/(customers?|clients?|case.?stud(y|ies)|customer.?stor(y|ies)|success.?stor(y|ies)|client.?stor(y|ies)|stories|references?)\/(locale|locales|language|languages|lang|region|regions|country|countries|signin|sign-in|login|log-in|signup|sign-up|register|account|overview|home|landing|featured|categories|category|topics?|tags?|industries|industry|products?|solutions?|sectors?|filter|filters)\/?$/i;
+
+function isCaseStudyBrowse(path) {
+  return anyMatch(CASE_STUDY_BROWSE, path);
+}
 
 // Returns { category, individual, priority } or null if the URL should be skipped.
 // category: 'case_study' | 'blog' | 'docs' | 'product' | 'other'
@@ -103,8 +126,14 @@ function classifyUrl(rawUrl, { baseHost = null } = {}) {
   let category = 'other';
   let individual = false;
   let narrow = false;
+  let search = false;
 
-  if (anyMatch(CASE_STUDY_INDIVIDUAL, path) && !anyMatch(CASE_STUDY_LISTING, path) && !isNarrowCaseStudyListing(path)) {
+  if (isCaseStudyBrowse(path)) {
+    // A search/browse page within a customer-stories section: a filtered listing, not a story.
+    category = 'case_study';
+    individual = false;
+    search = true;
+  } else if (anyMatch(CASE_STUDY_INDIVIDUAL, path) && !anyMatch(CASE_STUDY_LISTING, path) && !isNarrowCaseStudyListing(path) && !NON_STORY_SEGMENT.test(path)) {
     category = 'case_study';
     individual = true;
   } else if (isNarrowCaseStudyListing(path)) {
@@ -127,13 +156,21 @@ function classifyUrl(rawUrl, { baseHost = null } = {}) {
 
   if (category === 'other') return null;
 
+  // A filter query string on an already listing-like case-study URL marks a deliberately
+  // scoped browse (the seller's intent encoded in the URL). Boost it for headless expansion,
+  // but never reclassify an individual story slug on the basis of its query string.
+  if (category === 'case_study' && !individual && u.search && FILTER_QUERY.test(u.search)) {
+    search = true;
+  }
+
   // Priority: individual content pages first; listings next; paginated/narrow/placeholder last.
   let priority = individual ? 3 : 2;
+  if (search) priority = 2;            // filtered/browse listing — expand it, don't bury it
   if (narrow) priority = 1;            // vertical listing — must not crowd out the master library
   if (fragmentPlaceholder) priority = 1;
   if (isPaginated) priority = 1;
 
-  return { url: full, category, individual, narrow, priority };
+  return { url: full, category, individual, narrow, search, priority };
 }
 
 // Map a source category to the knowledge types it primarily feeds.
@@ -222,7 +259,9 @@ module.exports = {
   localeOf,
   stripLocalePath,
   isNarrowCaseStudyListing,
+  isCaseStudyBrowse,
   CATEGORY_TO_TYPES,
   CASE_STUDY_LISTING,
-  CASE_STUDY_INDIVIDUAL
+  CASE_STUDY_INDIVIDUAL,
+  CASE_STUDY_BROWSE
 };

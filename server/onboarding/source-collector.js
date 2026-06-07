@@ -17,7 +17,7 @@
 
 const { createPageFetcher } = require('../fetch/page-fetcher');
 const { discoverUrls } = require('../discovery/url-discovery');
-const { buildRelevanceContext, scoreCaseStudyRelevance, tokenize, hasContext } = require('./relevance');
+const { buildRelevanceContext, scoreCaseStudyDetailed, hasContext } = require('./relevance');
 const HybridWebsiteScraper = require('../hybrid-website-scraper');
 const BUNDLE_CHAR_CAP = 45000;          // per-type content cap (~11k tokens)
 const MAX_PAGES_PER_BUNDLE = 12;        // pages folded into a non-case-study bundle
@@ -128,13 +128,11 @@ async function collectSources(websiteUrl, options = {}) {
     // --- Case studies: fetch each page, rank by relevance to what the seller sells, then
     // LLM-extract the most relevant. This is what stops one topic (e.g. SAP) from dominating. ---
     const p = profile || {};
-    const companyKeywords = homepage && homepage.title ? tokenize(homepage.title) : [];
     const relevanceCtx = buildRelevanceContext({
       priorities: Array.isArray(priorities) ? priorities : [],
       focusProducts: p.focusProducts || [],
       focusIndustries: p.focusIndustries || (p.icpIndustry ? [p.icpIndustry] : []),
-      personas: p.personas || [],
-      companyKeywords
+      personas: p.personas || []
     });
     // Demotion only applies when the seller gave explicit focus signals (priorities/products/
     // industries) — otherwise we keep discovery order and don't second-guess.
@@ -155,6 +153,9 @@ async function collectSources(websiteUrl, options = {}) {
       for (const item of csUrls) {
         const page = await pageFetcher.fetch(item.url, { expectedType: 'case_study' });
         if (!page || !page.ok) continue;
+        // A story sourced from what the seller pasted (or harvested from their filtered listing)
+        // is trusted: the seller's URL/filters are their intent, so it bypasses relevance demotion.
+        const trusted = !!(item.pasted || item.fromPasted || item.trusted);
         const content = (page.mainText && page.mainText.length > 200) ? page.mainText : (page.summary || '');
         if (!content || content.length < 200) {
           if (page.summary && page.summary.length > 40) {
@@ -163,22 +164,29 @@ async function collectSources(websiteUrl, options = {}) {
           }
           continue;
         }
-        const relevance = scoreCaseStudyRelevance({ text: content, title: page.title, url: page.url }, relevanceCtx);
-        scored.push({ page, content, relevance });
+        const detail = scoreCaseStudyDetailed({ text: content, title: page.title, url: page.url }, relevanceCtx);
+        scored.push({ page, content, trusted, relevance: detail.score, matchedFocus: detail.matchedFocus });
       }
 
-      // Rank by relevance (when we have context), then by fetch confidence.
+      // Rank: trusted (seller-intent) first, then by relevance, then by fetch confidence.
       if (hasContext(relevanceCtx)) {
-        scored.sort((a, b) => (b.relevance - a.relevance) || (b.page.confidence - a.page.confidence));
+        scored.sort((a, b) =>
+          (Number(b.trusted) - Number(a.trusted)) ||
+          (b.relevance - a.relevance) ||
+          (b.page.confidence - a.page.confidence));
+      } else {
+        scored.sort((a, b) => (Number(b.trusted) - Number(a.trusted)));
       }
 
-      // Pass 2: extract. Demote low-relevance stories to weak candidates instead of saving
-      // them as primary case studies (only when the seller gave explicit focus).
+      // Pass 2: extract. Demote off-focus stories to weak candidates instead of saving them as
+      // primary case studies (only when the seller gave explicit focus, and never for trusted
+      // seller-sourced stories). A story is off-focus when it hits NO focus term (product/
+      // industry the seller picked) or scores below the relevance floor.
       let idx = 0;
       for (const s of scored) {
         idx += 1;
-        const tooIrrelevant = hasExplicitFocus && hasContext(relevanceCtx) &&
-          s.relevance !== null && s.relevance < RELEVANCE_FLOOR;
+        const tooIrrelevant = !s.trusted && hasExplicitFocus && hasContext(relevanceCtx) &&
+          (s.matchedFocus === 0 || (s.relevance !== null && s.relevance < RELEVANCE_FLOOR));
         if (tooIrrelevant) {
           result.weakCaseStudyCandidates.push({
             url: s.page.url, summary: (s.page.summary || s.content.slice(0, 240)), title: s.page.title,

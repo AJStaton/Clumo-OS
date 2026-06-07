@@ -1,6 +1,6 @@
 // Tests for onboarding/relevance.js — case-study relevance scoring.
 
-const { buildRelevanceContext, scoreCaseStudyRelevance, hasContext } = require('../../onboarding/relevance');
+const { buildRelevanceContext, scoreCaseStudyRelevance, scoreCaseStudyDetailed, hasContext } = require('../../onboarding/relevance');
 
 describe('relevance scoring', () => {
   it('returns null score when there is no seller context', () => {
@@ -38,5 +38,33 @@ describe('relevance scoring', () => {
       url: 'https://x.com/customers/story/acme-generic'
     }, ctx);
     expect(inUrl).toBeGreaterThan(notInUrl);
+  });
+});
+
+describe('scoreCaseStudyDetailed (focus gate)', () => {
+  it('counts matchedFocus only for focus terms, not personas or company keywords', () => {
+    const ctx = buildRelevanceContext({ focusProducts: ['Fabric'], personas: ['CFO'], companyKeywords: ['azure'] });
+    const onFocus = scoreCaseStudyDetailed({ text: 'A Microsoft Fabric data analytics story', title: 't', url: 'https://x/y' }, ctx);
+    expect(onFocus.matchedFocus).toBeGreaterThan(0);
+    const personaOnly = scoreCaseStudyDetailed({ text: 'The CFO loved their azure cloud rollout', title: 't', url: 'https://x/y' }, ctx);
+    expect(personaOnly.matchedFocus).toBe(0);
+  });
+
+  it('counts a URL slug hit toward matchedFocus even when the body is thin', () => {
+    const ctx = buildRelevanceContext({ focusProducts: ['Fabric'] });
+    const d = scoreCaseStudyDetailed({ text: 'thin', title: '', url: 'https://x.com/customers/story/acme-fabric' }, ctx);
+    expect(d.matchedFocus).toBeGreaterThan(0);
+  });
+
+  it('matches singular/plural focus variants', () => {
+    const ctx = buildRelevanceContext({ focusProducts: ['App Services'] });
+    const d = scoreCaseStudyDetailed({ text: 'Built on Azure App Service for scale', title: '', url: 'https://x/y' }, ctx);
+    expect(d.matchedFocus).toBeGreaterThan(0);
+  });
+
+  it('returns matchedFocus 0 and null score when there is no context', () => {
+    const d = scoreCaseStudyDetailed({ text: 'anything', title: 't', url: 'https://x/y' }, buildRelevanceContext({}));
+    expect(d.score).toBeNull();
+    expect(d.matchedFocus).toBe(0);
   });
 });

@@ -85,4 +85,32 @@ describe('source-collector relevance demotion', () => {
     expect(sources.extractedCaseStudies.length).toBe(2);
     expect(sources.telemetry.caseStudyDemoted).toBe(0);
   });
+
+  it('never demotes a seller-pasted (trusted) story, even when it is off-focus', async () => {
+    const fetcher = fakeFetcher([
+      ['/story/sap-paste', richPage('Globex ran a big SAP S/4HANA migration. '.repeat(30), 'SAP paste')]
+    ]);
+    const discover = async () => ({
+      buckets: {
+        case_study: [{
+          url: 'https://x.com/customers/story/sap-paste',
+          category: 'case_study', individual: true, priority: 5, pasted: true, trusted: true
+        }],
+        blog: [], docs: [], product: []
+      },
+      telemetry: { strategies: {} }
+    });
+
+    const sources = await collectSources('https://x.com', {
+      pageFetcher: fetcher,
+      caseStudyExtractor: extractor,
+      discover,
+      profile: { focusProducts: ['Azure OpenAI'], focusIndustries: [] },
+      priorities: ['AI'],
+      maxCaseStudies: 10
+    });
+
+    expect(sources.extractedCaseStudies.map((c) => c.company)).toContain('SAPCo');
+    expect(sources.telemetry.caseStudyDemoted).toBe(0);
+  });
 });

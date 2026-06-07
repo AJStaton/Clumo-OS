@@ -28,31 +28,16 @@ function isCaseStudyListing(pathUrl) {
   } catch { return false; }
 }
 
-// Merge directly-discovered stories with stories harvested from listing pages, enforcing
-// per-listing diversity so a single vertical listing (e.g. /solutions/sap/customers) can't
-// flood the bucket. Direct individual hits are kept first; listing stories are then added
-// round-robin (master listings before narrow ones), each listing capped at its quota.
-// Pure + exported for unit testing.
-//   direct:   [{ url, ... }]                     — individual stories found without a listing
-//   listings: [{ url, narrow, links: [{url,...}] }] — per-listing harvested stories
-function diversifyCaseStudies({ direct = [], listings = [], budget = 50 }) {
-  const chosen = new Map();
-  const add = (c) => {
-    const k = normalizeForDedupe(c.url);
-    if (!chosen.has(k)) chosen.set(k, c);
-  };
-
-  for (const c of direct) {
-    if (chosen.size >= budget) break;
-    add(c);
-  }
-
-  // Master (non-narrow) listings first, then narrow.
+// Round-robin merge of per-listing harvested links, master (non-narrow) listings before narrow
+// ones, each listing capped at its quota so a single listing can't flood the bucket. Mutates
+// `chosen` via `add`. `capNarrow` tightens the cap for narrow vertical listings (discovered
+// listings) but is disabled for pasted listings where the narrowness is the seller's intent.
+function roundRobinListings(listings, budget, chosen, add, { capNarrow = true } = {}) {
   const ordered = [...listings].sort((a, b) => (a.narrow ? 1 : 0) - (b.narrow ? 1 : 0));
   const n = ordered.length;
+  if (n === 0) return;
   const baseCap = n <= 1 ? budget : Math.max(8, Math.ceil(budget / n));
-  // Narrow vertical listings get a tighter cap so they never dominate.
-  const capFor = (l) => (l.narrow ? Math.min(baseCap, 5) : baseCap);
+  const capFor = (l) => (capNarrow && l.narrow ? Math.min(baseCap, 5) : baseCap);
   const counts = new Array(n).fill(0);
 
   let round = 0;
@@ -70,11 +55,40 @@ function diversifyCaseStudies({ direct = [], listings = [], budget = 50 }) {
     }
     round += 1;
   }
+}
 
-  // Always keep the listing URLs themselves as fallbacks (some sites put all content there).
-  for (const l of ordered) {
+// Merge case-study candidates into a final, budgeted, de-duplicated, diversity-controlled list.
+// Fill order encodes trust + diversity so the seller's pasted/filtered intent always wins and no
+// single source (e.g. a provider-adapter sitemap firehose) can flood the bucket:
+//   1. pastedDirect          — individual stories the seller pasted
+//   2. pastedListings        — stories harvested from expanding the seller's pasted listings
+//                              (their filters are the seller's intent; narrow cap disabled)
+//   3. direct                — individual stories from sitemap/anchor discovery
+//   4. listings              — stories from expanding discovered listings (narrow cap on)
+//   5. adapterDirect         — individual stories from provider adapters (least-trusted firehose)
+//   6. listing URLs          — the listing pages themselves, as a last-resort fallback
+// First-write-wins dedupe means an earlier (more trusted) provenance is retained.
+//   direct/listings keep the original 2-arg signature so existing callers/tests are unaffected.
+function diversifyCaseStudies({ pastedDirect = [], pastedListings = [], direct = [], listings = [], adapterDirect = [], budget = 50 }) {
+  const chosen = new Map();
+  const add = (c) => {
+    const k = normalizeForDedupe(c.url);
+    if (!chosen.has(k)) chosen.set(k, c);
+  };
+
+  for (const c of pastedDirect) { if (chosen.size >= budget) break; add(c); }
+  roundRobinListings(pastedListings, budget, chosen, add, { capNarrow: false });
+  for (const c of direct) { if (chosen.size >= budget) break; add(c); }
+  roundRobinListings(listings, budget, chosen, add, { capNarrow: true });
+  for (const c of adapterDirect) { if (chosen.size >= budget) break; add(c); }
+
+  // Keep a listing URL as a fallback only when expanding it yielded no individual stories (some
+  // sites put all content on the listing page). When a listing already produced story links, its
+  // own URL (often a JS search/browse shell) shouldn't occupy a slot meant for a real story.
+  for (const l of [...pastedListings, ...listings]) {
     if (chosen.size >= budget) break;
-    add({ url: l.url, category: 'case_study', individual: false, narrow: l.narrow, priority: l.narrow ? 1 : 2 });
+    if ((l.links || []).length > 0) continue;
+    add({ url: l.url, category: 'case_study', individual: false, narrow: l.narrow, trusted: !!l.trusted, priority: l.narrow ? 1 : 2 });
   }
 
   return [...chosen.values()].slice(0, budget);
@@ -136,7 +150,10 @@ async function discoverUrls(baseUrl, pageFetcher, options = {}) {
   }
   telemetry.strategies.anchors = anchorCount;
 
-  // 4) Provider adapters (optional, best-effort).
+  // 4) Provider adapters (optional, best-effort). These can return a large flat firehose of
+  // individual story URLs with no diversity control, so we track them separately and treat them
+  // as the least-trusted discovery tier (they must never crowd out pasted or natively-discovered
+  // sources).
   if (onProgress) onProgress({ message: 'Checking provider integrations...' });
   const adapterResult = await runAdapters({
     host: baseHost,
@@ -144,52 +161,115 @@ async function discoverUrls(baseUrl, pageFetcher, options = {}) {
     fetchText: sitemap.defaultFetchText,
     sitemap
   });
-  for (const u of adapterResult.urls) candidates.add(u);
+  const adapterUrlSet = new Set();
+  for (const u of adapterResult.urls) {
+    candidates.add(u);
+    adapterUrlSet.add(normalizeForDedupe(u));
+  }
   telemetry.strategies.adapter = adapterResult.urls.length;
   telemetry.adapterName = adapterResult.name;
 
-  // Classify + rank everything. Pasted URLs are prepended so they win ties.
+  const pastedUrlSet = new Set(pasted.map((p) => normalizeForDedupe(p.url)));
+
+  // Classify + rank everything. Pasted URLs are prepended so they win ties. The case-study pool
+  // is kept deliberately larger than the final budget so listings + diverse stories survive to
+  // the expansion/diversification step instead of being truncated by an early firehose.
   const userLocale = (() => { try { return localeOf(new URL(baseUrl).pathname); } catch { return null; } })();
-  const ranked = classifyAndRank([...pasted.map((p) => p.url), ...candidates], { baseHost, perTypeBudget, budgets: { case_study: caseStudyBudget }, userLocale });
+  const csPool = Math.max(caseStudyBudget * 3, 60);
+  const ranked = classifyAndRank([...pasted.map((p) => p.url), ...candidates], { baseHost, perTypeBudget, budgets: { case_study: csPool }, userLocale });
+
+  // Tag case-study provenance so the diversifier can honor trust: pasted (seller intent) and
+  // adapter (least-trusted firehose). Pasted wins when a URL was seen from multiple sources.
+  for (const c of ranked.case_study) {
+    const key = normalizeForDedupe(c.url);
+    if (pastedUrlSet.has(key)) { c.pasted = true; c.trusted = true; }
+    else if (adapterUrlSet.has(key)) { c.adapter = true; }
+  }
 
   // Ensure pasted URLs land in their declared bucket even if classification disagrees.
   for (const p of pasted) {
     const bucket = ranked[p.category];
     if (bucket && !bucket.some((c) => normalizeForDedupe(c.url) === normalizeForDedupe(p.url))) {
-      bucket.unshift({ url: p.url, category: p.category, individual: true, priority: 5 });
-      ranked[p.category] = bucket.slice(0, p.category === 'case_study' ? caseStudyBudget : perTypeBudget);
+      const classified = classifyUrl(p.url, { baseHost });
+      const entry = classified && classified.category === p.category
+        ? { ...classified, pasted: true, trusted: true, priority: 5 }
+        : { url: p.url, category: p.category, individual: true, pasted: true, trusted: true, priority: 5 };
+      bucket.unshift(entry);
+      ranked[p.category] = bucket.slice(0, p.category === 'case_study' ? csPool : perTypeBudget);
     }
   }
 
-  // 5) Expand case-study listing pages into individual story URLs, with per-listing diversity.
-  const csListings = ranked.case_study.filter((c) => !c.individual || isCaseStudyListing(c.url));
+  // 5) Expand case-study listing pages into individual story URLs, with provenance-aware
+  // diversity. Pasted listings (often carrying the seller's filters in their query string) are
+  // expanded first and their harvested stories inherit the seller's trust.
+  const isListingEntry = (c) => !c.individual || !!c.search || isCaseStudyListing(c.url);
+  const csListings = ranked.case_study.filter(isListingEntry);
   if (csListings.length > 0) {
     if (onProgress) onProgress({ message: 'Expanding case-study library...' });
-    const direct = ranked.case_study.filter((x) => x.individual && !isCaseStudyListing(x.url));
-    const listings = [];
-    // Master listings before narrow ones so the general library expands first.
-    const orderedListings = [...csListings].sort((a, b) => (a.narrow ? 1 : 0) - (b.narrow ? 1 : 0));
-    for (const listing of orderedListings.slice(0, MAX_LISTING_EXPANSIONS)) {
-      // Force headless so JS-rendered listings (Beamery) actually yield their tiles.
+
+    const pastedDirect = ranked.case_study.filter((x) => x.pasted && x.individual && !isListingEntry(x));
+    const direct = ranked.case_study.filter((x) => x.individual && !isListingEntry(x) && !x.pasted && !x.adapter);
+    const adapterDirect = ranked.case_study.filter((x) => x.individual && !isListingEntry(x) && x.adapter);
+
+    // Expand the seller's pasted listings before discovered ones; within each group, master
+    // (non-narrow) listings before narrow so the general library expands first.
+    const orderInGroup = (a, b) => (a.narrow ? 1 : 0) - (b.narrow ? 1 : 0);
+    const pastedListingMeta = csListings.filter((c) => c.pasted).sort(orderInGroup);
+    const discoveredListingMeta = csListings.filter((c) => !c.pasted).sort(orderInGroup);
+
+    const expand = async (listing, trusted) => {
+      // Force headless so JS-rendered/filtered listings (Beamery, SPA search pages) yield tiles.
       const page = await pageFetcher.fetch(listing.url, { expectedType: 'case_study', forceHeadless: true });
       telemetry.listingExpansions += 1;
       const links = [];
       const seenInListing = new Set();
+      // A pasted listing may live on a different host than the seller's site (e.g. stories
+      // hosted on www.example.com while the product site is app.example.com, or a third-party
+      // case-study platform). Trust the host of the listing the seller pointed us at, so its
+      // story links are harvested even when they don't match baseHost.
+      const allowedHost = trusted ? hostOf(listing.url) : baseHost;
       if (page && page.ok && page.links) {
         for (const link of page.links) {
-          if (hostOf(link) !== baseHost) continue;
+          if (hostOf(link) !== allowedHost) continue;
           const c = classifyUrl(link, { baseHost });
           if (c && c.category === 'case_study' && c.individual && !isCaseStudyListing(c.url)) {
             const k = normalizeForDedupe(c.url);
             if (seenInListing.has(k)) continue;
             seenInListing.add(k);
+            if (trusted) { c.fromPasted = true; c.trusted = true; }
             links.push(c);
           }
         }
       }
-      listings.push({ url: listing.url, narrow: !!listing.narrow, links });
+      return { url: listing.url, narrow: !!listing.narrow, trusted: !!trusted, links };
+    };
+
+    const pastedListings = [];
+    const listings = [];
+    let expansions = 0;
+    for (const listing of pastedListingMeta) {
+      if (expansions >= MAX_LISTING_EXPANSIONS) break;
+      pastedListings.push(await expand(listing, true));
+      expansions += 1;
     }
-    ranked.case_study = diversifyCaseStudies({ direct, listings, budget: caseStudyBudget });
+    for (const listing of discoveredListingMeta) {
+      if (expansions >= MAX_LISTING_EXPANSIONS) break;
+      listings.push(await expand(listing, false));
+      expansions += 1;
+    }
+
+    telemetry.pastedCaseStudyListings = pastedListingMeta.length;
+    telemetry.pastedCaseStudyLinks = pastedListings.reduce((n, l) => n + l.links.length, 0);
+
+    ranked.case_study = diversifyCaseStudies({
+      pastedDirect, pastedListings, direct, listings, adapterDirect, budget: caseStudyBudget
+    });
+  } else {
+    // No listings to expand: still apply the final budget + provenance ordering to the pool.
+    const pastedDirect = ranked.case_study.filter((x) => x.pasted);
+    const direct = ranked.case_study.filter((x) => !x.pasted && !x.adapter);
+    const adapterDirect = ranked.case_study.filter((x) => x.adapter);
+    ranked.case_study = diversifyCaseStudies({ pastedDirect, direct, adapterDirect, budget: caseStudyBudget });
   }
 
   return { buckets: ranked, telemetry };
