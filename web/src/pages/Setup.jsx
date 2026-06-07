@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import OnboardingWizard from '../components/OnboardingWizard';
 
 function SecurityModal({ onClose }) {
   return (
@@ -110,97 +111,6 @@ function SecurityModal({ onClose }) {
   );
 }
 
-// Free-text chip input: type and press Enter (or comma) to add a chip; Backspace on empty removes the last.
-function ChipInput({ value = [], onChange, placeholder }) {
-  const [text, setText] = useState('');
-  function commit(raw) {
-    const v = (raw || '').trim().replace(/,$/, '').trim();
-    if (!v) return;
-    if (!value.some(x => x.toLowerCase() === v.toLowerCase())) onChange([...value, v]);
-    setText('');
-  }
-  return (
-    <div className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm flex flex-wrap gap-1.5 items-center focus-within:border-gray-900">
-      {value.map((chip, i) => (
-        <span key={i} className="inline-flex items-center gap-1 bg-gray-100 text-gray-800 rounded-full px-2 py-0.5 text-xs font-medium">
-          {chip}
-          <button type="button" onClick={() => onChange(value.filter((_, j) => j !== i))} className="text-gray-400 hover:text-gray-700 leading-none">&times;</button>
-        </span>
-      ))}
-      <input
-        type="text"
-        className="flex-1 min-w-[8rem] px-1 py-0.5 outline-none text-sm"
-        placeholder={value.length === 0 ? placeholder : ''}
-        value={text}
-        onChange={e => {
-          const v = e.target.value;
-          if (v.endsWith(',')) commit(v);
-          else setText(v);
-        }}
-        onKeyDown={e => {
-          if (e.key === 'Enter') { e.preventDefault(); commit(text); }
-          else if (e.key === 'Backspace' && !text && value.length) onChange(value.slice(0, -1));
-        }}
-        onBlur={() => commit(text)}
-      />
-    </div>
-  );
-}
-
-// Toggle chips from a preset list. Optional free-add via allowAdd.
-function PresetChips({ options, value = [], onChange, allowAdd = false, addPlaceholder = 'Add…' }) {
-  const [text, setText] = useState('');
-  const merged = [...options];
-  for (const v of value) if (!merged.some(o => o.toLowerCase() === v.toLowerCase())) merged.push(v);
-  function toggle(opt) {
-    if (value.some(x => x.toLowerCase() === opt.toLowerCase())) onChange(value.filter(x => x.toLowerCase() !== opt.toLowerCase()));
-    else onChange([...value, opt]);
-  }
-  function add(raw) {
-    const v = (raw || '').trim();
-    if (!v) return;
-    if (!value.some(x => x.toLowerCase() === v.toLowerCase())) onChange([...value, v]);
-    setText('');
-  }
-  return (
-    <div className="flex flex-wrap gap-1.5 items-center">
-      {merged.map(opt => {
-        const active = value.some(x => x.toLowerCase() === opt.toLowerCase());
-        return (
-          <button
-            key={opt}
-            type="button"
-            onClick={() => toggle(opt)}
-            className={`rounded-full px-2.5 py-1 text-xs font-medium border transition-colors ${active ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'}`}
-          >
-            {opt}
-          </button>
-        );
-      })}
-      {allowAdd && (
-        <input
-          type="text"
-          className="min-w-[7rem] px-2 py-1 border border-gray-300 rounded-full text-xs outline-none focus:border-gray-900"
-          placeholder={addPlaceholder}
-          value={text}
-          onChange={e => setText(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add(text); } }}
-          onBlur={() => add(text)}
-        />
-      )}
-    </div>
-  );
-}
-
-const ROLE_OPTIONS = [
-  { v: 'AE', l: 'Account Executive' },
-  { v: 'SE', l: 'Solution Engineer' },
-  { v: 'FDE', l: 'Forward Deployed Engineer' },
-  { v: 'Other', l: 'Other' }
-];
-const SIZE_PRESETS = ['SMB', 'Mid-market', 'Enterprise'];
-const PERSONA_PRESETS = ['CEO', 'CFO', 'CTO', 'CIO', 'CMO', 'COO', 'VP Sales', 'VP Engineering', 'RevOps', 'Head of IT'];
-
 export default function Setup({ onComplete }) {
   const [step, setStep] = useState(1);
   const [providerMode, setProviderMode] = useState(''); // 'managed' or 'byok'
@@ -211,150 +121,16 @@ export default function Setup({ onComplete }) {
   const [saving, setSaving] = useState(false);
   const [showSecurity, setShowSecurity] = useState(false);
 
-  // Onboarding state
-  const fileInputRef = useRef(null);
-  const [websiteUrl, setWebsiteUrl] = useState('');
-  const [files, setFiles] = useState([]);
-  const [uploadedFiles, setUploadedFiles] = useState([]);
+  // Onboarding state — the data-gathering wizard lives in <OnboardingWizard/>; this page
+  // owns the run lifecycle (start + SSE progress + results).
   const [onboardingStatus, setOnboardingStatus] = useState('idle');
   const [onboardingMessages, setOnboardingMessages] = useState([]);
   const [onboardingCounts, setOnboardingCounts] = useState(null);
   const [onboardingCoverage, setOnboardingCoverage] = useState(null);
-
-  // Guided onboarding wizard state
-  const [obStep, setObStep] = useState('profile'); // profile | website | priorities | sources
-  const [profile, setProfile] = useState({
-    role: '',
-    focusProducts: [],
-    focusIndustries: [],
-    companySize: [],
-    personas: [],
-    competitors: []
-  });
-  const [sourceUrls, setSourceUrls] = useState({ caseStudies: '', blog: '', docs: '' });
-  const [sourceDirty, setSourceDirty] = useState({ caseStudies: false, blog: false, docs: false });
-  const [scanStatus, setScanStatus] = useState('idle'); // idle | scanning | done | failed
-  const [scanResult, setScanResult] = useState(null); // {products,solutions,hubs}
-  const [scanNotice, setScanNotice] = useState('');
-  const [priorities, setPriorities] = useState([]); // selected product/solution labels
-  const scanReqId = useRef(0);
   const eventSourceRef = useRef(null);
 
   // Tear down any live SSE stream on unmount.
   useEffect(() => () => { try { eventSourceRef.current?.close(); } catch { /* noop */ } }, []);
-
-  // Edit a source-URL field and mark it dirty so a later re-scan won't clobber the user's input.
-  function editSourceUrl(key, val) {
-    setSourceUrls(prev => ({ ...prev, [key]: val }));
-    setSourceDirty(prev => ({ ...prev, [key]: true }));
-  }
-
-  // Split a textarea/comma string into a clean array of URLs or terms.
-  function splitList(value) {
-    return (value || '')
-      .split(/[\n,]/)
-      .map(s => s.trim())
-      .filter(Boolean);
-  }
-
-  function buildSourcePayload() {
-    return {
-      caseStudies: splitList(sourceUrls.caseStudies),
-      blog: splitList(sourceUrls.blog),
-      docs: splitList(sourceUrls.docs)
-    };
-  }
-
-  function buildProfilePayload() {
-    const p = {
-      role: profile.role || '',
-      focusProducts: profile.focusProducts,
-      focusIndustries: profile.focusIndustries,
-      companySize: profile.companySize,
-      personas: profile.personas,
-      competitors: profile.competitors
-    };
-    const hasAny = p.role || p.focusProducts.length || p.focusIndustries.length ||
-      p.companySize.length || p.personas.length || p.competitors.length;
-    return hasAny ? p : null;
-  }
-
-  // Dedupe products + solutions into a single ordered list of {label,kind}.
-  function scanAreas(scan) {
-    const out = [];
-    const seen = new Set();
-    for (const a of [...(scan?.products || []), ...(scan?.solutions || [])]) {
-      const key = (a.label || '').toLowerCase();
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      out.push({ label: a.label, kind: (scan.products || []).includes(a) ? 'product' : 'solution' });
-    }
-    return out;
-  }
-
-  // Which detected areas best match what the seller said they focus on.
-  function defaultPriorities(areas, focusProducts) {
-    const fp = (focusProducts || []).map(s => s.toLowerCase());
-    return areas
-      .filter(a => fp.some(f => a.label.toLowerCase().includes(f) || f.includes(a.label.toLowerCase())))
-      .map(a => a.label);
-  }
-
-  async function handleScan() {
-    const url = (websiteUrl || '').trim();
-    if (!url) return;
-    const reqId = ++scanReqId.current;
-    setScanStatus('scanning');
-    setScanNotice('');
-    try {
-      const res = await fetch('/api/onboarding/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ websiteUrl: url })
-      });
-      if (reqId !== scanReqId.current) return; // a newer scan superseded this one
-      const data = res.ok ? await res.json() : { products: [], solutions: [], hubs: {}, error: 'scan_failed' };
-      const areas = scanAreas(data);
-
-      if (data.error || areas.length === 0) {
-        setScanResult(data);
-        setScanStatus('failed');
-        setPriorities([]);
-        setScanNotice("We couldn't detect products automatically. Paste specific source URLs below, or continue with your uploads.");
-        prefillSources(data.hubs || {});
-        setObStep('sources');
-        return;
-      }
-
-      setScanResult(data);
-      setScanStatus('done');
-      // Reconcile selection: keep prior picks that still exist, then add fresh matches.
-      const labels = new Set(areas.map(a => a.label));
-      const kept = priorities.filter(p => labels.has(p));
-      const fresh = defaultPriorities(areas, profile.focusProducts);
-      setPriorities([...new Set([...kept, ...fresh])]);
-      prefillSources(data.hubs || {});
-      setObStep('priorities');
-    } catch (e) {
-      if (reqId !== scanReqId.current) return;
-      setScanStatus('failed');
-      setPriorities([]);
-      setScanNotice('Site scan failed. Paste specific source URLs below, or continue with your uploads.');
-      setObStep('sources');
-    }
-  }
-
-  // Pre-fill detected hub URLs without overwriting fields the user has edited.
-  function prefillSources(hubs) {
-    setSourceUrls(prev => {
-      const next = { ...prev };
-      const map = { caseStudies: hubs.caseStudies, blog: hubs.blog, docs: hubs.docs };
-      for (const key of Object.keys(map)) {
-        if (map[key] && !sourceDirty[key]) next[key] = map[key];
-      }
-      return next;
-    });
-  }
 
   async function handleSelectManaged() {
     setSaving(true);
@@ -414,26 +190,7 @@ export default function Setup({ onComplete }) {
     setTesting(false);
   }
 
-  async function handleUploadFiles() {
-    if (files.length === 0) return;
-
-    const formData = new FormData();
-    for (const f of files) {
-      formData.append('documents', f);
-    }
-
-    const res = await fetch('/api/onboarding/upload', {
-      method: 'POST',
-      body: formData
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      setUploadedFiles(data.files);
-    }
-  }
-
-  async function handleStartOnboarding() {
+  async function handleStartOnboarding({ websiteUrl, files, profile, priorities, sourceUrls }) {
     if (onboardingStatus === 'running') return; // guard against double-submit
     setOnboardingStatus('running');
     setOnboardingMessages([]);
@@ -441,9 +198,9 @@ export default function Setup({ onComplete }) {
     setOnboardingCoverage(null);
     try { eventSourceRef.current?.close(); } catch { /* noop */ }
 
-    // Upload files if not yet uploaded
-    let filesToSend = uploadedFiles;
-    if (files.length > 0 && uploadedFiles.length === 0) {
+    // Upload any selected files first.
+    let filesToSend = [];
+    if (files && files.length > 0) {
       const formData = new FormData();
       for (const f of files) {
         formData.append('documents', f);
@@ -465,9 +222,9 @@ export default function Setup({ onComplete }) {
       body: JSON.stringify({
         websiteUrl: websiteUrl || null,
         uploadedFiles: filesToSend.length > 0 ? filesToSend : null,
-        sourceUrls: buildSourcePayload(),
-        profile: buildProfilePayload(),
-        priorities
+        sourceUrls: sourceUrls || null,
+        profile: profile || null,
+        priorities: priorities || []
       })
     });
 
@@ -743,219 +500,7 @@ export default function Setup({ onComplete }) {
             <h2 className="text-lg font-semibold mb-4">Step 2: Build your knowledge base</h2>
 
             {onboardingStatus === 'idle' && (
-              <>
-                {/* Guided-step breadcrumb */}
-                <div className="flex items-center gap-1.5 mb-5 text-xs">
-                  {[['profile', 'About you'], ['website', 'Website'], ['priorities', 'Priorities'], ['sources', 'Sources']].map(([key, label], i) => {
-                    const order = ['profile', 'website', 'priorities', 'sources'];
-                    const active = obStep === key;
-                    const done = order.indexOf(obStep) > order.indexOf(key);
-                    return (
-                      <span key={key} className="flex items-center gap-1.5">
-                        <span className={`rounded-full px-2 py-0.5 font-medium ${active ? 'bg-gray-900 text-white' : done ? 'bg-gray-200 text-gray-700' : 'bg-gray-100 text-gray-400'}`}>{label}</span>
-                        {i < 3 && <span className="text-gray-300">&rsaquo;</span>}
-                      </span>
-                    );
-                  })}
-                </div>
-
-                {/* Sub-step: About you (5 structured fields, no LLM, no API key needed) */}
-                {obStep === 'profile' && (
-                  <div className="space-y-4">
-                    <p className="text-sm text-gray-500">
-                      A few quick taps tailor discovery questions and rank case studies to what you actually sell. All optional.
-                    </p>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Your role</label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {ROLE_OPTIONS.map(o => (
-                          <button
-                            key={o.v}
-                            type="button"
-                            onClick={() => setProfile({ ...profile, role: profile.role === o.v ? '' : o.v })}
-                            className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${profile.role === o.v ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'}`}
-                          >
-                            {o.l}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Products you sell</label>
-                      <ChipInput value={profile.focusProducts} onChange={v => setProfile({ ...profile, focusProducts: v })} placeholder="e.g. Azure OpenAI, AI Foundry, Fabric" />
-                      <p className="text-xs text-gray-400 mt-1">Highest-leverage signal — case studies are ranked to these.</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Industries you target</label>
-                      <ChipInput value={profile.focusIndustries} onChange={v => setProfile({ ...profile, focusIndustries: v })} placeholder="e.g. Financial services, Telco" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Company size</label>
-                      <PresetChips options={SIZE_PRESETS} value={profile.companySize} onChange={v => setProfile({ ...profile, companySize: v })} />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Buyer personas</label>
-                      <PresetChips options={PERSONA_PRESETS} value={profile.personas} onChange={v => setProfile({ ...profile, personas: v })} allowAdd addPlaceholder="Add title…" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Key competitors <span className="text-gray-400 font-normal">(optional)</span></label>
-                      <ChipInput value={profile.competitors} onChange={v => setProfile({ ...profile, competitors: v })} placeholder="e.g. Competitor A, Competitor B" />
-                    </div>
-                    <div className="flex gap-3 pt-2">
-                      <button onClick={() => setStep(1)} className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50">Back</button>
-                      <button onClick={() => setObStep('website')} className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-md text-sm font-medium hover:bg-gray-800">Next</button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Sub-step: Website + optional document upload */}
-                {obStep === 'website' && (
-                  <div className="space-y-4">
-                    <p className="text-sm text-gray-500">Where should Clumo look? We read only this site — no third-party search.</p>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Company website</label>
-                      <input
-                        type="url"
-                        placeholder="https://yourcompany.com"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                        value={websiteUrl}
-                        onChange={e => setWebsiteUrl(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Upload documents (optional)</label>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        multiple
-                        accept=".pdf,.docx,.pptx,.md,.txt"
-                        className="hidden"
-                        onChange={e => setFiles(Array.from(e.target.files))}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current.click()}
-                        className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:border-gray-900 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                        </svg>
-                        Choose Files
-                      </button>
-                      {files.length > 0 && (
-                        <p className="text-sm text-gray-600 mt-2 font-medium">{files.length} file(s) selected</p>
-                      )}
-                    </div>
-                    {scanStatus === 'scanning' && (
-                      <div className="text-sm text-gray-500 animate-pulse">Scanning {websiteUrl} …</div>
-                    )}
-                    <div className="flex gap-3 pt-2">
-                      <button onClick={() => setObStep('profile')} className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50">Back</button>
-                      <button
-                        onClick={handleScan}
-                        disabled={!websiteUrl.trim() || scanStatus === 'scanning'}
-                        className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-md text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
-                      >
-                        {scanStatus === 'scanning' ? 'Scanning…' : 'Scan my site'}
-                      </button>
-                    </div>
-                    <button onClick={() => setObStep('sources')} className="w-full text-xs text-gray-500 hover:text-gray-800 underline underline-offset-2">
-                      Skip scan and enter sources manually
-                    </button>
-                  </div>
-                )}
-
-                {/* Sub-step: Pick priorities from detected areas */}
-                {obStep === 'priorities' && (
-                  <div className="space-y-4">
-                    <p className="text-sm text-gray-500">
-                      We detected these areas on your site. Pick what you sell — case studies and proof points are ranked to your picks.
-                    </p>
-                    {(() => {
-                      const areas = scanAreas(scanResult);
-                      if (areas.length === 0) {
-                        return <p className="text-sm text-gray-500">No product areas detected. You can continue and confirm sources next.</p>;
-                      }
-                      return (
-                        <div className="flex flex-wrap gap-1.5">
-                          {areas.map(a => {
-                            const active = priorities.includes(a.label);
-                            return (
-                              <button
-                                key={a.label}
-                                type="button"
-                                onClick={() => setPriorities(active ? priorities.filter(p => p !== a.label) : [...priorities, a.label])}
-                                className={`rounded-full px-2.5 py-1 text-xs font-medium border transition-colors ${active ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'}`}
-                              >
-                                {a.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
-                    <div className="flex gap-3 pt-2">
-                      <button onClick={() => setObStep('website')} className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50">Back</button>
-                      <button onClick={() => setObStep('sources')} className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-md text-sm font-medium hover:bg-gray-800">Next</button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Sub-step: Confirm / supply source URLs */}
-                {obStep === 'sources' && (
-                  <div className="space-y-4">
-                    {scanNotice && (
-                      <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-sm text-amber-800">{scanNotice}</div>
-                    )}
-                    <p className="text-sm text-gray-500">
-                      Confirm or paste the exact pages for each type. One URL per line.{scanStatus === 'done' ? ' Pre-filled from your site scan.' : ''}
-                    </p>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Customer / case-study pages</label>
-                      <textarea
-                        rows={2}
-                        placeholder="https://yourcompany.com/customers"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono"
-                        value={sourceUrls.caseStudies}
-                        onChange={e => editSourceUrl('caseStudies', e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Blog / research / ROI pages</label>
-                      <textarea
-                        rows={2}
-                        placeholder="https://yourcompany.com/blog"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono"
-                        value={sourceUrls.blog}
-                        onChange={e => editSourceUrl('blog', e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Docs / product pages</label>
-                      <textarea
-                        rows={2}
-                        placeholder="https://docs.yourcompany.com"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono"
-                        value={sourceUrls.docs}
-                        onChange={e => editSourceUrl('docs', e.target.value)}
-                      />
-                    </div>
-                    {priorities.length > 0 && (
-                      <p className="text-xs text-gray-400">Ranking case studies to: {priorities.join(', ')}</p>
-                    )}
-                    <div className="flex gap-3 pt-2">
-                      <button onClick={() => setObStep(scanStatus === 'done' ? 'priorities' : 'website')} className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50">Back</button>
-                      <button
-                        onClick={handleStartOnboarding}
-                        disabled={!websiteUrl.trim() && files.length === 0 && !sourceUrls.caseStudies.trim() && !sourceUrls.blog.trim() && !sourceUrls.docs.trim()}
-                        className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-md text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
-                      >
-                        Generate Knowledge Base
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </>
+              <OnboardingWizard onSubmit={handleStartOnboarding} onBack={() => setStep(1)} />
             )}
 
             {onboardingStatus === 'running' && (
@@ -1012,7 +557,7 @@ export default function Setup({ onComplete }) {
                         You can paste specific URLs and re-run, or add them later from the Knowledge Base page.
                       </p>
                       <button
-                        onClick={() => { setObStep('sources'); setOnboardingStatus('idle'); setOnboardingMessages([]); }}
+                        onClick={() => { setOnboardingStatus('idle'); setOnboardingMessages([]); }}
                         className="mt-3 px-3 py-1.5 border border-amber-300 bg-white rounded-md text-sm font-medium text-amber-800 hover:bg-amber-100"
                       >
                         Add a source &amp; re-run
