@@ -668,6 +668,7 @@ Return ONLY a JSON array (no markdown):
         companyName: existing.companyName || newKb.companyName,
         companyProfile: existing.companyProfile || newKb.companyProfile || {},
         generatedAt: new Date().toISOString(),
+        meta: Object.assign({}, existing.meta, newKb.meta),
         discoveryQuestions: [...existing.discoveryQuestions, ...newDqs],
         caseStudies: [...existing.caseStudies, ...newCs],
         proofPoints: [...existing.proofPoints, ...newPp],

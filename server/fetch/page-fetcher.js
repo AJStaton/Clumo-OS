@@ -51,9 +51,18 @@ function createPageFetcher(options = {}) {
   async function fetch(url, opts = {}) {
     const { expectedType = null, forceHeadless = false } = opts;
     const key = normalizeUrl(url);
-    if (cache.has(key)) return cache.get(key);
+    let priorStatic = null;
+    if (cache.has(key)) {
+      const cached = cache.get(key);
+      // A forceHeadless request must not be satisfied by a cached static result —
+      // otherwise JS-rendered listing pages (already fetched statically during anchor
+      // discovery) never get expanded headlessly. Re-render in that case, but keep the
+      // cached result as a fallback if the headless render yields nothing usable.
+      if (!forceHeadless || cached.renderedVia === 'headless') return cached;
+      if (cached.ok) priorStatic = cached;
+    }
 
-    let staticResult = null;
+    let staticResult = priorStatic;
     if (!forceHeadless) {
       staticResult = await fetchStaticFn(url, { timeout: staticTimeout });
     }

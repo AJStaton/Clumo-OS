@@ -103,4 +103,40 @@ describe('page-fetcher escalation', () => {
     expect(t.sources[0]).toMatchObject({ renderedVia: 'static' });
     expect(t.sources[0].confidence).toBeGreaterThan(0);
   });
+
+  it('forceHeadless re-renders a page previously cached as static', async () => {
+    // A medium static page (not a shell, so it does NOT auto-escalate) — models a JS
+    // listing like Beamery whose static HTML has some text but lacks the rendered tiles.
+    const mediumPage = (url) => ({
+      url, ok: true, status: 200, renderedVia: 'static',
+      mainText: 'Customers using our platform. '.repeat(30), summary: '', title: 'Customers', links: [], jsonld: [], meta: {},
+      signals: { mainTextChars: 900, boilerplateRatio: 0.3, hasNextData: false, jsonldCount: 0, hasOgDescription: false }
+    });
+    const headless = fakeHeadless(async (u) => richPage(u, 'headless'));
+    const pf = createPageFetcher({
+      fetchStaticFn: async (u) => mediumPage(u),
+      headlessFetcher: headless
+    });
+    // First touch: a static fetch caches the listing during anchor discovery.
+    const first = await pf.fetch('https://x.com/customers', { expectedType: null });
+    expect(first.renderedVia).toBe('static');
+    expect(headless.calls).toBe(0);
+    // Listing expansion forces headless — must NOT return the cached static page.
+    const r = await pf.fetch('https://x.com/customers', { expectedType: 'case_study', forceHeadless: true });
+    expect(headless.calls).toBe(1);
+    expect(r.renderedVia).toBe('headless');
+  });
+
+  it('forceHeadless falls back to cached static when render yields nothing', async () => {
+    const headless = fakeHeadless(async () => null);   // headless unavailable
+    const pf = createPageFetcher({
+      fetchStaticFn: async (u) => richPage(u),          // good static content cached
+      headlessFetcher: headless
+    });
+    await pf.fetch('https://x.com/customers', { expectedType: 'case_study' });
+    const r = await pf.fetch('https://x.com/customers', { expectedType: 'case_study', forceHeadless: true });
+    expect(r.ok).toBe(true);
+    expect(r.renderedVia).toBe('static');
+    expect(r.signals.mainTextChars).toBeGreaterThan(1000);
+  });
 });

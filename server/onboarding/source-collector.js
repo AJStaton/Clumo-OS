@@ -112,6 +112,7 @@ async function collectSources(websiteUrl, options = {}) {
 
     // Always read the homepage for company analysis grounding.
     const homepage = await pageFetcher.fetch(websiteUrl, { expectedType: 'discovery_question' });
+    const homepageOk = homepage && homepage.ok ? 1 : 0;
     const companyPages = [homepage, ...productPages].filter((p) => p && p.ok);
 
     result.bundles.company = bundleText(companyPages);
@@ -184,7 +185,8 @@ async function collectSources(websiteUrl, options = {}) {
         productTruthSources === 0 ? 'No docs/product pages found. Paste a docs URL for product truths.' : null
       ),
       discovery_question: coverageFor(
-        productPages.length + 1, productPages.length + 1, 0, (buckets.product || []).length + 1, null
+        productPages.length + homepageOk, productPages.length + homepageOk, 0,
+        (buckets.product || []).length + 1, null
       )
     };
 
