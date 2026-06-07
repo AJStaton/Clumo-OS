@@ -11,7 +11,7 @@ const db = require('../db');
 const storage = require('../storage');
 const { loadProvider, loadEmbeddingProvider, saveProviderConfig, seedManagedCredentials } = require('../ai-provider');
 const { getKnowledgeBase } = require('../knowledge-base');
-const HybridWebsiteScraper = require('../hybrid-website-scraper');
+const { collectSources } = require('../onboarding/source-collector');
 const DocumentParser = require('../document-parser');
 const KnowledgeGenerator = require('../knowledge-generator');
 const { generateAnalysis, formatSessionName } = require('../analysis');
@@ -173,7 +173,7 @@ router.post('/api/onboarding/upload', upload.array('documents', 20), (req, res) 
 
 // Start onboarding pipeline
 router.post('/api/onboarding/start', (req, res) => {
-  const { websiteUrl, uploadedFiles } = req.body;
+  const { websiteUrl, uploadedFiles, sourceUrls, profile } = req.body;
 
   if (!websiteUrl && (!uploadedFiles || uploadedFiles.length === 0)) {
     return res.status(400).json({ error: 'Please provide a website URL or upload documents' });
@@ -183,7 +183,7 @@ router.post('/api/onboarding/start', (req, res) => {
     return res.status(409).json({ error: 'Onboarding is already in progress' });
   }
 
-  const sseToken = createSseToken({ websiteUrl, uploadedFiles, merge: false });
+  const sseToken = createSseToken({ websiteUrl, uploadedFiles, sourceUrls, profile, merge: false });
   res.json({ sseToken });
 });
 
@@ -212,7 +212,13 @@ router.post('/api/onboarding/add-documents', (req, res, next) => {
     size: f.size
   })) : [];
 
-  const sseToken = createSseToken({ websiteUrl, uploadedFiles, merge: true });
+  // sourceUrls / profile may arrive as JSON strings in the multipart body.
+  let sourceUrls = null;
+  let profile = null;
+  try { if (req.body.sourceUrls) sourceUrls = JSON.parse(req.body.sourceUrls); } catch { /* ignore */ }
+  try { if (req.body.profile) profile = JSON.parse(req.body.profile); } catch { /* ignore */ }
+
+  const sseToken = createSseToken({ websiteUrl, uploadedFiles, sourceUrls, profile, merge: true });
   res.json({ sseToken });
 });
 
@@ -225,7 +231,7 @@ router.get('/api/onboarding/stream', async (req, res) => {
 
   const job = pendingJobs.get(token);
   pendingJobs.delete(token);
-  const { websiteUrl, uploadedFiles, merge } = job.config;
+  const { websiteUrl, uploadedFiles, sourceUrls, profile, merge } = job.config;
 
   const providerMode = db.getConfig('provider_mode') || 'byok';
   const embeddingProvider = loadEmbeddingProvider();
@@ -284,19 +290,28 @@ router.get('/api/onboarding/stream', async (req, res) => {
         }
       }
     };
-    const scraper = new HybridWebsiteScraper(wrappedClient, { maxCaseStudies });
     const parser = new DocumentParser(wrappedClient);
     const generator = new KnowledgeGenerator(provider, embeddingProvider);
 
-    let websiteContent = null;
+    let sources = null;
     let documentContents = [];
 
-    // Step 1: Scrape website
+    // Step 1: Discover + fetch + route sources via the tiered pipeline
     if (websiteUrl) {
       sendEvent('progress', { stage: 'scraping', message: 'Scanning your website...' });
-      websiteContent = await scraper.scrape(websiteUrl, (progress) => {
-        sendEvent('progress', { stage: 'scraping', message: progress.message });
+      const pastedSources = {
+        caseStudies: (sourceUrls && sourceUrls.caseStudies) || [],
+        blog: (sourceUrls && sourceUrls.blog) || [],
+        docs: (sourceUrls && sourceUrls.docs) || []
+      };
+      sources = await collectSources(websiteUrl, {
+        openaiClient: wrappedClient,
+        pastedSources,
+        maxCaseStudies,
+        onProgress: (p) => sendEvent('progress', { stage: p.stage || 'scraping', message: p.message })
       });
+      const cs = sources.telemetry && sources.telemetry.buckets ? sources.telemetry.buckets.case_study : 0;
+      console.log(`[API] Source collection complete: ${sources.extractedCaseStudies.length} case studies (${cs} candidate URLs)`);
     }
 
     // Step 2: Parse documents
@@ -319,12 +334,20 @@ router.get('/api/onboarding/stream', async (req, res) => {
     }
 
     // Step 3: Generate knowledge base (single-user, no user scoping needed)
-    const result = await generator.generate(websiteContent, documentContents, (progress) => {
-      sendEvent('progress', { stage: progress.stage, message: progress.message, counts: progress.counts || null });
-    }, { merge, userId: 'local' });
+    const result = await generator.generate(null, documentContents, (progress) => {
+      sendEvent('progress', {
+        stage: progress.stage,
+        message: progress.message,
+        counts: progress.counts || null
+      });
+    }, { merge, userId: 'local', sources, profile: profile || null });
 
     db.setConfig('onboarding_complete', 'true');
-    sendEvent('complete', { counts: result.counts });
+    sendEvent('complete', {
+      counts: result.counts,
+      coverage: result.coverage || null,
+      typePaths: result.typePaths || null
+    });
   } catch (error) {
     console.error('Onboarding pipeline error:', error);
     sendEvent('error', { message: error.message || 'An error occurred during onboarding' });

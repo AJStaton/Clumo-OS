@@ -34,7 +34,7 @@ class KnowledgeGenerator {
 
   // Main generation pipeline
   async generate(websiteContent, documentContents, onProgress, options = {}) {
-    const { merge = false, userId = null } = options;
+    const { merge = false, userId = null, sources = null, profile = null } = options;
 
     // Combine all content
     let allContent = '';
@@ -56,13 +56,28 @@ class KnowledgeGenerator {
       }
     }
 
+    // Type-routed sources (from the new tiered fetch/discovery pipeline). When present,
+    // each generator gets its own targeted content bundle instead of one shared blob.
+    if (sources) {
+      if (sources.extractedCaseStudies && sources.extractedCaseStudies.length > 0) {
+        extractedCaseStudies = sources.extractedCaseStudies;
+        console.log(`[Knowledge Generator] ${extractedCaseStudies.length} case studies from type-routed sources`);
+      }
+      // Seed the shared blob from the company bundle so the fallback path still has content.
+      if (sources.bundles && sources.bundles.company) {
+        allContent += (allContent ? '\n' : '') + '=== WEBSITE CONTENT ===\n' + sources.bundles.company + '\n';
+      }
+    }
+
+    let documentText = '';
     if (documentContents && documentContents.length > 0) {
-      allContent += '\n=== UPLOADED DOCUMENTS ===\n';
+      documentText += '\n=== UPLOADED DOCUMENTS ===\n';
       for (const doc of documentContents) {
-        allContent += `\n--- ${doc.filename} ---\n`;
-        allContent += doc.content + '\n';
+        documentText += `\n--- ${doc.filename} ---\n`;
+        documentText += doc.content + '\n';
         console.log(`[Knowledge Generator] Document "${doc.filename}": ${doc.content.length} chars extracted`);
       }
+      allContent += documentText;
     }
 
     // Truncate to ~300k chars to fit in context window
@@ -70,30 +85,50 @@ class KnowledgeGenerator {
       allContent = allContent.substring(0, 300000) + '\n[Content truncated]';
       console.log(`[Knowledge Generator] Content truncated from ${allContent.length} to 300000 chars`);
     }
-    console.log(`[Knowledge Generator] Total content: ${allContent.length} chars, merge mode: ${merge}`);
+    console.log(`[Knowledge Generator] Total content: ${allContent.length} chars, merge mode: ${merge}, type-routed: ${!!sources}`);
+
+    // Per-type content selection: prefer the targeted bundle, fall back to the shared blob.
+    // Uploaded documents are high-trust and augment every type.
+    const bundles = (sources && sources.bundles) || {};
+    const pick = (bundle) => {
+      const base = bundle && bundle.length > 200 ? bundle : allContent;
+      return documentText ? `${base}\n${documentText}` : base;
+    };
+    const discoveryContent = pick(bundles.discovery);
+    const proofContent = pick(bundles.proof);
+    const productTruthContent = pick(bundles.productTruth);
+    const caseStudyContent = pick(bundles.company);
+    const profileCtx = this.buildProfileContext(profile);
+
+    // Track which source path each type used, for telemetry/warnings.
+    const typePaths = {};
 
     // Phase 1: Company Analysis
     if (onProgress) onProgress({ stage: 'analyzing', message: 'Analyzing your company and products...' });
-    const companyAnalysis = await this.analyzeCompany(allContent);
+    const companyAnalysis = await this.analyzeCompany(allContent, profileCtx);
 
     // Phase 2: Generate Discovery Questions
     if (onProgress) onProgress({ stage: 'discovery_questions', message: merge ? 'Extracting new discovery questions...' : 'Generating discovery questions...' });
-    const discoveryQuestions = await this.generateDiscoveryQuestions(allContent, companyAnalysis, merge);
+    typePaths.discoveryQuestions = bundles.discovery && bundles.discovery.length > 200 ? 'primary' : 'fallback';
+    const discoveryQuestions = await this.generateDiscoveryQuestions(discoveryContent, companyAnalysis, merge, profileCtx);
     console.log(`[Knowledge Generator] LLM returned ${discoveryQuestions.length} discovery questions`);
 
     // Phase 3: Generate Case Studies
     if (onProgress) onProgress({ stage: 'case_studies', message: merge ? 'Extracting new case studies...' : 'Creating case studies...' });
-    const caseStudies = await this.generateCaseStudies(allContent, companyAnalysis, merge, extractedCaseStudies);
+    typePaths.caseStudies = (extractedCaseStudies && extractedCaseStudies.length > 0) ? 'primary' : 'fallback';
+    const caseStudies = await this.generateCaseStudies(caseStudyContent, companyAnalysis, merge, extractedCaseStudies);
     console.log(`[Knowledge Generator] LLM returned ${caseStudies.length} case studies`);
 
     // Phase 4: Generate Proof Points
     if (onProgress) onProgress({ stage: 'proof_points', message: merge ? 'Extracting new proof points...' : 'Building proof points...' });
-    const proofPoints = await this.generateProofPoints(allContent, companyAnalysis, merge);
+    typePaths.proofPoints = bundles.proof && bundles.proof.length > 200 ? 'primary' : 'fallback';
+    const proofPoints = await this.generateProofPoints(proofContent, companyAnalysis, merge, profileCtx);
     console.log(`[Knowledge Generator] LLM returned ${proofPoints.length} proof points`);
 
     // Phase 4b: Generate Product Truths
     if (onProgress) onProgress({ stage: 'product_truths', message: merge ? 'Extracting new product truths...' : 'Building product truths...' });
-    const productTruths = await this.generateProductTruths(allContent, companyAnalysis, merge);
+    typePaths.productTruths = bundles.productTruth && bundles.productTruth.length > 200 ? 'primary' : 'fallback';
+    const productTruths = await this.generateProductTruths(productTruthContent, companyAnalysis, merge);
     console.log(`[Knowledge Generator] LLM returned ${productTruths.length} product truths`);
 
     // Phase 5: Generate embeddings for all KB items
@@ -119,6 +154,15 @@ class KnowledgeGenerator {
       proofPoints,
       productTruths
     };
+
+    // Persist completeness metadata so the KB page can show source coverage + warnings.
+    const completeness = {
+      generatedAt: knowledgeBase.generatedAt,
+      typePaths,
+      coverage: (sources && sources.coverage) || null,
+      profile: profile || null
+    };
+    knowledgeBase.meta = Object.assign({}, knowledgeBase.meta, { completeness });
 
     // If not merging, delete existing KB first
     if (!merge) {
@@ -154,7 +198,9 @@ class KnowledgeGenerator {
         caseStudies: knowledgeBase.caseStudies.length,
         proofPoints: knowledgeBase.proofPoints.length,
         productTruths: knowledgeBase.productTruths.length
-      }
+      },
+      coverage: (sources && sources.coverage) || null,
+      typePaths
     });
 
     return {
@@ -163,12 +209,30 @@ class KnowledgeGenerator {
         caseStudies: knowledgeBase.caseStudies.length,
         proofPoints: knowledgeBase.proofPoints.length,
         productTruths: knowledgeBase.productTruths.length
-      }
+      },
+      coverage: (sources && sources.coverage) || null,
+      typePaths
     };
   }
 
+  // Build a compact "who you sell to" context block from the optional onboarding profile.
+  // Threaded into company analysis + each generator so questions/proof points are tuned
+  // to the seller's personas, ICP, and competitive set.
+  buildProfileContext(profile) {
+    if (!profile || typeof profile !== 'object') return '';
+    const lines = [];
+    const personas = Array.isArray(profile.personas) ? profile.personas.filter(Boolean) : [];
+    const competitors = Array.isArray(profile.competitors) ? profile.competitors.filter(Boolean) : [];
+    if (personas.length) lines.push(`Target buyer personas: ${personas.join(', ')}`);
+    if (profile.icpIndustry) lines.push(`Ideal customer industry: ${profile.icpIndustry}`);
+    if (profile.icpCompanySize) lines.push(`Ideal customer size: ${profile.icpCompanySize}`);
+    if (competitors.length) lines.push(`Key competitors to differentiate against: ${competitors.join(', ')}`);
+    if (lines.length === 0) return '';
+    return `\n\nSELLER CONTEXT (use to tailor and sharpen output):\n- ${lines.join('\n- ')}`;
+  }
+
   // Phase 1: Analyze the company from extracted content
-  async analyzeCompany(content) {
+  async analyzeCompany(content, profileCtx = '') {
     const response = await this.openai.chat.completions.create({
       messages: [
         {
@@ -189,7 +253,7 @@ Return ONLY valid JSON, no markdown formatting.`
         },
         {
           role: 'user',
-          content: `Analyze this company:\n\n${content.substring(0, 30000)}`
+          content: `Analyze this company:\n\n${content.substring(0, 30000)}${profileCtx}`
         }
       ],
       temperature: 0.3,
@@ -209,7 +273,7 @@ Return ONLY valid JSON, no markdown formatting.`
   }
 
   // Phase 2: Generate discovery questions
-  async generateDiscoveryQuestions(content, analysis, isAdditional = false) {
+  async generateDiscoveryQuestions(content, analysis, isAdditional = false, profileCtx = '') {
     const quantityInstruction = isAdditional
       ? `Generate discovery questions that are DIRECTLY supported by specific content in the documents provided. Extract every question that the content supports — including questions inspired by third-party research, industry insights, analyst findings, or market data found in the documents. These are valuable because they let a salesperson reference credible external sources during discovery. Do NOT invent questions beyond what the content supports, but DO be thorough in extracting all questions the content can ground.`
       : `Generate Challenger-style discovery questions that are DIRECTLY grounded in the provided content. Every question must be clearly supported by specific product capabilities, pain points, or value propositions found in the source material. Do NOT pad with generic or filler questions — quality over quantity.
@@ -235,6 +299,7 @@ The company: ${analysis.productDescription}
 Target market: ${analysis.targetMarket}
 Pain points solved: ${analysis.painPointsSolved?.join(', ')}
 Value propositions: ${analysis.valuePropositions?.join(', ')}
+${profileCtx}
 
 ${quantityInstruction}
 
@@ -346,7 +411,7 @@ Return ONLY a JSON array (no markdown):
   }
 
   // Phase 4: Generate proof points
-  async generateProofPoints(content, analysis, isAdditional = false) {
+  async generateProofPoints(content, analysis, isAdditional = false, profileCtx = '') {
     const quantityInstruction = isAdditional
       ? `Extract ALL proof points that are DIRECTLY supported by specific statistics, metrics, research findings, analyst insights, awards, or verifiable claims found in the documents provided. This includes:
 - Industry research and analyst reports (e.g. IDC, Gartner, Forrester, McKinsey) — these are HIGH-VALUE proof points for sales conversations
@@ -373,6 +438,7 @@ Do NOT fabricate or infer proof points that aren't explicitly stated in the cont
 The company: ${analysis.productDescription}
 Known stats/metrics: ${analysis.keyStats?.join(', ')}
 Differentiators: ${analysis.differentiators?.join(', ')}
+${profileCtx}
 
 ${quantityInstruction}
 
