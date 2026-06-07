@@ -37,14 +37,21 @@ class ServerManager {
 
     // Resolve the server entry path: explicit override (tests) > prod > dev.
     let serverPath;
+    const isDev = !process.resourcesPath || process.argv.includes('--dev');
     if (this.serverEntry) {
       serverPath = this.serverEntry;
     } else {
-      const isDev = !process.resourcesPath || process.argv.includes('--dev');
       serverPath = isDev
         ? path.join(__dirname, '..', 'server', 'index.js')
         : path.join(process.resourcesPath, 'server', 'index.js');
     }
+
+    // In a packaged build, Chromium ships inside the bundled server node_modules
+    // (installed with PLAYWRIGHT_BROWSERS_PATH=0). Tell Playwright to resolve it there.
+    // In dev we leave the default shared browser cache untouched.
+    const playwrightEnv = (!isDev && !process.env.PLAYWRIGHT_BROWSERS_PATH)
+      ? { PLAYWRIGHT_BROWSERS_PATH: '0' }
+      : {};
 
     return new Promise((resolve, reject) => {
       // Use spawn with system node instead of fork (avoids Electron's
@@ -52,6 +59,7 @@ class ServerManager {
       this.process = spawn(this.nodeBin, [serverPath], {
         env: {
           ...process.env,
+          ...playwrightEnv,
           ...this.extraEnv,
           PORT: String(this.port)
         },

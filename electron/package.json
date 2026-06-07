@@ -5,6 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "prebuild": "npm --prefix ../server run install:chromium",
     "build": "electron-builder",
     "test": "vitest run"
   },
