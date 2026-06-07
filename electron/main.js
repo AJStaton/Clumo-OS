@@ -18,6 +18,8 @@ if (TEST_MODE) {
   console.log('[Electron] Running in TEST_MODE (fake media + fake provider)');
 }
 
+const ICON_PATH = path.join(__dirname, 'build', 'icon.png');
+
 let mainWindow = null;
 const serverManager = new ServerManager({
   // In TEST_MODE always resolve the server entry from the dev layout so
@@ -33,6 +35,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: 'Clumo',
+    icon: ICON_PATH,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -55,6 +58,11 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // On macOS, override the dock icon (otherwise it shows the bundled Electron atom in dev)
+  if (process.platform === 'darwin' && app.dock) {
+    try { app.dock.setIcon(ICON_PATH); } catch (err) { console.warn('[Electron] dock.setIcon failed:', err); }
+  }
+
   // Start the embedded server
   try {
     await serverManager.start();
