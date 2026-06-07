@@ -7,7 +7,7 @@
 
 const sitemap = require('./sitemap');
 const { runAdapters } = require('./adapters');
-const { classifyAndRank, classifyUrl, normalizeForDedupe, CASE_STUDY_LISTING } = require('./classify');
+const { classifyAndRank, classifyUrl, normalizeForDedupe, localeOf, CASE_STUDY_LISTING } = require('./classify');
 const { URL } = require('url');
 
 // Seed paths worth probing directly even if not linked from the homepage.
@@ -28,6 +28,58 @@ function isCaseStudyListing(pathUrl) {
   } catch { return false; }
 }
 
+// Merge directly-discovered stories with stories harvested from listing pages, enforcing
+// per-listing diversity so a single vertical listing (e.g. /solutions/sap/customers) can't
+// flood the bucket. Direct individual hits are kept first; listing stories are then added
+// round-robin (master listings before narrow ones), each listing capped at its quota.
+// Pure + exported for unit testing.
+//   direct:   [{ url, ... }]                     — individual stories found without a listing
+//   listings: [{ url, narrow, links: [{url,...}] }] — per-listing harvested stories
+function diversifyCaseStudies({ direct = [], listings = [], budget = 50 }) {
+  const chosen = new Map();
+  const add = (c) => {
+    const k = normalizeForDedupe(c.url);
+    if (!chosen.has(k)) chosen.set(k, c);
+  };
+
+  for (const c of direct) {
+    if (chosen.size >= budget) break;
+    add(c);
+  }
+
+  // Master (non-narrow) listings first, then narrow.
+  const ordered = [...listings].sort((a, b) => (a.narrow ? 1 : 0) - (b.narrow ? 1 : 0));
+  const n = ordered.length;
+  const baseCap = n <= 1 ? budget : Math.max(8, Math.ceil(budget / n));
+  // Narrow vertical listings get a tighter cap so they never dominate.
+  const capFor = (l) => (l.narrow ? Math.min(baseCap, 5) : baseCap);
+  const counts = new Array(n).fill(0);
+
+  let round = 0;
+  let progressed = true;
+  while (chosen.size < budget && progressed) {
+    progressed = false;
+    for (let i = 0; i < n; i++) {
+      const l = ordered[i];
+      if (round >= (l.links || []).length) continue;
+      if (counts[i] >= capFor(l)) continue;
+      add(l.links[round]);
+      counts[i] += 1;
+      progressed = true;
+      if (chosen.size >= budget) break;
+    }
+    round += 1;
+  }
+
+  // Always keep the listing URLs themselves as fallbacks (some sites put all content there).
+  for (const l of ordered) {
+    if (chosen.size >= budget) break;
+    add({ url: l.url, category: 'case_study', individual: false, narrow: l.narrow, priority: l.narrow ? 1 : 2 });
+  }
+
+  return [...chosen.values()].slice(0, budget);
+}
+
 // pastedSources: { caseStudies: [], blog: [], docs: [] } — user-provided URLs per category.
 // Returns { buckets, telemetry }.
 async function discoverUrls(baseUrl, pageFetcher, options = {}) {
@@ -36,8 +88,10 @@ async function discoverUrls(baseUrl, pageFetcher, options = {}) {
     perTypeBudget = 20,
     caseStudyBudget = perTypeBudget,
     maxAnchorPages = 8,
+    maxListingExpansions = 8,
     onProgress = null
   } = options;
+  const MAX_LISTING_EXPANSIONS = maxListingExpansions;
 
   const baseHost = hostOf(baseUrl);
   const origin = baseHost ? new URL(baseUrl).origin : null;
@@ -95,7 +149,8 @@ async function discoverUrls(baseUrl, pageFetcher, options = {}) {
   telemetry.adapterName = adapterResult.name;
 
   // Classify + rank everything. Pasted URLs are prepended so they win ties.
-  const ranked = classifyAndRank([...pasted.map((p) => p.url), ...candidates], { baseHost, perTypeBudget, budgets: { case_study: caseStudyBudget } });
+  const userLocale = (() => { try { return localeOf(new URL(baseUrl).pathname); } catch { return null; } })();
+  const ranked = classifyAndRank([...pasted.map((p) => p.url), ...candidates], { baseHost, perTypeBudget, budgets: { case_study: caseStudyBudget }, userLocale });
 
   // Ensure pasted URLs land in their declared bucket even if classification disagrees.
   for (const p of pasted) {
@@ -106,35 +161,38 @@ async function discoverUrls(baseUrl, pageFetcher, options = {}) {
     }
   }
 
-  // 5) Expand case-study listing pages into individual story URLs.
+  // 5) Expand case-study listing pages into individual story URLs, with per-listing diversity.
   const csListings = ranked.case_study.filter((c) => !c.individual || isCaseStudyListing(c.url));
   if (csListings.length > 0) {
     if (onProgress) onProgress({ message: 'Expanding case-study library...' });
-    const individuals = new Map();
-    for (const c of ranked.case_study.filter((x) => x.individual && !isCaseStudyListing(x.url))) {
-      individuals.set(normalizeForDedupe(c.url), c);
-    }
-    for (const listing of csListings.slice(0, 5)) {
+    const direct = ranked.case_study.filter((x) => x.individual && !isCaseStudyListing(x.url));
+    const listings = [];
+    // Master listings before narrow ones so the general library expands first.
+    const orderedListings = [...csListings].sort((a, b) => (a.narrow ? 1 : 0) - (b.narrow ? 1 : 0));
+    for (const listing of orderedListings.slice(0, MAX_LISTING_EXPANSIONS)) {
       // Force headless so JS-rendered listings (Beamery) actually yield their tiles.
       const page = await pageFetcher.fetch(listing.url, { expectedType: 'case_study', forceHeadless: true });
       telemetry.listingExpansions += 1;
-      if (!page || !page.ok || !page.links) continue;
-      for (const link of page.links) {
-        if (hostOf(link) !== baseHost) continue;
-        const c = classifyUrl(link, { baseHost });
-        if (c && c.category === 'case_study' && c.individual && !isCaseStudyListing(c.url)) {
-          individuals.set(normalizeForDedupe(c.url), c);
+      const links = [];
+      const seenInListing = new Set();
+      if (page && page.ok && page.links) {
+        for (const link of page.links) {
+          if (hostOf(link) !== baseHost) continue;
+          const c = classifyUrl(link, { baseHost });
+          if (c && c.category === 'case_study' && c.individual && !isCaseStudyListing(c.url)) {
+            const k = normalizeForDedupe(c.url);
+            if (seenInListing.has(k)) continue;
+            seenInListing.add(k);
+            links.push(c);
+          }
         }
       }
+      listings.push({ url: listing.url, narrow: !!listing.narrow, links });
     }
-    const merged = [...individuals.values()];
-    // Keep listings too (some sites have all content on the listing page).
-    merged.push(...csListings);
-    merged.sort((a, b) => (b.priority || 0) - (a.priority || 0));
-    ranked.case_study = merged.slice(0, caseStudyBudget);
+    ranked.case_study = diversifyCaseStudies({ direct, listings, budget: caseStudyBudget });
   }
 
   return { buckets: ranked, telemetry };
 }
 
-module.exports = { discoverUrls, SEED_PATHS };
+module.exports = { discoverUrls, diversifyCaseStudies, SEED_PATHS };

@@ -17,10 +17,12 @@
 
 const { createPageFetcher } = require('../fetch/page-fetcher');
 const { discoverUrls } = require('../discovery/url-discovery');
+const { buildRelevanceContext, scoreCaseStudyRelevance, tokenize, hasContext } = require('./relevance');
 const HybridWebsiteScraper = require('../hybrid-website-scraper');
 const BUNDLE_CHAR_CAP = 45000;          // per-type content cap (~11k tokens)
 const MAX_PAGES_PER_BUNDLE = 12;        // pages folded into a non-case-study bundle
 const WEAK_CONFIDENCE = 0.35;           // below this, a fetched page is a "weak" source
+const RELEVANCE_FLOOR = 0.12;           // below this (when the seller gave focus signals) a story is demoted to weak
 
 // Join fetched pages' main text into a single bundle string, capped.
 function bundleText(pages, cap = BUNDLE_CHAR_CAP) {
@@ -68,6 +70,8 @@ async function collectSources(websiteUrl, options = {}) {
   const {
     openaiClient = null,
     pastedSources = {},
+    profile = null,
+    priorities = [],
     maxCaseStudies = 50,
     onProgress = null,
     pageFetcher: injectedFetcher = null,
@@ -121,22 +125,37 @@ async function collectSources(websiteUrl, options = {}) {
     result.bundles.proof = bundleText(blogPages);
     result.bundles.productTruth = bundleText([...docsPages, ...productPages]);
 
-    // --- Case studies: fetch each individual page + LLM-extract structured data ---
+    // --- Case studies: fetch each page, rank by relevance to what the seller sells, then
+    // LLM-extract the most relevant. This is what stops one topic (e.g. SAP) from dominating. ---
+    const p = profile || {};
+    const companyKeywords = homepage && homepage.title ? tokenize(homepage.title) : [];
+    const relevanceCtx = buildRelevanceContext({
+      priorities: Array.isArray(priorities) ? priorities : [],
+      focusProducts: p.focusProducts || [],
+      focusIndustries: p.focusIndustries || (p.icpIndustry ? [p.icpIndustry] : []),
+      personas: p.personas || [],
+      companyKeywords
+    });
+    // Demotion only applies when the seller gave explicit focus signals (priorities/products/
+    // industries) — otherwise we keep discovery order and don't second-guess.
+    const hasExplicitFocus = (Array.isArray(priorities) && priorities.length > 0) ||
+      (Array.isArray(p.focusProducts) && p.focusProducts.length > 0) ||
+      (Array.isArray(p.focusIndustries) && p.focusIndustries.length > 0) ||
+      !!p.icpIndustry;
+
     const csUrls = (buckets.case_study || []).slice(0, maxCaseStudies);
     let csHigh = 0;
     let csWeak = 0;
+    let csDemoted = 0;
     if (csUrls.length > 0 && extractor) {
-      emit('case_studies', `Extracting case studies from ${csUrls.length} pages...`);
-      for (let i = 0; i < csUrls.length; i++) {
-        const item = csUrls[i];
-        emit('case_studies', `Extracting case study ${i + 1} of ${csUrls.length}...`);
+      emit('case_studies', `Reading ${csUrls.length} case-study pages...`);
+
+      // Pass 1: fetch + score (fetch is cached + far cheaper than the LLM extraction).
+      const scored = [];
+      for (const item of csUrls) {
         const page = await pageFetcher.fetch(item.url, { expectedType: 'case_study' });
         if (!page || !page.ok) continue;
-
-        // Prefer rich main text; fall back to structured summary (weak candidate).
-        const content = (page.mainText && page.mainText.length > 200)
-          ? page.mainText
-          : (page.summary || '');
+        const content = (page.mainText && page.mainText.length > 200) ? page.mainText : (page.summary || '');
         if (!content || content.length < 200) {
           if (page.summary && page.summary.length > 40) {
             result.weakCaseStudyCandidates.push({ url: page.url, summary: page.summary, title: page.title });
@@ -144,21 +163,46 @@ async function collectSources(websiteUrl, options = {}) {
           }
           continue;
         }
+        const relevance = scoreCaseStudyRelevance({ text: content, title: page.title, url: page.url }, relevanceCtx);
+        scored.push({ page, content, relevance });
+      }
 
+      // Rank by relevance (when we have context), then by fetch confidence.
+      if (hasContext(relevanceCtx)) {
+        scored.sort((a, b) => (b.relevance - a.relevance) || (b.page.confidence - a.page.confidence));
+      }
+
+      // Pass 2: extract. Demote low-relevance stories to weak candidates instead of saving
+      // them as primary case studies (only when the seller gave explicit focus).
+      let idx = 0;
+      for (const s of scored) {
+        idx += 1;
+        const tooIrrelevant = hasExplicitFocus && hasContext(relevanceCtx) &&
+          s.relevance !== null && s.relevance < RELEVANCE_FLOOR;
+        if (tooIrrelevant) {
+          result.weakCaseStudyCandidates.push({
+            url: s.page.url, summary: (s.page.summary || s.content.slice(0, 240)), title: s.page.title,
+            reason: 'low relevance to your focus'
+          });
+          csDemoted += 1;
+          continue;
+        }
+        emit('case_studies', `Extracting case study ${idx} of ${scored.length}...`);
         try {
-          const extracted = await extractor.extractCaseStudyFromContent(content, page.url);
+          const extracted = await extractor.extractCaseStudyFromContent(s.content, s.page.url);
           if (extracted && extracted.length > 0) {
             const tagged = extracted.map((cs) => ({
               ...cs,
-              _confidence: page.confidence,
-              _weak: page.confidence < WEAK_CONFIDENCE
+              _confidence: s.page.confidence,
+              _relevance: s.relevance,
+              _weak: s.page.confidence < WEAK_CONFIDENCE
             }));
             result.extractedCaseStudies.push(...tagged);
-            if (page.confidence >= WEAK_CONFIDENCE) csHigh += extracted.length;
+            if (s.page.confidence >= WEAK_CONFIDENCE) csHigh += extracted.length;
             else csWeak += extracted.length;
           }
         } catch (e) {
-          console.warn(`[SourceCollector] Case-study extraction failed for ${page.url}: ${e.message}`);
+          console.warn(`[SourceCollector] Case-study extraction failed for ${s.page.url}: ${e.message}`);
         }
       }
       // Dedupe by company, keep the most complete entry.
@@ -173,7 +217,9 @@ async function collectSources(websiteUrl, options = {}) {
       case_study: coverageFor(
         result.extractedCaseStudies.length, csHigh, csWeak, csUrls.length,
         result.extractedCaseStudies.length === 0
-          ? 'No case studies found. Paste a customer-story URL to add them.'
+          ? (csDemoted > 0
+            ? 'Found case studies, but none matched your focus products/industries. Adjust your focus or paste a customer-story URL.'
+            : 'No case studies found. Paste a customer-story URL to add them.')
           : (csHigh === 0 ? 'Only weak case-study summaries found. Paste a customer-story URL for stronger results.' : null)
       ),
       proof_point: coverageFor(
@@ -194,6 +240,7 @@ async function collectSources(websiteUrl, options = {}) {
     result.telemetry = {
       discovery: discoveryTelemetry,
       fetch: pageFetcher.getTelemetry(),
+      caseStudyDemoted: csDemoted,
       buckets: {
         case_study: (buckets.case_study || []).length,
         blog: (buckets.blog || []).length,

@@ -119,3 +119,24 @@
 - Blog/proof-point and product/docs pages are server-rendered everywhere (static works).
 - Case studies fail two ways: discovery (Beamery: no sitemap + JS listing) and extraction (Legora individual pages are client-rendered shells — headless does not fully rescue; extract from rich SSR listing + structured data with low confidence + "paste a URL" warning).
 - New pipeline recovers 12-15 case studies on Legora/Beamery/HappyRobot where the old scraper returned 0.
+
+## Phase 9: Guided Onboarding + Relevance-Ranked Knowledge Base
+Fixes two defects: (1) onboarding azure.microsoft.com/en-gb returned all-SAP case studies; (2) the user was never prompted for profile/source specifics (inputs were hidden behind collapsed toggles).
+
+### Backend — relevance + listing hygiene (fixes the SAP flood)
+- [x] 9.1 server/discovery/classify.js — narrow/vertical listing detection (/solutions/<x>/customers), locale-dedupe (prefers user locale -> en-us -> first), fragment-URL stripping; narrow + fragment listings down-ranked
+- [x] 9.2 server/discovery/url-discovery.js — diversifyCaseStudies(): per-listing contribution cap (narrow <=5, round-robin master-first) so one vertical listing cannot flood the bucket; userLocale-aware ranking
+- [x] 9.3 server/onboarding/relevance.js (new) — weighted keyword/phrase scorer (priorities/focusProducts=3, industries=2, personas/companyKeywords=1); URL-slug bonus; returns null when no seller context (preserves discovery order)
+- [x] 9.4 server/onboarding/source-collector.js — two-pass fetch->score->extract; demote case studies below RELEVANCE_FLOOR (0.12) to weak candidates only when the seller gave explicit focus; csDemoted telemetry + coverage warning
+
+### Backend — wizard support
+- [x] 9.5 server/onboarding/site-scanner.js (new) — scanSite(url): fast, discovery-only detection of products/solutions + case-study/docs/blog hubs (sitemap + homepage anchors + classifier; no per-page LLM, no headless)
+- [x] 9.6 routes/api.js — POST /api/onboarding/scan; threaded priorities + richer profile through start/add-documents/SSE
+- [x] 9.7 knowledge-generator.js — buildProfileContext extended with role, focusProducts, focusIndustries, companySize, personas, priorities
+
+### Frontend — guided wizard
+- [x] 9.8 Setup.jsx — stepped onboarding wizard: About you (5 structured fields) -> Website + upload -> Scan -> Priorities -> Confirm sources -> Run; replaces hidden collapsibles. Scan-race guard, dirty-field protection on source prefill, re-scan priority reconciliation, double-submit guard, EventSource cleanup
+
+### Tests
+- [x] 9.9 classify/diversity/relevance/collector/site-scanner unit tests (no live network); full suite 125 green
+- [x] 9.10 Live-validated: azure.microsoft.com/en-gb scan resolves the master /en-gb/resources/customer-stories hub (not the SAP narrow listing) + 24 products/24 solutions; beamery.com scan resolves /customers/ + 5 products/4 solutions

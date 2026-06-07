@@ -12,6 +12,7 @@ const storage = require('../storage');
 const { loadProvider, loadEmbeddingProvider, saveProviderConfig, seedManagedCredentials } = require('../ai-provider');
 const { getKnowledgeBase } = require('../knowledge-base');
 const { collectSources } = require('../onboarding/source-collector');
+const { scanSite } = require('../onboarding/site-scanner');
 const DocumentParser = require('../document-parser');
 const KnowledgeGenerator = require('../knowledge-generator');
 const { generateAnalysis, formatSessionName } = require('../analysis');
@@ -173,7 +174,7 @@ router.post('/api/onboarding/upload', upload.array('documents', 20), (req, res) 
 
 // Start onboarding pipeline
 router.post('/api/onboarding/start', (req, res) => {
-  const { websiteUrl, uploadedFiles, sourceUrls, profile } = req.body;
+  const { websiteUrl, uploadedFiles, sourceUrls, profile, priorities } = req.body;
 
   if (!websiteUrl && (!uploadedFiles || uploadedFiles.length === 0)) {
     return res.status(400).json({ error: 'Please provide a website URL or upload documents' });
@@ -183,8 +184,25 @@ router.post('/api/onboarding/start', (req, res) => {
     return res.status(409).json({ error: 'Onboarding is already in progress' });
   }
 
-  const sseToken = createSseToken({ websiteUrl, uploadedFiles, sourceUrls, profile, merge: false });
+  const sseToken = createSseToken({ websiteUrl, uploadedFiles, sourceUrls, profile, priorities, merge: false });
   res.json({ sseToken });
+});
+
+// Preliminary scan: detect the products/solutions a site offers and where its case-study,
+// docs, and blog hubs live, so the wizard can ask the user what to prioritise. Discovery-only
+// (no per-page LLM), so it returns quickly.
+router.post('/api/onboarding/scan', async (req, res) => {
+  const websiteUrl = req.body && req.body.websiteUrl ? String(req.body.websiteUrl).trim() : null;
+  if (!websiteUrl) {
+    return res.status(400).json({ error: 'Please provide a website URL' });
+  }
+  try {
+    const scan = await scanSite(websiteUrl);
+    res.json(scan);
+  } catch (err) {
+    console.error('[API] Site scan failed:', err.message);
+    res.status(200).json({ products: [], solutions: [], hubs: {}, error: 'scan_failed' });
+  }
 });
 
 // Add documents (merge mode)
@@ -212,13 +230,15 @@ router.post('/api/onboarding/add-documents', (req, res, next) => {
     size: f.size
   })) : [];
 
-  // sourceUrls / profile may arrive as JSON strings in the multipart body.
+  // sourceUrls / profile / priorities may arrive as JSON strings in the multipart body.
   let sourceUrls = null;
   let profile = null;
+  let priorities = null;
   try { if (req.body.sourceUrls) sourceUrls = JSON.parse(req.body.sourceUrls); } catch { /* ignore */ }
   try { if (req.body.profile) profile = JSON.parse(req.body.profile); } catch { /* ignore */ }
+  try { if (req.body.priorities) priorities = JSON.parse(req.body.priorities); } catch { /* ignore */ }
 
-  const sseToken = createSseToken({ websiteUrl, uploadedFiles, sourceUrls, profile, merge: true });
+  const sseToken = createSseToken({ websiteUrl, uploadedFiles, sourceUrls, profile, priorities, merge: true });
   res.json({ sseToken });
 });
 
@@ -231,7 +251,7 @@ router.get('/api/onboarding/stream', async (req, res) => {
 
   const job = pendingJobs.get(token);
   pendingJobs.delete(token);
-  const { websiteUrl, uploadedFiles, sourceUrls, profile, merge } = job.config;
+  const { websiteUrl, uploadedFiles, sourceUrls, profile, priorities, merge } = job.config;
 
   const providerMode = db.getConfig('provider_mode') || 'byok';
   const embeddingProvider = loadEmbeddingProvider();
@@ -304,9 +324,14 @@ router.get('/api/onboarding/stream', async (req, res) => {
         blog: (sourceUrls && sourceUrls.blog) || [],
         docs: (sourceUrls && sourceUrls.docs) || []
       };
+      const effectivePriorities = (Array.isArray(priorities) && priorities.length)
+        ? priorities
+        : ((profile && Array.isArray(profile.priorities)) ? profile.priorities : []);
       sources = await collectSources(websiteUrl, {
         openaiClient: wrappedClient,
         pastedSources,
+        profile: profile || null,
+        priorities: effectivePriorities,
         maxCaseStudies,
         onProgress: (p) => sendEvent('progress', { stage: p.stage || 'scraping', message: p.message })
       });

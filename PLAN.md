@@ -437,3 +437,50 @@ studies on Legora/Beamery/HappyRobot where the old scraper returned 0.
 ### Status
 Implemented + unit-tested (108 server tests green) + live-smoke validated. Packaged-build
 smoke on Win/macOS deferred (needs installer build env).
+
+### Phase 9: Guided Onboarding + Relevance-Ranked Knowledge Base ✓
+
+Turns onboarding into a short guided wizard that builds hyper-relevance from the first screen,
+and ranks case studies to what the seller actually sells. Fixes two reported defects:
+
+1. **All-SAP case studies for azure.microsoft.com/en-gb.** Root cause: discovery filled the
+   case-study bucket with listing pages, one of which (/solutions/sap/customers) is a single-vendor
+   vertical listing; it was headless-expanded and flooded the bucket. There was no per-listing
+   diversity cap, no relevance ranking, and locale duplicates wasted the expansion budget.
+2. **User never prompted for profile/sources.** The per-type source inputs and seller profile were
+   hidden behind collapsed `+` toggles defaulting to false, so the highest-leverage relevance
+   inputs were never collected.
+
+**Backend — relevance + hygiene.** classify.js detects narrow/vertical vs master customer-stories
+listings, locale-dedupes (preferring the user's locale), and strips fragment URLs. url-discovery.js
+caps per-listing contribution and round-robins master-first so one listing cannot dominate.
+A new relevance.js scores each fetched case study against {priorities, focusProducts,
+focusIndustries, personas, company keywords}; source-collector.js demotes low-relevance stories to
+weak candidates only when the seller supplied explicit focus (otherwise discovery order is kept).
+
+**Backend — wizard support.** New site-scanner.js (scanSite) does fast, discovery-only detection of
+the products/solutions a site offers plus its case-study/docs/blog hubs (no per-page LLM, no headless).
+New POST /api/onboarding/scan endpoint powers the wizard; priorities + a richer profile
+({role, focusProducts, focusIndustries, companySize, personas, competitors}) thread through
+start/add-documents/SSE and into buildProfileContext.
+
+**Frontend — guided wizard (Setup.jsx).** Stepped flow: About you (role segmented control;
+products/industries/competitors chip inputs; company-size + persona preset chips) -> Website +
+upload -> Scan -> Priorities (chips from the scan, pre-checked by focusProducts match) ->
+Confirm sources (pre-filled from detected hubs, editable) -> Run. Hardened against scan races,
+dirty-field clobbering on re-scan, stale priorities, and double-submit; EventSource torn down on unmount.
+
+**Local-first preserved:** the scan reads only the provided site; the only external calls remain the
+configured AI provider and the site being scraped. The about-you step and scan use no LLM.
+
+### Files
+- server/discovery/classify.js, server/discovery/url-discovery.js (listing hygiene + diversity)
+- server/onboarding/relevance.js (new), server/onboarding/site-scanner.js (new)
+- server/onboarding/source-collector.js (relevance ranking + demotion)
+- server/routes/api.js (/scan endpoint + priorities threading), server/knowledge-generator.js (profile context)
+- web/src/pages/Setup.jsx (guided wizard)
+
+### Status
+Implemented + unit-tested (125 server tests green). Live-validated: azure.microsoft.com/en-gb scan
+resolves the master /en-gb/resources/customer-stories hub (not the SAP narrow listing) with
+24 products / 24 solutions; beamery.com resolves /customers/ with 5 products / 4 solutions.
