@@ -88,6 +88,17 @@ class HybridWebsiteScraper extends WebsiteScraper {
       console.log(`[Hybrid Scraper] Skipping ${url} — insufficient content`);
       return [];
     }
+    return this.extractCaseStudyFromContent(html, url);
+  }
+
+  // Extract case studies from already-fetched content (HTML or clean text).
+  // Used by the tiered fetch pipeline, which fetches via page-fetcher (static→headless)
+  // and hands the rendered content here, avoiding a second axios round-trip.
+  async extractCaseStudyFromContent(content, url) {
+    if (!content || content.length < 200) {
+      console.log(`[Hybrid Scraper] Skipping ${url} — insufficient content`);
+      return [];
+    }
 
     const response = await this.openai.chat.completions.create({
       messages: [
@@ -136,7 +147,7 @@ If no case studies are found on this page, return: []`
         },
         {
           role: 'user',
-          content: `Extract all case studies from this HTML content:\n\n${html}`
+          content: `Extract all case studies from this page content:\n\n${content}`
         }
       ],
       temperature: 0.3,

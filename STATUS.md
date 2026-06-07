@@ -83,3 +83,39 @@
 - [x] 7.6 Separate embedding client with correct model header
 - [x] 7.7 Wrapped OpenAI client in knowledge-generator + api.js for model injection
 - [x] 7.8 Full KB generation pipeline verified end-to-end
+
+## Phase 8: Robust Knowledge-Base Onboarding (tiered fetch + type-routed generation)
+
+### Fetch layer (static -> headless)
+- [x] 8.1 server/fetch/extract.js — pure HTML extraction + confidence scoring (JSON-LD, OG, __NEXT_DATA__/Nuxt detection)
+- [x] 8.2 server/fetch/static-fetcher.js — axios fetch + parse
+- [x] 8.3 server/fetch/headless-fetcher.js — Playwright lazy render, capability check, graceful degrade, render cap
+- [x] 8.4 server/fetch/page-fetcher.js — tiered orchestrator, composite quality gate, per-run cache, per-source telemetry
+
+### Discovery layer
+- [x] 8.5 server/discovery/sitemap.js — robots.txt + sitemap.xml + index recursion
+- [x] 8.6 server/discovery/classify.js — URL classifier + ranker + dedupe, per-type budgets
+- [x] 8.7 server/discovery/adapters/ — registry + interface + Microsoft adapter (optional)
+- [x] 8.8 server/discovery/url-discovery.js — orchestrator (pasted + sitemap + anchors + adapters), JS listing expansion
+
+### Generation + orchestration
+- [x] 8.9 server/onboarding/source-collector.js — type-routed bundles + case-study extraction + per-type coverage
+- [x] 8.10 knowledge-generator.js — shared company-context packet, per-type bundle routing, primary/fallback path recording
+- [x] 8.11 knowledge-generator.js — profile threading (personas / ICP / competitors) into analysis + generators
+- [x] 8.12 routes/api.js — wired collectSources + pasted sources + profile + coverage in SSE complete
+
+### UI
+- [x] 8.13 Setup.jsx — guided multi-source form (per-type URLs) + "who do you sell to?" profile
+- [x] 8.14 Setup.jsx — per-type results summary with warnings + "add a source & re-run"
+
+### Packaging + tests
+- [x] 8.15 server/package.json — playwright dependency + install:chromium script
+- [x] 8.16 electron — prebuild installs Chromium (PLAYWRIGHT_BROWSERS_PATH=0); server-manager sets runtime browser path
+- [x] 8.17 Unit tests: extract, classify, sitemap, page-fetcher escalation, source-collector (HTML fixtures, no live network)
+- [x] 8.18 Live smoke validated: Legora discovery 15 CS / 20 blog / 20 product, headless renders working
+- [ ] 8.19 Packaged-build smoke (Win + macOS) — deferred, requires installer build environment
+
+### Empirical findings (drove the design)
+- Blog/proof-point and product/docs pages are server-rendered everywhere (static works).
+- Case studies fail two ways: discovery (Beamery: no sitemap + JS listing) and extraction (Legora individual pages are client-rendered shells — headless does not fully rescue; extract from rich SSR listing + structured data with low confidence + "paste a URL" warning).
+- New pipeline recovers 12-15 case studies on Legora/Beamery/HappyRobot where the old scraper returned 0.

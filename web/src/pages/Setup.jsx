@@ -128,6 +128,40 @@ export default function Setup({ onComplete }) {
   const [onboardingStatus, setOnboardingStatus] = useState('idle');
   const [onboardingMessages, setOnboardingMessages] = useState([]);
   const [onboardingCounts, setOnboardingCounts] = useState(null);
+  const [onboardingCoverage, setOnboardingCoverage] = useState(null);
+
+  // Guided multi-source + profile inputs (all optional beyond the main URL/files)
+  const [showSources, setShowSources] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [sourceUrls, setSourceUrls] = useState({ caseStudies: '', blog: '', docs: '' });
+  const [profile, setProfile] = useState({ personas: '', icpIndustry: '', icpCompanySize: '', competitors: '' });
+
+  // Split a textarea/comma string into a clean array of URLs or terms.
+  function splitList(value) {
+    return (value || '')
+      .split(/[\n,]/)
+      .map(s => s.trim())
+      .filter(Boolean);
+  }
+
+  function buildSourcePayload() {
+    return {
+      caseStudies: splitList(sourceUrls.caseStudies),
+      blog: splitList(sourceUrls.blog),
+      docs: splitList(sourceUrls.docs)
+    };
+  }
+
+  function buildProfilePayload() {
+    const personas = splitList(profile.personas);
+    const competitors = splitList(profile.competitors);
+    const p = {};
+    if (personas.length) p.personas = personas;
+    if (competitors.length) p.competitors = competitors;
+    if (profile.icpIndustry.trim()) p.icpIndustry = profile.icpIndustry.trim();
+    if (profile.icpCompanySize.trim()) p.icpCompanySize = profile.icpCompanySize.trim();
+    return Object.keys(p).length ? p : null;
+  }
 
   async function handleSelectManaged() {
     setSaving(true);
@@ -233,7 +267,9 @@ export default function Setup({ onComplete }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         websiteUrl: websiteUrl || null,
-        uploadedFiles: filesToSend.length > 0 ? filesToSend : null
+        uploadedFiles: filesToSend.length > 0 ? filesToSend : null,
+        sourceUrls: buildSourcePayload(),
+        profile: buildProfilePayload()
       })
     });
 
@@ -257,6 +293,7 @@ export default function Setup({ onComplete }) {
     eventSource.addEventListener('complete', (e) => {
       const data = JSON.parse(e.data);
       setOnboardingCounts(data.counts);
+      setOnboardingCoverage(data.coverage || null);
       setOnboardingStatus('complete');
       eventSource.close();
     });
@@ -546,6 +583,117 @@ export default function Setup({ onComplete }) {
                       <p className="text-sm text-gray-600 mt-2 font-medium">{files.length} file(s) selected</p>
                     )}
                   </div>
+
+                  {/* Optional: specific source URLs per knowledge type */}
+                  <div className="border border-gray-200 rounded-md">
+                    <button
+                      type="button"
+                      onClick={() => setShowSources(v => !v)}
+                      className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      <span>Add specific sources (optional)</span>
+                      <span className="text-gray-400">{showSources ? '–' : '+'}</span>
+                    </button>
+                    {showSources && (
+                      <div className="px-3 pb-3 space-y-2">
+                        <p className="text-xs text-gray-500">
+                          Paste exact URLs to boost quality. One per line. Helpful when your case
+                          studies or docs live on a different page or render with JavaScript.
+                        </p>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Customer / case-study pages</label>
+                          <textarea
+                            rows={2}
+                            placeholder="https://yourcompany.com/customers/acme"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono"
+                            value={sourceUrls.caseStudies}
+                            onChange={e => setSourceUrls({ ...sourceUrls, caseStudies: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Blog / research / ROI pages</label>
+                          <textarea
+                            rows={2}
+                            placeholder="https://yourcompany.com/blog/roi-study"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono"
+                            value={sourceUrls.blog}
+                            onChange={e => setSourceUrls({ ...sourceUrls, blog: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Docs / product pages</label>
+                          <textarea
+                            rows={2}
+                            placeholder="https://docs.yourcompany.com"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono"
+                            value={sourceUrls.docs}
+                            onChange={e => setSourceUrls({ ...sourceUrls, docs: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Optional: who you sell to (sharpens discovery questions + differentiation) */}
+                  <div className="border border-gray-200 rounded-md">
+                    <button
+                      type="button"
+                      onClick={() => setShowProfile(v => !v)}
+                      className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      <span>Who do you sell to? (optional)</span>
+                      <span className="text-gray-400">{showProfile ? '–' : '+'}</span>
+                    </button>
+                    {showProfile && (
+                      <div className="px-3 pb-3 space-y-2">
+                        <p className="text-xs text-gray-500">
+                          This tailors discovery questions and competitive differentiation to your buyers.
+                        </p>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Buyer personas / titles</label>
+                          <input
+                            type="text"
+                            placeholder="VP Sales, RevOps, CFO"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                            value={profile.personas}
+                            onChange={e => setProfile({ ...profile, personas: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">ICP industry</label>
+                            <input
+                              type="text"
+                              placeholder="Telecom"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                              value={profile.icpIndustry}
+                              onChange={e => setProfile({ ...profile, icpIndustry: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Company size</label>
+                            <input
+                              type="text"
+                              placeholder="1,000+ employees"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                              value={profile.icpCompanySize}
+                              onChange={e => setProfile({ ...profile, icpCompanySize: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Key competitors</label>
+                          <input
+                            type="text"
+                            placeholder="Competitor A, Competitor B"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                            value={profile.competitors}
+                            onChange={e => setProfile({ ...profile, competitors: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="mt-6 flex gap-3">
@@ -586,9 +734,49 @@ export default function Setup({ onComplete }) {
                       <li>{onboardingCounts.caseStudies} case studies</li>
                       <li>{onboardingCounts.discoveryQuestions} discovery questions</li>
                       <li>{onboardingCounts.proofPoints} proof points</li>
+                      {typeof onboardingCounts.productTruths === 'number' && (
+                        <li>{onboardingCounts.productTruths} product truths</li>
+                      )}
                     </ul>
                   )}
                 </div>
+
+                {/* Per-type warnings: surface degraded/missing coverage so the user can act */}
+                {onboardingCoverage && (() => {
+                  const labels = {
+                    case_study: 'Case studies',
+                    proof_point: 'Proof points',
+                    product_truth: 'Product truths',
+                    discovery_question: 'Discovery questions'
+                  };
+                  const warnings = Object.entries(onboardingCoverage)
+                    .filter(([, c]) => c && c.warning)
+                    .map(([type, c]) => ({ type, label: labels[type] || type, ...c }));
+                  if (warnings.length === 0) return null;
+                  return (
+                    <div className="bg-amber-50 border border-amber-200 rounded-md p-4 mb-4">
+                      <p className="text-sm font-medium text-amber-800 mb-2">Some sources came back thin</p>
+                      <ul className="text-sm text-amber-700 space-y-1.5">
+                        {warnings.map(w => (
+                          <li key={w.type} className="flex gap-2">
+                            <span className="text-amber-400 shrink-0">&#8226;</span>
+                            <span><strong>{w.label}:</strong> {w.warning}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="text-xs text-amber-600 mt-2">
+                        You can paste specific URLs and re-run, or add them later from the Knowledge Base page.
+                      </p>
+                      <button
+                        onClick={() => { setShowSources(true); setOnboardingStatus('idle'); setOnboardingMessages([]); }}
+                        className="mt-3 px-3 py-1.5 border border-amber-300 bg-white rounded-md text-sm font-medium text-amber-800 hover:bg-amber-100"
+                      >
+                        Add a source &amp; re-run
+                      </button>
+                    </div>
+                  );
+                })()}
+
                 <button
                   onClick={handleFinish}
                   className="w-full px-4 py-2 bg-gray-900 text-white rounded-md text-sm font-medium hover:bg-gray-800"

@@ -388,3 +388,52 @@ The three capture paths (Electron desktop source, screen share, microphone) rema
 5. Advanced section expands to show full source list
 6. Selecting a detected app and starting a call captures audio correctly
 7. With no meeting apps open, picker shows "no meetings detected" with Entire Screen as the primary option
+
+---
+
+## Phase 8: Robust Knowledge-Base Onboarding (tiered fetch + type-routed generation) ✓
+
+### Problem
+Onboarding turned a company website into four knowledge types (Case Studies, Discovery
+Questions, Proof Points, Product Truth) using a single axios+cheerio scrape. That fails
+silently on JS-rendered SPA pages (Microsoft, Google, Beamery listings), never used
+sitemaps, fed one content blob to every type, and surfaced no warning when a type came
+back empty.
+
+### Approach (10x for 2x effort)
+- **Tiered fetch** — static first, escalate to **Playwright headless** only when a page is a
+  low-confidence SPA shell for the expected type. Composite quality gate (main-text length,
+  boilerplate ratio, type-relevance keywords, framework markers), per-run cache, per-source
+  confidence + telemetry. Headless degrades gracefully if Chromium is unavailable.
+- **Multi-strategy discovery** — sitemap.xml (+ robots + index recursion) + homepage/seed
+  anchor scraping + user-pasted URLs + optional provider adapters (Microsoft v1). URLs are
+  classified + ranked into per-type buckets with budgets; JS case-study listings are expanded
+  headlessly into individual story URLs (the Beamery failure).
+- **Type-routed generation** — `source-collector.js` routes the right pages to the right type
+  (case_study <- customer-story pages, proof <- blog/ROI, product_truth <- docs+product,
+  discovery <- product). A shared company-context packet + seller profile (personas, ICP,
+  competitors) are threaded into company analysis and every generator. Each type records
+  whether it used its primary bundle or fell back, plus coverage (sources / high-confidence /
+  weak) so the UI can warn and offer "add a source & re-run".
+- **Guided onboarding form** — main URL + optional per-type source URLs + "who do you sell to?"
+  profile. Results view shows per-type counts and actionable warnings.
+
+### Key files
+- server/fetch/{extract,static-fetcher,headless-fetcher,page-fetcher}.js
+- server/discovery/{sitemap,classify,url-discovery}.js + adapters/{index,microsoft}.js
+- server/onboarding/source-collector.js
+- server/knowledge-generator.js (type-routed bundles + profile), server/routes/api.js (wiring)
+- web/src/pages/Setup.jsx (guided form + per-type results/warnings)
+- Packaging: server playwright dep + install:chromium; electron prebuild + server-manager
+  sets PLAYWRIGHT_BROWSERS_PATH=0 in packaged builds.
+
+### Evidence
+Blog/proof and product/docs are server-rendered everywhere (static suffices). Case studies
+fail via discovery (Beamery: no sitemap + JS listing) and extraction (Legora individual pages
+are client-rendered shells; headless does not fully rescue — extract from the rich SSR listing
++ structured data, low confidence, "paste a URL" warning). New pipeline recovers 12-15 case
+studies on Legora/Beamery/HappyRobot where the old scraper returned 0.
+
+### Status
+Implemented + unit-tested (108 server tests green) + live-smoke validated. Packaged-build
+smoke on Win/macOS deferred (needs installer build env).
