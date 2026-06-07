@@ -56,7 +56,7 @@ export default function SessionSummary({ session, analysis, badge, onAnalyze, an
             )}
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {session.startTime && new Date(session.startTime).toLocaleString()} — {session.totalSuggestions || 0} suggestions
+            {session.startTime && new Date(session.startTime).toLocaleString()} ({session.totalSuggestions || 0} suggestions)
           </p>
         </div>
         {onAnalyze && session.status === 'completed' && !analysis && (
@@ -110,7 +110,7 @@ export default function SessionSummary({ session, analysis, badge, onAnalyze, an
                 {(session.suggestions || []).map((s, i) => (
                   <div key={i} className="text-sm p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
                     <span className="font-medium text-gray-700 dark:text-gray-300">
-                      {s.type === 'case_study' && `Case Study: ${s.suggestion?.company}${s.suggestion?.headline ? ` — ${s.suggestion.headline}` : ''}`}
+                      {s.type === 'case_study' && `Case Study: ${s.suggestion?.company}${s.suggestion?.headline ? `, ${s.suggestion.headline}` : ''}`}
                       {s.type === 'discovery' && `Discovery: ${s.suggestion?.question}`}
                       {s.type === 'proof_point' && `Proof Point: ${s.suggestion?.stat}`}
                       {s.type === 'product_truth' && `Product Truth: ${s.suggestion?.fact}`}
@@ -135,7 +135,7 @@ export default function SessionSummary({ session, analysis, badge, onAnalyze, an
               <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                   <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    CRM Update — {methodologyLabel}
+                    CRM Update: {methodologyLabel}
                   </h2>
                   <CopyButton text={formatCrmText(analysis.crmUpdate, methodologyLabel)} label="Copy" />
                 </div>

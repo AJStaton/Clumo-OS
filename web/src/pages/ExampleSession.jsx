@@ -10,7 +10,7 @@ const EXAMPLE_SESSION = {
     { timestamp: '2025-04-23T10:00:28Z', text: "Yes, that's right. We're running everything in spreadsheets right now and it's becoming unmanageable with the team growing to 40 reps." },
     { timestamp: '2025-04-23T10:01:05Z', text: "That's a common challenge at your stage. Can you walk me through what a typical deal review looks like for your managers today?" },
     { timestamp: '2025-04-23T10:01:42Z', text: "Honestly it's painful. Managers spend about 3 hours a week just consolidating data from different sheets before they can even start coaching." },
-    { timestamp: '2025-04-23T10:02:15Z', text: "3 hours per manager per week — that's significant. How many frontline managers do you have?" },
+    { timestamp: '2025-04-23T10:02:15Z', text: "3 hours per manager per week, that's significant. How many frontline managers do you have?" },
     { timestamp: '2025-04-23T10:02:28Z', text: "Six. So that's 18 hours a week of manager time just on data wrangling." },
     { timestamp: '2025-04-23T10:03:01Z', text: "If we could cut that down to 15 minutes, what would your managers do with that reclaimed time?" },
     { timestamp: '2025-04-23T10:03:30Z', text: "More coaching, definitely. That's what we hired them for. Our VP of Sales, James Chen, has been pushing hard for this." },
@@ -53,7 +53,7 @@ const EXAMPLE_ANALYSIS = {
     methodology: 'meddpicc',
     meddpicc: {
       M: "18 hours/week of manager admin time across 6 managers. 40 reps on spreadsheets. Quantifiable ROI opportunity.",
-      E: "CFO Rachel — final approver for >$50K. James Chen (VP Sales) is internal champion.",
+      E: "CFO Rachel, final approver for >$50K. James Chen (VP Sales) is internal champion.",
       D: "Pilot with one team required. ROI data needed before full rollout approval.",
       D2: "6-week pilot → ROI review → CFO sign-off. Standard procurement for this spend level.",
       P: "Not discussed in this call",
@@ -64,10 +64,10 @@ const EXAMPLE_ANALYSIS = {
     nextSteps: "Schedule pilot kickoff with one team. Send ROI calculator template for Rachel's review. Follow up with James Chen to align on pilot success criteria."
   },
   followUpEmail: {
-    subject: "AcmeCorp x Clumo — Next steps from today's call",
+    subject: "AcmeCorp x Clumo: Next steps from today's call",
     body: `Hi Sarah,
 
-Thanks for taking the time today — really helpful to understand the challenges your team is facing with pipeline visibility at scale.
+Thanks for taking the time today, really helpful to understand the challenges your team is facing with pipeline visibility at scale.
 
 A few things I took away:
 • Your 6 managers are spending ~18 hours/week combined on data consolidation instead of coaching
@@ -77,7 +77,7 @@ A few things I took away:
 As discussed, I'll send over:
 1. A pilot proposal scoped for one team (6-week timeline)
 2. An ROI calculator you can share with Rachel
-3. The TechFlow case study — similar scale, similar pain, strong results
+3. The TechFlow case study: similar scale, similar pain, strong results
 
 Would Thursday work to loop in James for a quick alignment call on pilot success criteria?
 
@@ -89,7 +89,7 @@ Best,
     suggestedTopics: [
       "Clarify paper process / procurement steps and any security or legal review requirements",
       "Define specific pilot success metrics that Rachel would need to see",
-      "Understand budget cycle timing — is there allocated budget or does this need a new budget request?",
+      "Understand budget cycle timing: is there allocated budget or does this need a new budget request?",
       "Explore integration requirements with their existing CRM and tools"
     ]
   }

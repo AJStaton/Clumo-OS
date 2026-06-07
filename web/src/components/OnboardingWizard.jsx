@@ -276,7 +276,7 @@ export default function OnboardingWizard({ onSubmit, onBack, submitLabel = 'Gene
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Products you sell</label>
             <ChipInput value={profile.focusProducts} onChange={v => setProfile({ ...profile, focusProducts: v })} placeholder="e.g. Azure OpenAI, AI Foundry, Fabric" />
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Highest-leverage signal — case studies are ranked to these.</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Highest-leverage signal: case studies are ranked to these.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Industries you target</label>
@@ -306,7 +306,7 @@ export default function OnboardingWizard({ onSubmit, onBack, submitLabel = 'Gene
       {/* Sub-step: Website + optional upload */}
       {obStep === 'website' && (
         <div className="space-y-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Where should Clumo look? We read only this site — no third-party search.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Where should Clumo look? We read only this site, with no third-party search.</p>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Company website</label>
             <input
@@ -364,7 +364,7 @@ export default function OnboardingWizard({ onSubmit, onBack, submitLabel = 'Gene
       {obStep === 'priorities' && (
         <div className="space-y-4">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            We detected these areas on your site. Pick what you sell — case studies and proof points are ranked to your picks.
+            We detected these areas on your site. Pick what you sell. Case studies and proof points are ranked to your picks.
           </p>
           {(() => {
             const areas = scanAreas(scanResult);

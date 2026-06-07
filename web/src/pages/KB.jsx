@@ -326,7 +326,7 @@ export default function KB() {
               <div key={item.id || i} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                 {tab === 'caseStudies' && (
                   <>
-                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">{item.company} — {item.headline}</p>
+                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">{item.company}: {item.headline}</p>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{item.result}</p>
                     <div className="mt-2 flex flex-wrap gap-1">
                       {(item.triggers || []).slice(0, 5).map((t, j) => (

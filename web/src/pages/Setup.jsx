@@ -51,7 +51,7 @@ function SecurityModal({ onClose }) {
               </li>
               <li className="flex gap-2">
                 <span className="text-gray-400 shrink-0">&#8226;</span>
-                <span><strong>Embeddings</strong> — text is converted to numeric vectors for semantic matching. See "How search works" below for details.</span>
+                <span><strong>Embeddings</strong>: text is converted to numeric vectors for semantic matching. See "How search works" below for details.</span>
               </li>
               <li className="flex gap-2">
                 <span className="text-gray-400 shrink-0">&#8226;</span>
@@ -177,7 +177,7 @@ export default function Setup({ onComplete }) {
       try {
         data = JSON.parse(text);
       } catch {
-        data = { valid: false, error: text || 'Connection test failed — no response from server' };
+        data = { valid: false, error: text || 'Connection test failed: no response from server' };
       }
       setTestResult(data);
 
