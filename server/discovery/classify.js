@@ -131,7 +131,7 @@ function normalizeForDedupe(rawUrl) {
 
 // Classify, dedupe, and rank a flat list of URLs into per-category buckets,
 // each capped at perTypeBudget. Pasted URLs (high priority) should be passed first.
-function classifyAndRank(urls, { baseHost = null, perTypeBudget = 20 } = {}) {
+function classifyAndRank(urls, { baseHost = null, perTypeBudget = 20, budgets = {} } = {}) {
   const seen = new Set();
   const buckets = { case_study: [], blog: [], docs: [], product: [] };
 
@@ -146,7 +146,7 @@ function classifyAndRank(urls, { baseHost = null, perTypeBudget = 20 } = {}) {
 
   for (const cat of Object.keys(buckets)) {
     buckets[cat].sort((a, b) => b.priority - a.priority);
-    buckets[cat] = buckets[cat].slice(0, perTypeBudget);
+    buckets[cat] = buckets[cat].slice(0, budgets[cat] || perTypeBudget);
   }
   return buckets;
 }

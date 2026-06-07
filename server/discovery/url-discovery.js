@@ -34,6 +34,7 @@ async function discoverUrls(baseUrl, pageFetcher, options = {}) {
   const {
     pastedSources = {},
     perTypeBudget = 20,
+    caseStudyBudget = perTypeBudget,
     maxAnchorPages = 8,
     onProgress = null
   } = options;
@@ -94,14 +95,14 @@ async function discoverUrls(baseUrl, pageFetcher, options = {}) {
   telemetry.adapterName = adapterResult.name;
 
   // Classify + rank everything. Pasted URLs are prepended so they win ties.
-  const ranked = classifyAndRank([...pasted.map((p) => p.url), ...candidates], { baseHost, perTypeBudget });
+  const ranked = classifyAndRank([...pasted.map((p) => p.url), ...candidates], { baseHost, perTypeBudget, budgets: { case_study: caseStudyBudget } });
 
   // Ensure pasted URLs land in their declared bucket even if classification disagrees.
   for (const p of pasted) {
     const bucket = ranked[p.category];
     if (bucket && !bucket.some((c) => normalizeForDedupe(c.url) === normalizeForDedupe(p.url))) {
       bucket.unshift({ url: p.url, category: p.category, individual: true, priority: 5 });
-      ranked[p.category] = bucket.slice(0, perTypeBudget);
+      ranked[p.category] = bucket.slice(0, p.category === 'case_study' ? caseStudyBudget : perTypeBudget);
     }
   }
 
@@ -130,7 +131,7 @@ async function discoverUrls(baseUrl, pageFetcher, options = {}) {
     // Keep listings too (some sites have all content on the listing page).
     merged.push(...csListings);
     merged.sort((a, b) => (b.priority || 0) - (a.priority || 0));
-    ranked.case_study = merged.slice(0, perTypeBudget);
+    ranked.case_study = merged.slice(0, caseStudyBudget);
   }
 
   return { buckets: ranked, telemetry };

@@ -280,7 +280,7 @@ router.get('/api/onboarding/stream', async (req, res) => {
   });
 
   try {
-    const maxCaseStudies = parseInt(db.getConfig('max_case_studies') || '10', 10);
+    const maxCaseStudies = parseInt(db.getConfig('max_case_studies') || '50', 10);
     // Wrap the client to always include model (required by Azure AI Model Inference API)
     const chatModel = provider.chatModel || provider.chatDeployment || 'gpt-4o-mini';
     const wrappedClient = {

@@ -68,7 +68,7 @@ async function collectSources(websiteUrl, options = {}) {
   const {
     openaiClient = null,
     pastedSources = {},
-    maxCaseStudies = 10,
+    maxCaseStudies = 50,
     onProgress = null,
     pageFetcher: injectedFetcher = null,
     caseStudyExtractor: injectedExtractor = null,
@@ -97,6 +97,7 @@ async function collectSources(websiteUrl, options = {}) {
     emit('discovery', 'Discovering pages across your site...');
     const { buckets, telemetry: discoveryTelemetry } = await discover(websiteUrl, pageFetcher, {
       pastedSources,
+      caseStudyBudget: maxCaseStudies,
       onProgress: (p) => emit('discovery', p.message)
     });
 
