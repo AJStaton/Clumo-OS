@@ -288,7 +288,7 @@ class KnowledgeGenerator {
   //   buildSystem(remaining) -> system prompt string (should reference `remaining` as the target)
   //   userIntro              -> lead-in line for the user message (content appended after it)
   //   identityOf(item)       -> string used for dedupe + the avoid list
-  async _generateItems({ buildSystem, userIntro, content, idPrefix, target, temperature = 0.5,
+  async _generateItems({ buildSystem, userIntro, content, idPrefix, target, identityOf, temperature = 0.5,
     maxTokens = GEN_MAX_TOKENS, maxPasses = GEN_MAX_PASSES, perPassChars = GEN_INPUT_CHARS }) {
     const chunks = this._chunkContent(content, perPassChars, maxPasses);
     const collected = [];
