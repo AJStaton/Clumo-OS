@@ -74,10 +74,23 @@ function hasContext(ctx) {
   return !!(ctx && ctx.totalWeight > 0 && ctx.terms.length > 0);
 }
 
+// Generic, low-signal terms. A term made up entirely of these contributes to ranking at reduced
+// weight, so a story that only matches "azure"/"cloud" ranks BELOW one that matches a specific
+// product like "foundry"/"fabric". This only affects ORDER (relevance is no longer a gate), so
+// over-inclusion is safe — the goal is simply to float on-focus stories to the top.
+const GENERIC_TERMS = new Set([
+  'cloud', 'ai', 'platform', 'data', 'azure', 'software', 'technology', 'tech', 'solution',
+  'digital', 'enterprise', 'app', 'apps', 'service', 'services', 'system', 'systems', 'product'
+]);
+
 // Detailed scoring. Returns { score, matchedFocus } where:
-//   score        number in [0,1] (or null when there is no context) — used for ranking
-//   matchedFocus count of distinct FOCUS terms the story hits (body, title, or slug) — used as
-//                a precision gate so an off-focus story can't qualify on generic keywords alone
+//   score        number in [0,1] (or null when there is no context) — used for RANKING only
+//   matchedFocus count of distinct FOCUS terms the story hits (body, title, or slug) — retained
+//                for telemetry/ordering (no longer a hard inclusion gate; see source-collector)
+// Matching is smooth/partial: a multi-word term gets full credit for a phrase hit, otherwise it
+// gets proportional credit for the fraction of its tokens present. This means "App Services" still
+// ranks a story mentioning "App Service", and "Technology Companies" contributes even on a partial
+// hit — fixing the old all-tokens-AND rule that made multi-word focus terms essentially never match.
 function scoreCaseStudyDetailed(item, ctx) {
   if (!hasContext(ctx)) return { score: null, matchedFocus: 0 };
   const text = `${item.title || ''} ${item.text || ''}`.toLowerCase();
@@ -88,16 +101,21 @@ function scoreCaseStudyDetailed(item, ctx) {
   let urlBonus = 0;
   let matchedFocus = 0;
   for (const t of ctx.terms) {
-    // A term matches if its phrase appears in the body, or all of its (singularized) tokens do.
+    if (t.tokens.length === 0) continue;
+    // Phrase hit (multi-word term appears verbatim) = full strength; else proportional token overlap.
     const phraseHit = t.term.includes(' ') && text.includes(t.term);
-    const tokenHit = t.tokens.length > 0 && t.tokens.every((tok) => hayTokens.has(singular(tok)));
-    const bodyHit = phraseHit || tokenHit;
-    // A slug/url match is an independent signal the story is about this product/industry —
-    // it counts even when the fetched body text is thin (e.g. JS-heavy story pages).
-    const slugHit = t.tokens.some((tok) => tok.length >= 3 && path.includes(tok));
-    if (bodyHit) matched += t.weight;
-    if (slugHit) urlBonus += 0.15 * (t.weight / 3);
-    if (t.isFocus && (bodyHit || slugHit)) matchedFocus += 1;
+    const presentCount = t.tokens.filter((tok) => hayTokens.has(singular(tok))).length;
+    const strength = phraseHit ? 1 : (presentCount / t.tokens.length);
+    // A slug/url match is an independent signal the story is about this product/industry — it
+    // counts even when the fetched body text is thin (e.g. JS-heavy story pages).
+    const slugHit = t.tokens.some((tok) => tok.length >= 3 && path.includes(singular(tok)));
+    // Down-weight terms made up entirely of generic words so specific products rank higher.
+    const isGeneric = t.tokens.every((tok) => GENERIC_TERMS.has(singular(tok)));
+    const effWeight = t.weight * (isGeneric ? 0.5 : 1);
+
+    if (strength > 0) matched += effWeight * strength;
+    if (slugHit) urlBonus += 0.15 * (effWeight / 3);
+    if (t.isFocus && (strength > 0 || slugHit)) matchedFocus += 1;
   }
 
   const base = matched / ctx.totalWeight;

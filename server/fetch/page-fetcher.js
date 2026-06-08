@@ -8,6 +8,20 @@ const { createHeadlessFetcher } = require('./headless-fetcher');
 const { scoreContent, looksLikeShell } = require('./extract');
 const { URL } = require('url');
 
+// Generic (host-agnostic) path keywords that mark a link as an individual customer story / case
+// study. Used only to gauge whether a forced listing render actually surfaced candidate story
+// links (vs. just nav/footer chrome) — the discovery layer's classifier does the authoritative
+// categorisation later.
+const CANDIDATE_PATH_RE = /\/(customer-stories|customers?|case-studies|case-study|success-stories|stories|story|success|references?|testimonials?)\b/i;
+
+function countCandidateLinks(links) {
+  let n = 0;
+  for (const link of links || []) {
+    try { if (CANDIDATE_PATH_RE.test(new URL(link).pathname)) n += 1; } catch { /* skip */ }
+  }
+  return n;
+}
+
 function normalizeUrl(url) {
   try {
     const u = new URL(url);
@@ -50,6 +64,9 @@ function createPageFetcher(options = {}) {
   // opts.forceHeadless renders directly (used for known JS listing pages).
   async function fetch(url, opts = {}) {
     const { expectedType = null, forceHeadless = false } = opts;
+    // A forced-headless fetch is how we expand JS listing pages — drive scroll/load-more + sniff
+    // JSON in that case so SPA tiles are harvested deterministically.
+    const listing = forceHeadless || opts.listing === true;
     const key = normalizeUrl(url);
     let priorStatic = null;
     if (cache.has(key)) {
@@ -84,13 +101,19 @@ function createPageFetcher(options = {}) {
     let renderedDeltaChars = 0;
 
     if (shouldEscalate) {
-      const rendered = await headlessFetcher.fetch(url);
+      const rendered = await headlessFetcher.fetch(url, { listing });
       if (rendered && rendered.ok) {
         const headlessConfidence = scoreContent(rendered, expectedType);
         const staticChars = staticResult ? staticResult.signals.mainTextChars : 0;
         renderedDeltaChars = rendered.signals.mainTextChars - staticChars;
-        // Keep whichever tier produced richer content.
-        if (!staticResult || !staticResult.ok || rendered.signals.mainTextChars > staticChars) {
+        // A listing render counts as successful when it surfaces candidate STORY links (tiles),
+        // even if its main text is thin — that's the whole point of expanding it. We count only
+        // story-like links (DOM + JSON), so generic nav/footer chrome doesn't make us keep a
+        // rendered result that has no real stories over richer cached static content. Otherwise
+        // keep whichever tier produced richer text.
+        const renderedCandidateLinks = countCandidateLinks(rendered.links) + (rendered.jsonLinks ? rendered.jsonLinks.length : 0);
+        const listingHasLinks = listing && renderedCandidateLinks > 0;
+        if (!staticResult || !staticResult.ok || rendered.signals.mainTextChars > staticChars || listingHasLinks) {
           result = rendered;
           renderedVia = 'headless';
           confidence = headlessConfidence;
@@ -106,6 +129,7 @@ function createPageFetcher(options = {}) {
         mainText: '',
         summary: '',
         links: [],
+        jsonLinks: [],
         jsonld: [],
         meta: {},
         signals: { mainTextChars: 0 },
@@ -116,7 +140,7 @@ function createPageFetcher(options = {}) {
       return failed;
     }
 
-    const final = { ...result, confidence, renderedVia };
+    const final = { ...result, confidence, renderedVia, jsonLinks: result.jsonLinks || [] };
     cache.set(key, final);
     sources.push({
       url: key,

@@ -23,6 +23,7 @@ export default function KB() {
   const setupStatus = onboardingProcess?.status || 'idle';
   const setupMessages = onboardingProcess?.messages || [];
   const setupCounts = onboardingProcess?.counts || null;
+  const setupCoverage = onboardingProcess?.coverage || null;
   const addStatus = addContentProcess?.status || 'idle';
   const addMessages = addContentProcess?.messages || [];
 
@@ -282,6 +283,29 @@ export default function KB() {
                   {setupCounts.productTruths > 0 && <li>{setupCounts.productTruths} product truths</li>}
                 </ul>
               )}
+              {setupCoverage && (() => {
+                const labels = {
+                  case_study: 'Case studies',
+                  proof_point: 'Proof points',
+                  product_truth: 'Product truths',
+                  discovery_question: 'Discovery questions'
+                };
+                const warnings = Object.entries(setupCoverage)
+                  .filter(([, c]) => c && c.warning)
+                  .map(([type, c]) => ({ type, label: labels[type] || type, ...c }));
+                if (warnings.length === 0) return null;
+                return (
+                  <div className="mt-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-md p-3">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-1.5">Some sources came back thin</p>
+                    <ul className="text-sm text-amber-700 dark:text-amber-400 space-y-1">
+                      {warnings.map(w => (
+                        <li key={w.type}><strong>{w.label}:</strong> {w.warning}</li>
+                      ))}
+                    </ul>
+                    <p className="text-xs text-amber-600 dark:text-amber-500 mt-1.5">Add a docs, blog, or customer-story URL and re-run for more.</p>
+                  </div>
+                );
+              })()}
             </div>
           )}
 

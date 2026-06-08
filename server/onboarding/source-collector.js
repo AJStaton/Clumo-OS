@@ -2,7 +2,8 @@
 // into type-routed content bundles for the knowledge generator.
 //
 // This replaces the old "scrape one blob, feed it to every generator" approach. It:
-//   1. Discovers URLs via sitemap + anchors + adapters + pasted URLs (discovery layer).
+//   1. Discovers URLs via sitemap + anchors + pasted URLs, expanding JS listings via the
+//      headless harvest (DOM + JSON sniffing) in the discovery layer.
 //   2. Fetches pages through the tiered page-fetcher (static -> headless when needed).
 //   3. Routes the right pages to the right knowledge type:
 //        case_study  <- individual customer-story pages (LLM-extracted, structured)
@@ -19,10 +20,9 @@ const { createPageFetcher } = require('../fetch/page-fetcher');
 const { discoverUrls } = require('../discovery/url-discovery');
 const { buildRelevanceContext, scoreCaseStudyDetailed, hasContext } = require('./relevance');
 const HybridWebsiteScraper = require('../hybrid-website-scraper');
-const BUNDLE_CHAR_CAP = 45000;          // per-type content cap (~11k tokens)
-const MAX_PAGES_PER_BUNDLE = 12;        // pages folded into a non-case-study bundle
+const BUNDLE_CHAR_CAP = 120000;         // per-type content cap (~30k tokens) — wide grounding for high-volume generation
+const MAX_PAGES_PER_BUNDLE = 30;        // pages folded into a non-case-study bundle
 const WEAK_CONFIDENCE = 0.35;           // below this, a fetched page is a "weak" source
-const RELEVANCE_FLOOR = 0.12;           // below this (when the seller gave focus signals) a story is demoted to weak
 
 // Join fetched pages' main text into a single bundle string, capped.
 function bundleText(pages, cap = BUNDLE_CHAR_CAP) {
@@ -125,8 +125,9 @@ async function collectSources(websiteUrl, options = {}) {
     result.bundles.proof = bundleText(blogPages);
     result.bundles.productTruth = bundleText([...docsPages, ...productPages]);
 
-    // --- Case studies: fetch each page, rank by relevance to what the seller sells, then
-    // LLM-extract the most relevant. This is what stops one topic (e.g. SAP) from dominating. ---
+    // --- Case studies: fetch each page, then rank by relevance to what the seller sells, and
+    // LLM-extract them. Relevance is used ONLY to ORDER the stories (on-focus first) — it never
+    // removes a valid story. More case studies is better; the realtime pipeline selects later. ---
     const p = profile || {};
     const relevanceCtx = buildRelevanceContext({
       priorities: Array.isArray(priorities) ? priorities : [],
@@ -134,17 +135,13 @@ async function collectSources(websiteUrl, options = {}) {
       focusIndustries: p.focusIndustries || (p.icpIndustry ? [p.icpIndustry] : []),
       personas: p.personas || []
     });
-    // Demotion only applies when the seller gave explicit focus signals (priorities/products/
-    // industries) — otherwise we keep discovery order and don't second-guess.
-    const hasExplicitFocus = (Array.isArray(priorities) && priorities.length > 0) ||
-      (Array.isArray(p.focusProducts) && p.focusProducts.length > 0) ||
-      (Array.isArray(p.focusIndustries) && p.focusIndustries.length > 0) ||
-      !!p.icpIndustry;
 
     const csUrls = (buckets.case_study || []).slice(0, maxCaseStudies);
     let csHigh = 0;
     let csWeak = 0;
-    let csDemoted = 0;
+    let csOffFocus = 0;   // kept, but ranked below on-focus — surfaced for telemetry only
+    let csTrusted = 0;    // sourced from the seller's pasted/filtered intent (sorted to the top)
+    let csOnFocus = 0;    // matched at least one seller focus term
     if (csUrls.length > 0 && extractor) {
       emit('case_studies', `Reading ${csUrls.length} case-study pages...`);
 
@@ -154,10 +151,12 @@ async function collectSources(websiteUrl, options = {}) {
         const page = await pageFetcher.fetch(item.url, { expectedType: 'case_study' });
         if (!page || !page.ok) continue;
         // A story sourced from what the seller pasted (or harvested from their filtered listing)
-        // is trusted: the seller's URL/filters are their intent, so it bypasses relevance demotion.
+        // is trusted: it reflects the seller's explicit intent, so it sorts to the very top.
         const trusted = !!(item.pasted || item.fromPasted || item.trusted);
         const content = (page.mainText && page.mainText.length > 200) ? page.mainText : (page.summary || '');
         if (!content || content.length < 200) {
+          // Genuinely thin/failed fetch — the only reason a candidate becomes "weak". This is NOT
+          // about focus; an off-focus but well-fetched story is still extracted and kept.
           if (page.summary && page.summary.length > 40) {
             result.weakCaseStudyCandidates.push({ url: page.url, summary: page.summary, title: page.title });
             csWeak += 1;
@@ -165,10 +164,16 @@ async function collectSources(websiteUrl, options = {}) {
           continue;
         }
         const detail = scoreCaseStudyDetailed({ text: content, title: page.title, url: page.url }, relevanceCtx);
+        if (trusted) csTrusted += 1;
+        if (hasContext(relevanceCtx)) {
+          if (detail.matchedFocus > 0) csOnFocus += 1;
+          else if (!trusted) csOffFocus += 1;
+        }
         scored.push({ page, content, trusted, relevance: detail.score, matchedFocus: detail.matchedFocus });
       }
 
-      // Rank: trusted (seller-intent) first, then by relevance, then by fetch confidence.
+      // Rank: trusted (seller-intent) first, then by relevance, then by fetch confidence. Soft
+      // prioritisation only — nothing is dropped for being off-focus.
       if (hasContext(relevanceCtx)) {
         scored.sort((a, b) =>
           (Number(b.trusted) - Number(a.trusted)) ||
@@ -178,23 +183,11 @@ async function collectSources(websiteUrl, options = {}) {
         scored.sort((a, b) => (Number(b.trusted) - Number(a.trusted)));
       }
 
-      // Pass 2: extract. Demote off-focus stories to weak candidates instead of saving them as
-      // primary case studies (only when the seller gave explicit focus, and never for trusted
-      // seller-sourced stories). A story is off-focus when it hits NO focus term (product/
-      // industry the seller picked) or scores below the relevance floor.
+      // Pass 2: extract EVERY scored story (in prioritised order) up to the budget. We keep all of
+      // them — on-focus stories simply lead.
       let idx = 0;
       for (const s of scored) {
         idx += 1;
-        const tooIrrelevant = !s.trusted && hasExplicitFocus && hasContext(relevanceCtx) &&
-          (s.matchedFocus === 0 || (s.relevance !== null && s.relevance < RELEVANCE_FLOOR));
-        if (tooIrrelevant) {
-          result.weakCaseStudyCandidates.push({
-            url: s.page.url, summary: (s.page.summary || s.content.slice(0, 240)), title: s.page.title,
-            reason: 'low relevance to your focus'
-          });
-          csDemoted += 1;
-          continue;
-        }
         emit('case_studies', `Extracting case study ${idx} of ${scored.length}...`);
         try {
           const extracted = await extractor.extractCaseStudyFromContent(s.content, s.page.url);
@@ -203,6 +196,7 @@ async function collectSources(websiteUrl, options = {}) {
               ...cs,
               _confidence: s.page.confidence,
               _relevance: s.relevance,
+              _trusted: s.trusted,
               _weak: s.page.confidence < WEAK_CONFIDENCE
             }));
             result.extractedCaseStudies.push(...tagged);
@@ -213,7 +207,7 @@ async function collectSources(websiteUrl, options = {}) {
           console.warn(`[SourceCollector] Case-study extraction failed for ${s.page.url}: ${e.message}`);
         }
       }
-      // Dedupe by company, keep the most complete entry.
+      // Dedupe by company, keep the most complete entry; preserve the prioritised order.
       if (typeof extractor.deduplicateCaseStudies === 'function') {
         result.extractedCaseStudies = extractor.deduplicateCaseStudies(result.extractedCaseStudies);
       }
@@ -225,9 +219,7 @@ async function collectSources(websiteUrl, options = {}) {
       case_study: coverageFor(
         result.extractedCaseStudies.length, csHigh, csWeak, csUrls.length,
         result.extractedCaseStudies.length === 0
-          ? (csDemoted > 0
-            ? 'Found case studies, but none matched your focus products/industries. Adjust your focus or paste a customer-story URL.'
-            : 'No case studies found. Paste a customer-story URL to add them.')
+          ? 'No case studies found. Paste a customer-story or filtered listing URL to add them.'
           : (csHigh === 0 ? 'Only weak case-study summaries found. Paste a customer-story URL for stronger results.' : null)
       ),
       proof_point: coverageFor(
@@ -248,7 +240,9 @@ async function collectSources(websiteUrl, options = {}) {
     result.telemetry = {
       discovery: discoveryTelemetry,
       fetch: pageFetcher.getTelemetry(),
-      caseStudyDemoted: csDemoted,
+      caseStudyOffFocus: csOffFocus,   // kept-but-ranked-lower, not removed
+      caseStudyOnFocus: csOnFocus,     // matched seller focus -> surfaced first
+      caseStudyTrusted: csTrusted,     // from pasted/filtered seller intent -> top of the order
       buckets: {
         case_study: (buckets.case_study || []).length,
         blog: (buckets.blog || []).length,

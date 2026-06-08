@@ -4,9 +4,9 @@ import { useState, useRef } from 'react';
 // in-app Knowledge Base page so the two entry points can never drift apart.
 //
 // Flow: About you -> Website (+ upload) -> Scan -> Priorities -> Confirm sources -> Run.
-// Collects a seller profile + product/solution priorities up front, then ranks discovered
-// case studies to what the seller actually sells (prevents a single vertical listing — e.g.
-// SAP-on-Azure stories — from flooding the knowledge base).
+// Collects a seller profile + product/solution priorities up front, then uses them to softly
+// prioritise the generated knowledge — best-matched case studies and proof points lead the
+// list while everything well-grounded is still kept (inputs order results, they never filter).
 //
 // The wizard owns only the "idle" data-gathering UI. It hands the host a complete payload
 // via onSubmit; the host owns upload + start + progress/SSE so each page keeps its own
@@ -256,7 +256,7 @@ export default function OnboardingWizard({ onSubmit, onBack, submitLabel = 'Gene
       {obStep === 'profile' && (
         <div className="space-y-4">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            A few quick taps tailor discovery questions and rank case studies to what you actually sell. All optional.
+            A few quick taps tailor discovery questions and prioritise case studies toward what you sell. Nothing is excluded. All optional.
           </p>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Your role</label>
@@ -276,7 +276,7 @@ export default function OnboardingWizard({ onSubmit, onBack, submitLabel = 'Gene
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Products you sell</label>
             <ChipInput value={profile.focusProducts} onChange={v => setProfile({ ...profile, focusProducts: v })} placeholder="e.g. Azure OpenAI, AI Foundry, Fabric" />
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Highest-leverage signal: case studies are ranked to these.</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Highest-leverage signal: your best-matched case studies lead, others still included.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Industries you target</label>
@@ -364,7 +364,7 @@ export default function OnboardingWizard({ onSubmit, onBack, submitLabel = 'Gene
       {obStep === 'priorities' && (
         <div className="space-y-4">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            We detected these areas on your site. Pick what you sell. Case studies and proof points are ranked to your picks.
+            We detected these areas on your site. Pick what you sell. Matching case studies and proof points lead the list, others are still included.
           </p>
           {(() => {
             const areas = scanAreas(scanResult);
@@ -436,7 +436,7 @@ export default function OnboardingWizard({ onSubmit, onBack, submitLabel = 'Gene
             />
           </div>
           {priorities.length > 0 && (
-            <p className="text-xs text-gray-400 dark:text-gray-500">Ranking case studies to: {priorities.join(', ')}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">Prioritising toward: {priorities.join(', ')} (others still included)</p>
           )}
           <div className="flex gap-3 pt-2">
             <button onClick={() => setObStep(scanStatus === 'done' ? 'priorities' : 'website')} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Back</button>

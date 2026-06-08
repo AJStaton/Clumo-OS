@@ -1,17 +1,17 @@
 // Provider adapter registry.
 //
-// Adapters are an OPTIONAL discovery tier for sites whose case studies are served by a
-// client-side app backed by a JSON/search API (e.g. microsoft.com, cloud.google.com),
-// where neither static anchors nor sitemaps reliably surface individual story URLs.
+// Adapters are an OPTIONAL, host-AGNOSTIC discovery tier: an adapter is
+// `{ name, matches(host) => bool, discover(ctx) => Promise<string[]> }` whose `discover`
+// returns a flat list of candidate URLs. They MUST be best-effort: never throw, return []
+// on any failure so the pipeline still succeeds via the static + sitemap + headless tiers.
 //
-// Contract: an adapter is `{ name, matches(host) => bool, discover(ctx) => Promise<string[]> }`.
-// `discover` returns a flat list of candidate URLs (any category). Adapters MUST be
-// best-effort: never throw, and return [] on any failure so the pipeline still succeeds
-// via the static + sitemap tiers.
+// No host-specific adapters are registered. SPA / JS-rendered listings (whose story tiles
+// are injected client-side and absent from raw HTML) are now handled generically by the
+// headless harvest in fetch/headless-fetcher.js — bounded scroll/load-more interaction plus
+// JSON-response sniffing — so no per-vendor sitemap/endpoint code is needed or shipped.
+// This array is the seam for any future genuinely host-agnostic adapter.
 
-const microsoft = require('./microsoft');
-
-const ADAPTERS = [microsoft];
+const ADAPTERS = [];
 
 function selectAdapter(host) {
   if (!host) return null;

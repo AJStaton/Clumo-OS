@@ -140,3 +140,31 @@ Fixes two defects: (1) onboarding azure.microsoft.com/en-gb returned all-SAP cas
 ### Tests
 - [x] 9.9 classify/diversity/relevance/collector/site-scanner unit tests (no live network); full suite 125 green
 - [x] 9.10 Live-validated: azure.microsoft.com/en-gb scan resolves the master /en-gb/resources/customer-stories hub (not the SAP narrow listing) + 24 products/24 solutions; beamery.com scan resolves /customers/ + 5 products/4 solutions
+
+## Phase 10: Maximize KB Volume + Soft Prioritisation (host-agnostic)
+Reframe from filtering to volume + ordering. User inputs now PRIORITISE (never delete) across all four KB types; targets raised and grounded via multi-pass generation; case-study harvest hardened generically; the only host-specific code (Microsoft adapter) retired.
+
+### Volume (quality-dependent — never padded/fabricated)
+- [x] 10.1 knowledge-generator.js — config-driven targets (DQ 100, proof 50, product truths 100, case-study inference 30); GEN_MAX_TOKENS 8000; GEN_INPUT_CHARS 48000
+- [x] 10.2 knowledge-generator.js — _generateItems() multi-pass continuation (chunk content, do-not-repeat avoid-list, dedupe by per-type identity, stop on target/exhaustion/no-new) for all four types
+- [x] 10.3 knowledge-generator.js — parseJsonArray + _salvageObjects() recover complete objects from truncated arrays
+- [x] 10.4 source-collector.js — BUNDLE_CHAR_CAP 45k->120k, MAX_PAGES_PER_BUNDLE 12->30; url-discovery perTypeBudget 20->30
+- [x] 10.5 routes/api.js — reads max_discovery_questions/max_proof_points/max_product_truths/max_case_studies_inferred config; passes targets into generate()
+
+### Soft prioritisation (order, never filter)
+- [x] 10.6 source-collector.js — hard demotion gate REMOVED; every extracted case study kept; relevance used only to sort (trusted -> relevance -> confidence); telemetry caseStudyOnFocus/OffFocus/Trusted
+- [x] 10.7 relevance.js — scoreCaseStudyDetailed rewritten for partial/proportional token matching + GENERIC_TERMS downweighting; matchedFocus is telemetry-only, not a gate
+- [x] 10.8 knowledge-generator.js — profileCtx threaded into ALL four generators; DQ prompt actively tailors to role/persona/industry/segment; soft "lead with these, still include others" language everywhere
+
+### Host-agnostic case-study harvest
+- [x] 10.9 headless-fetcher.js — listing mode: bounded scroll/load-more loop (driveListing) accumulating anchors across rounds (handles list-replacing pagination); generic JSON-response sniffing (extractStoryUrlsFromJson) for SPA tiles; playwright injection seam for tests
+- [x] 10.10 page-fetcher.js — forced listings prefer rendered result when it surfaces candidate STORY links (story-path heuristic, not nav chrome) even if text is thinner; threads jsonLinks
+- [x] 10.11 url-discovery.js — expand() merges DOM links (primary) + jsonLinks (secondary) with host-check, dedupe, harvestMethod provenance; jsonHarvestedLinks/listingExpansionIncomplete telemetry
+- [x] 10.12 RETIRED server/discovery/adapters/microsoft.js (the SAP-flood sitemap firehose); registry now empty []; generic SPA harvest replaces its value. No host-specific code ships.
+
+### UI
+- [x] 10.13 OnboardingWizard.jsx — "ranking/limiting" copy replaced with prioritisation language ("others still included")
+- [x] 10.14 KB.jsx — per-type counts already shown; thin-grounding coverage warnings now surfaced at first-run parity with Setup.jsx (BackgroundProcessContext carries coverage)
+
+### Tests
+- [x] 10.15 headless-fetcher.test.js (new, fake-browser): JSON extraction, listing loop + accumulation, non-listing isolation, graceful degrade; page-fetcher listing link-preference + jsonLinks threading; full suite 146 green

@@ -301,6 +301,13 @@ router.get('/api/onboarding/stream', async (req, res) => {
 
   try {
     const maxCaseStudies = parseInt(db.getConfig('max_case_studies') || '50', 10);
+    // Quality-dependent volume ceilings for the LLM-generated knowledge types (config-tunable).
+    const targets = {
+      discoveryQuestions: parseInt(db.getConfig('max_discovery_questions') || '100', 10),
+      proofPoints: parseInt(db.getConfig('max_proof_points') || '50', 10),
+      productTruths: parseInt(db.getConfig('max_product_truths') || '100', 10),
+      caseStudies: parseInt(db.getConfig('max_case_studies_inferred') || '30', 10)
+    };
     // Wrap the client to always include model (required by Azure AI Model Inference API)
     const chatModel = provider.chatModel || provider.chatDeployment || 'gpt-4o-mini';
     const wrappedClient = {
@@ -365,7 +372,7 @@ router.get('/api/onboarding/stream', async (req, res) => {
         message: progress.message,
         counts: progress.counts || null
       });
-    }, { merge, userId: 'local', sources, profile: profile || null });
+    }, { merge, userId: 'local', sources, profile: profile || null, targets });
 
     db.setConfig('onboarding_complete', 'true');
     sendEvent('complete', {

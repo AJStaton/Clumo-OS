@@ -99,7 +99,7 @@ function diversifyCaseStudies({ pastedDirect = [], pastedListings = [], direct =
 async function discoverUrls(baseUrl, pageFetcher, options = {}) {
   const {
     pastedSources = {},
-    perTypeBudget = 20,
+    perTypeBudget = 30,
     caseStudyBudget = perTypeBudget,
     maxAnchorPages = 8,
     maxListingExpansions = 8,
@@ -228,19 +228,30 @@ async function discoverUrls(baseUrl, pageFetcher, options = {}) {
       // case-study platform). Trust the host of the listing the seller pointed us at, so its
       // story links are harvested even when they don't match baseHost.
       const allowedHost = trusted ? hostOf(listing.url) : baseHost;
-      if (page && page.ok && page.links) {
-        for (const link of page.links) {
-          if (hostOf(link) !== allowedHost) continue;
-          const c = classifyUrl(link, { baseHost });
-          if (c && c.category === 'case_study' && c.individual && !isCaseStudyListing(c.url)) {
-            const k = normalizeForDedupe(c.url);
-            if (seenInListing.has(k)) continue;
-            seenInListing.add(k);
-            if (trusted) { c.fromPasted = true; c.trusted = true; }
-            links.push(c);
-          }
+      // DOM anchors are the primary harvest; JSON-sniffed URLs are a lower-trust secondary source
+      // that adds volume for SPA listings whose tiles aren't crawlable anchors.
+      const domLinks = (page && page.ok && page.links) ? page.links : [];
+      const jsonLinks = (page && page.ok && page.jsonLinks) ? page.jsonLinks : [];
+      const consider = [
+        ...domLinks.map((u) => ({ u, method: 'dom' })),
+        ...jsonLinks.map((u) => ({ u, method: 'json' }))
+      ];
+      let jsonAccepted = 0;
+      for (const { u: link, method } of consider) {
+        if (hostOf(link) !== allowedHost) continue;
+        const c = classifyUrl(link, { baseHost });
+        if (c && c.category === 'case_study' && c.individual && !isCaseStudyListing(c.url)) {
+          const k = normalizeForDedupe(c.url);
+          if (seenInListing.has(k)) continue;
+          seenInListing.add(k);
+          if (trusted) { c.fromPasted = true; c.trusted = true; }
+          c.harvestMethod = method;
+          if (method === 'json') jsonAccepted += 1;
+          links.push(c);
         }
       }
+      telemetry.jsonHarvestedLinks = (telemetry.jsonHarvestedLinks || 0) + jsonAccepted;
+      if (page && page.listingIncomplete) telemetry.listingExpansionIncomplete = (telemetry.listingExpansionIncomplete || 0) + 1;
       return { url: listing.url, narrow: !!listing.narrow, trusted: !!trusted, links };
     };
 
