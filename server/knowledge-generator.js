@@ -3,6 +3,7 @@
 // from extracted website and document content
 
 const storage = require('./storage');
+const { caseStudyKey } = require('./case-study-identity');
 
 // Quality-dependent volume targets. These are CEILINGS the gathered content may or may not fill —
 // the generators are instructed never to pad or fabricate to reach them. Overridable per-run via
@@ -839,7 +840,7 @@ Return ONLY a JSON array (no markdown):
     kb.caseStudies = this.deduplicateItems(
       kb.caseStudies,
       'cs',
-      (item) => item.company.toLowerCase().trim()
+      (item) => caseStudyKey(item)
     );
 
     kb.proofPoints = this.deduplicateItems(

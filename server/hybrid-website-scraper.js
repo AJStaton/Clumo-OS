@@ -5,6 +5,7 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const WebsiteScraper = require('./website-scraper');
+const { caseStudyKey } = require('./case-study-identity');
 
 class HybridWebsiteScraper extends WebsiteScraper {
   constructor(openai, options = {}) {
@@ -316,25 +317,28 @@ If no case studies are found on this page, return: []`
 
   // Remove duplicate case studies by company name
   deduplicateCaseStudies(caseStudies) {
-    const byCompany = new Map();
+    // Key on a composite identity (source URL, else company + headline) rather
+    // than company name alone, so distinct stories from the same customer are
+    // preserved while true duplicates (same story, locale/tracking variants) collapse.
+    const seen = new Map();
 
     for (const cs of caseStudies) {
-      const key = cs.company.toLowerCase().trim();
-      const existing = byCompany.get(key);
+      const key = caseStudyKey(cs);
+      const existing = seen.get(key);
 
       if (!existing) {
-        byCompany.set(key, cs);
+        seen.set(key, cs);
       } else {
         // Keep the one with more complete data
         const existingScore = this.completenessScore(existing);
         const newScore = this.completenessScore(cs);
         if (newScore > existingScore) {
-          byCompany.set(key, cs);
+          seen.set(key, cs);
         }
       }
     }
 
-    return Array.from(byCompany.values());
+    return Array.from(seen.values());
   }
 
   // Score how complete a case study entry is
