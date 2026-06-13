@@ -47,11 +47,18 @@ class AzureOpenAIProvider {
     });
   }
 
-  createRealtimeWebSocket() {
+  buildRealtimeUrl() {
     const host = this.endpoint.replace('https://', '').replace('http://', '').replace(/\/$/, '');
-    const url = `wss://${host}/openai/realtime?api-version=${this.apiVersion}&deployment=${this.realtimeDeployment}&intent=transcription`;
+    // This socket is always an intent=transcription session, so connect it using
+    // the transcription deployment itself. A separate realtime "host" model
+    // (e.g. gpt-realtime-mini) is not required; realtimeDeployment is kept only
+    // as a backward-compatible fallback.
+    const deployment = this.transcriptionModel || this.realtimeDeployment;
+    return `wss://${host}/openai/realtime?api-version=${this.apiVersion}&deployment=${deployment}&intent=transcription`;
+  }
 
-    return new WebSocket(url, {
+  createRealtimeWebSocket() {
+    return new WebSocket(this.buildRealtimeUrl(), {
       headers: {
         'api-key': this.apiKey
       }
@@ -114,10 +121,14 @@ class OpenAIProvider {
     });
   }
 
-  createRealtimeWebSocket() {
-    const url = `wss://api.openai.com/v1/realtime?model=${this.realtimeModel}&intent=transcription`;
+  buildRealtimeUrl() {
+    // intent=transcription session: connect using the transcription model itself.
+    const model = this.transcriptionModel || this.realtimeModel;
+    return `wss://api.openai.com/v1/realtime?model=${model}&intent=transcription`;
+  }
 
-    return new WebSocket(url, {
+  createRealtimeWebSocket() {
+    return new WebSocket(this.buildRealtimeUrl(), {
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,
         'OpenAI-Beta': 'realtime=v1'
@@ -190,12 +201,18 @@ class ManagedProvider {
     });
   }
 
-  createRealtimeWebSocket() {
+  buildRealtimeUrl() {
     const host = this.baseUrl.replace('https://', '').replace('http://', '');
     // Realtime API requires a preview api-version
     const realtimeApiVersion = '2024-10-01-preview';
-    const url = `wss://${host}/openai/realtime?api-version=${realtimeApiVersion}&deployment=${this.realtimeModel}&intent=transcription`;
-    return new WebSocket(url, {
+    // intent=transcription session: connect using the transcription deployment
+    // itself. realtimeModel is kept only as a backward-compatible fallback.
+    const deployment = this.transcriptionModel || this.realtimeModel;
+    return `wss://${host}/openai/realtime?api-version=${realtimeApiVersion}&deployment=${deployment}&intent=transcription`;
+  }
+
+  createRealtimeWebSocket() {
+    return new WebSocket(this.buildRealtimeUrl(), {
       headers: { 'api-key': this.apiKey }
     });
   }
@@ -277,7 +294,10 @@ function loadProvider() {
     const realtimeDeployment = getConfig('azure_realtime_deployment');
     const embeddingDeployment = getConfig('azure_embedding_deployment');
 
-    if (!endpoint || !apiKey || !chatDeployment || !realtimeDeployment) return null;
+    // realtimeDeployment is optional now: the realtime transcription session
+    // connects via the transcription model, so a separate realtime deployment
+    // is not required.
+    if (!endpoint || !apiKey || !chatDeployment) return null;
 
     return new AzureOpenAIProvider({
       endpoint, apiKey, apiVersion, chatDeployment, realtimeDeployment, embeddingDeployment,
@@ -374,7 +394,14 @@ function saveProviderConfig(providerType, config) {
     }
     setConfig('azure_api_version', config.apiVersion || '2024-10-21');
     setConfig('azure_chat_deployment', config.chatDeployment);
-    setConfig('azure_realtime_deployment', config.realtimeDeployment);
+    // Realtime deployment is optional: the transcription session connects via
+    // the transcription deployment. Kept for backward compatibility if provided.
+    if (config.realtimeDeployment) {
+      setConfig('azure_realtime_deployment', config.realtimeDeployment);
+    }
+    if (config.transcriptionDeployment) {
+      setConfig('transcription_model', config.transcriptionDeployment);
+    }
     setConfig('azure_embedding_deployment', config.embeddingDeployment);
   } else if (providerType === 'openai') {
     if (config.apiKey) {

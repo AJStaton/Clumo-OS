@@ -193,10 +193,40 @@ describe('ai-provider.js — saveProviderConfig + loadProvider', () => {
     expect(ai.loadProvider()).toBeNull();
   });
 
+  it('realtime transcription session connects via the transcription model (no separate host)', () => {
+    const azure = new ai.AzureOpenAIProvider({
+      endpoint: 'https://x.openai.azure.com', apiKey: 'k', chatDeployment: 'c',
+      realtimeDeployment: 'gpt-realtime-mini', embeddingDeployment: 'e',
+      transcriptionModel: 'gpt-4o-mini-transcribe'
+    });
+    const azureUrl = azure.buildRealtimeUrl();
+    expect(azureUrl).toContain('deployment=gpt-4o-mini-transcribe');
+    expect(azureUrl).toContain('intent=transcription');
+    expect(azureUrl).not.toContain('gpt-realtime-mini');
+
+    const openai = new ai.OpenAIProvider({ apiKey: 'k', realtimeModel: 'gpt-realtime-mini', transcriptionModel: 'gpt-4o-mini-transcribe' });
+    expect(openai.buildRealtimeUrl()).toContain('model=gpt-4o-mini-transcribe');
+
+    const managed = new ai.ManagedProvider({ endpoint: 'https://x.services.ai.azure.com', apiKey: 'k', realtimeModel: 'gpt-realtime-mini', transcriptionModel: 'gpt-4o-mini-transcribe' });
+    expect(managed.buildRealtimeUrl()).toContain('deployment=gpt-4o-mini-transcribe');
+  });
+
+  it('loadProvider builds an Azure provider without a realtime deployment', () => {
+    db.setConfig('ai_provider', 'azure');
+    db.setConfig('azure_endpoint', 'https://x.openai.azure.com');
+    db.setSecureConfig('azure_api_key', 'k');
+    db.setConfig('azure_chat_deployment', 'c');
+    db.setConfig('azure_embedding_deployment', 'e');
+    // No azure_realtime_deployment set
+    const p = ai.loadProvider();
+    expect(p).toBeInstanceOf(ai.AzureOpenAIProvider);
+    expect(p.buildRealtimeUrl()).toContain('deployment=gpt-4o-mini-transcribe');
+  });
+
   it('returns null when Azure required fields are missing', () => {
     db.setConfig('ai_provider', 'azure');
     db.setConfig('azure_endpoint', 'https://x');
-    // missing apiKey + deployments
+    // missing apiKey + chat deployment
     expect(ai.loadProvider()).toBeNull();
   });
 });

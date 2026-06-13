@@ -440,10 +440,10 @@ export default function Setup({ onComplete }) {
                 />
                 <input
                   type="text"
-                  placeholder="Realtime deployment (e.g. gpt-realtime-mini)"
+                  placeholder="Transcription deployment (e.g. gpt-4o-mini-transcribe)"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                  value={config.realtimeDeployment || ''}
-                  onChange={e => setConfig({ ...config, realtimeDeployment: e.target.value })}
+                  value={config.transcriptionDeployment || ''}
+                  onChange={e => setConfig({ ...config, transcriptionDeployment: e.target.value })}
                 />
                 <input
                   type="text"
@@ -461,8 +461,8 @@ export default function Setup({ onComplete }) {
                       <p className="mt-0.5">Fast and cheap for scoring suggestions in real time. Keeps up with live conversation without noticeable delay and keeps costs low.</p>
                     </div>
                     <div>
-                      <span className="font-medium text-gray-800">Realtime: gpt-realtime-mini</span>
-                      <p className="mt-0.5">Lightweight realtime model that carries the live audio session. Streaming transcription runs on gpt-4o-mini-transcribe (partial results as the customer speaks) for faster, lower-latency suggestions.</p>
+                      <span className="font-medium text-gray-800">Transcription: gpt-4o-mini-transcribe</span>
+                      <p className="mt-0.5">A single transcription deployment carries the live audio session and streams partial results as the customer speaks (faster, lower-latency suggestions). No separate realtime deployment is required.</p>
                     </div>
                     <div>
                       <span className="font-medium text-gray-800">Embedding: text-embedding-3-small</span>

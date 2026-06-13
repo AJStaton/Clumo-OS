@@ -168,3 +168,8 @@ Target: cut customer-statement -> suggestion latency from 3-5s to <=1.5s and sha
 - [x] Server suite green (122 tests); web build clean (vite); server boots clean
 - [ ] Live latency measurement pending real audio session
 - [ ] RISK: Azure/managed deployments must expose a gpt-4o-mini-transcribe deployment (verify availability)
+
+### Phase 9 addendum: single-model transcription
+- [x] Realtime transcription session now connects via the transcription model itself (intent=transcription), so a separate realtime host deployment (gpt-realtime-mini) is no longer required. realtimeModel/realtimeDeployment kept only as a backward-compatible fallback.
+- [x] gpt-4o-mini-transcribe is the single deployment for all transcription elements (managed default + provider default).
+- [x] Azure: realtime deployment no longer required by loadProvider or the settings API; added a Transcription deployment field in Setup + AI Models settings (maps to transcription_model). Verified live against Azure AI Foundry (single gpt-4o-mini-transcribe deployment hosts + transcribes).
