@@ -16,7 +16,8 @@ if (managedCreds.isConfigured() && !db.getSecureConfig('managed_endpoint')) {
   seedManagedCredentials(managedCreds.endpoint, managedCreds.apiKey, {
     chatModel: managedCreds.chatModel,
     realtimeModel: managedCreds.realtimeModel,
-    embeddingModel: managedCreds.embeddingModel
+    embeddingModel: managedCreds.embeddingModel,
+    transcriptionModel: managedCreds.transcriptionModel
   });
   console.log('[Server] Managed AI credentials seeded from build config');
 }

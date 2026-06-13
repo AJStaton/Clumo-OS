@@ -4,6 +4,12 @@
 const WebSocket = require('ws');
 const { getConfig, getSecureConfig, setConfig, setSecureConfig } = require('./db');
 
+// Single source of truth for the live-transcription model. We standardised on
+// gpt-4o-mini-transcribe (streaming partial deltas) and removed whisper-1
+// entirely — see the Realtime Suggestions overhaul. Any provider can override
+// per-config, but this is the default everywhere including managed mode.
+const DEFAULT_TRANSCRIPTION_MODEL = 'gpt-4o-mini-transcribe';
+
 class AzureOpenAIProvider {
   constructor(config) {
     this.endpoint = config.endpoint;
@@ -12,7 +18,12 @@ class AzureOpenAIProvider {
     this.chatDeployment = config.chatDeployment;
     this.realtimeDeployment = config.realtimeDeployment;
     this.embeddingDeployment = config.embeddingDeployment;
+    this.transcriptionModel = config.transcriptionModel || DEFAULT_TRANSCRIPTION_MODEL;
     this.client = null;
+  }
+
+  getTranscriptionModel() {
+    return this.transcriptionModel;
   }
 
   getClient() {
@@ -79,7 +90,12 @@ class OpenAIProvider {
     this.apiKey = config.apiKey;
     this.chatModel = config.chatModel || 'gpt-4o-mini';
     this.realtimeModel = config.realtimeModel || 'gpt-realtime-mini';
+    this.transcriptionModel = config.transcriptionModel || DEFAULT_TRANSCRIPTION_MODEL;
     this.client = null;
+  }
+
+  getTranscriptionModel() {
+    return this.transcriptionModel;
   }
 
   getClient() {
@@ -145,7 +161,12 @@ class ManagedProvider {
     this.chatModel = config.chatModel || 'gpt-4o-mini';
     this.realtimeModel = config.realtimeModel || 'gpt-realtime-mini';
     this.embeddingModel = config.embeddingModel || 'text-embedding-ada-002';
+    this.transcriptionModel = config.transcriptionModel || DEFAULT_TRANSCRIPTION_MODEL;
     this.client = null;
+  }
+
+  getTranscriptionModel() {
+    return this.transcriptionModel;
   }
 
   getClient() {
@@ -238,7 +259,8 @@ function loadProvider() {
         apiKey: managedKey,
         chatModel: getConfig('managed_chat_model') || 'gpt-4o-mini',
         realtimeModel: getConfig('managed_realtime_model') || 'gpt-realtime-mini',
-        embeddingModel: getConfig('managed_embedding_model') || 'text-embedding-ada-002'
+        embeddingModel: getConfig('managed_embedding_model') || 'text-embedding-ada-002',
+        transcriptionModel: getConfig('transcription_model') || getConfig('managed_transcription_model') || DEFAULT_TRANSCRIPTION_MODEL
       });
     }
     // Fall through to BYOK check
@@ -258,7 +280,8 @@ function loadProvider() {
     if (!endpoint || !apiKey || !chatDeployment || !realtimeDeployment) return null;
 
     return new AzureOpenAIProvider({
-      endpoint, apiKey, apiVersion, chatDeployment, realtimeDeployment, embeddingDeployment
+      endpoint, apiKey, apiVersion, chatDeployment, realtimeDeployment, embeddingDeployment,
+      transcriptionModel: getConfig('transcription_model') || DEFAULT_TRANSCRIPTION_MODEL
     });
   }
 
@@ -272,7 +295,8 @@ function loadProvider() {
     return new OpenAIProvider({
       apiKey,
       chatModel: chatModel || 'gpt-4o-mini',
-      realtimeModel: realtimeModel || 'gpt-realtime-mini'
+      realtimeModel: realtimeModel || 'gpt-realtime-mini',
+      transcriptionModel: getConfig('transcription_model') || DEFAULT_TRANSCRIPTION_MODEL
     });
   }
 
@@ -292,7 +316,8 @@ function loadEmbeddingProvider() {
         apiKey: managedKey,
         chatModel: getConfig('managed_chat_model') || 'gpt-4o-mini',
         realtimeModel: getConfig('managed_realtime_model') || 'gpt-realtime-mini',
-        embeddingModel: getConfig('managed_embedding_model') || 'text-embedding-ada-002'
+        embeddingModel: getConfig('managed_embedding_model') || 'text-embedding-ada-002',
+        transcriptionModel: getConfig('transcription_model') || getConfig('managed_transcription_model') || DEFAULT_TRANSCRIPTION_MODEL
       });
     }
     console.warn('[AI Provider] Managed mode selected but credentials not found');
@@ -310,6 +335,7 @@ function seedManagedCredentials(endpoint, apiKey, models = {}) {
   if (models.chatModel) setConfig('managed_chat_model', models.chatModel);
   if (models.realtimeModel) setConfig('managed_realtime_model', models.realtimeModel);
   if (models.embeddingModel) setConfig('managed_embedding_model', models.embeddingModel);
+  if (models.transcriptionModel) setConfig('managed_transcription_model', models.transcriptionModel);
 }
 
 // --- Save provider config ---
@@ -342,5 +368,6 @@ module.exports = {
   loadProvider,
   loadEmbeddingProvider,
   saveProviderConfig,
-  seedManagedCredentials
+  seedManagedCredentials,
+  DEFAULT_TRANSCRIPTION_MODEL
 };

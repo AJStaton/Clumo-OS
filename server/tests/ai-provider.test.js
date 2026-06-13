@@ -71,6 +71,22 @@ describe('ai-provider.js — provider classes', () => {
     expect(p.embeddingModel).toBe('text-embedding-ada-002');
   });
 
+  it('providers default the transcription model to gpt-4o-mini-transcribe', () => {
+    const azure = new ai.AzureOpenAIProvider({
+      endpoint: 'x', apiKey: 'k', chatDeployment: 'c', realtimeDeployment: 'r', embeddingDeployment: 'e'
+    });
+    const openai = new ai.OpenAIProvider({ apiKey: 'k' });
+    const managed = new ai.ManagedProvider({ endpoint: 'https://x', apiKey: 'k' });
+    expect(azure.getTranscriptionModel()).toBe('gpt-4o-mini-transcribe');
+    expect(openai.getTranscriptionModel()).toBe('gpt-4o-mini-transcribe');
+    expect(managed.getTranscriptionModel()).toBe('gpt-4o-mini-transcribe');
+  });
+
+  it('transcription model is overridable per-config', () => {
+    const p = new ai.OpenAIProvider({ apiKey: 'k', transcriptionModel: 'whisper-x' });
+    expect(p.getTranscriptionModel()).toBe('whisper-x');
+  });
+
   it('createRealtimeWebSocket on Azure builds wss URL with deployment', () => {
     const p = new ai.AzureOpenAIProvider({
       endpoint: 'https://x.openai.azure.com',
