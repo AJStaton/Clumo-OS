@@ -329,13 +329,37 @@ function loadEmbeddingProvider() {
 
 // --- Seed managed credentials into DB (called during setup or first run) ---
 
+// Idempotent: safe to call on every startup. Only writes values that actually
+// changed and reports what was touched, so centrally-managed model deployments
+// can be rotated/retired over time and picked up on the next launch without
+// rewriting (re-encrypting) unchanged secrets.
 function seedManagedCredentials(endpoint, apiKey, models = {}) {
-  setSecureConfig('managed_endpoint', endpoint);
-  setSecureConfig('managed_api_key', apiKey);
-  if (models.chatModel) setConfig('managed_chat_model', models.chatModel);
-  if (models.realtimeModel) setConfig('managed_realtime_model', models.realtimeModel);
-  if (models.embeddingModel) setConfig('managed_embedding_model', models.embeddingModel);
-  if (models.transcriptionModel) setConfig('managed_transcription_model', models.transcriptionModel);
+  const firstRun = !getSecureConfig('managed_endpoint');
+  const updated = [];
+
+  if (getSecureConfig('managed_endpoint') !== endpoint) {
+    setSecureConfig('managed_endpoint', endpoint);
+    if (!firstRun) updated.push('endpoint');
+  }
+  if (getSecureConfig('managed_api_key') !== apiKey) {
+    setSecureConfig('managed_api_key', apiKey);
+    if (!firstRun) updated.push('api_key');
+  }
+
+  const modelConfig = {
+    managed_chat_model: models.chatModel,
+    managed_realtime_model: models.realtimeModel,
+    managed_embedding_model: models.embeddingModel,
+    managed_transcription_model: models.transcriptionModel
+  };
+  for (const [key, value] of Object.entries(modelConfig)) {
+    if (value && getConfig(key) !== value) {
+      setConfig(key, value);
+      if (!firstRun) updated.push(key.replace('managed_', '').replace('_model', ''));
+    }
+  }
+
+  return { seeded: firstRun, updated };
 }
 
 // --- Save provider config ---

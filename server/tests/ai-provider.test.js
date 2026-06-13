@@ -156,6 +156,30 @@ describe('ai-provider.js — saveProviderConfig + loadProvider', () => {
     expect(db.getSecureConfig('managed_api_key')).toBe('mk-secret');
   });
 
+  it('seedManagedCredentials is idempotent and reports model changes on re-seed', () => {
+    const first = ai.seedManagedCredentials('https://managed.example', 'mk-secret', {
+      chatModel: 'gpt-4o-mini', transcriptionModel: 'gpt-4o-mini-transcribe'
+    });
+    expect(first.seeded).toBe(true);
+    expect(first.updated).toEqual([]);
+    expect(db.getConfig('managed_transcription_model')).toBe('gpt-4o-mini-transcribe');
+
+    // Same values again -> nothing reported as updated
+    const second = ai.seedManagedCredentials('https://managed.example', 'mk-secret', {
+      chatModel: 'gpt-4o-mini', transcriptionModel: 'gpt-4o-mini-transcribe'
+    });
+    expect(second.seeded).toBe(false);
+    expect(second.updated).toEqual([]);
+
+    // Rotate the transcription deployment -> reported + persisted
+    const third = ai.seedManagedCredentials('https://managed.example', 'mk-secret', {
+      chatModel: 'gpt-4o-mini', transcriptionModel: 'gpt-4o-transcribe'
+    });
+    expect(third.seeded).toBe(false);
+    expect(third.updated).toContain('transcription');
+    expect(db.getConfig('managed_transcription_model')).toBe('gpt-4o-transcribe');
+  });
+
   it('loadProvider in managed mode prefers managed creds', () => {
     db.setConfig('provider_mode', 'managed');
     ai.seedManagedCredentials('https://managed.example', 'mk-secret');
