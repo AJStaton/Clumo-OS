@@ -119,3 +119,52 @@
 - Blog/proof-point and product/docs pages are server-rendered everywhere (static works).
 - Case studies fail two ways: discovery (Beamery: no sitemap + JS listing) and extraction (Legora individual pages are client-rendered shells — headless does not fully rescue; extract from rich SSR listing + structured data with low confidence + "paste a URL" warning).
 - New pipeline recovers 12-15 case studies on Legora/Beamery/HappyRobot where the old scraper returned 0.
+
+## Phase 9: Realtime Suggestions — Speed + Relevance Overhaul
+Target: cut customer-statement -> suggestion latency from 3-5s to <=1.5s and sharpen relevance.
+
+### G. Instrumentation (baseline)
+- [x] 9.G Per-stage latency tracker in suggestion-engine (`statement->decision` with embed/match/llm splits); statement->emit timing in ws.js. `[Suggestion]`/`[WS]` prefixes.
+
+### A. Streaming transcription
+- [x] 9.A gpt-4o-mini-transcribe everywhere; whisper-1 removed (no fallback)
+- [x] 9.A Handle input_audio_transcription.delta (partial utterance) + .completed (authoritative finalize)
+- [x] 9.A VAD silence_duration_ms lowered to 300; prefix_padding_ms kept
+- [x] 9.A Transcription model surfaced across Azure/OpenAI/Managed providers + managed default (gpt-4o-mini-transcribe)
+
+### B. Warm-candidate / speculative pipeline
+- [x] 9.B Removed 50-word buffer gate; analysis driven off utterance deltas (debounced ~400ms)
+- [x] 9.B Continuous local semantic match on current utterance; warm candidate set + incremental embedding
+- [x] 9.B Speculative decision-LLM pre-fire on strong local trigger; confirm/discard at pause
+- [x] 9.B isAnalyzing hard-lock replaced with latest-wins (_evalSeq cancel-in-flight)
+
+### D. Retrieval vs decision-context split
+- [x] 9.D Retrieval embeds the pivotal recent utterance (last sentence/turn), not the full rolling buffer
+- [x] 9.D Decision context layered: pivotal "what just happened" + recent turns + running call brief + candidate shortlist
+- [x] 9.D Running call brief (industry/goals/requirements/competitors/pains) maintained in the meddpicc pass
+
+### C. Candidate selection redesign
+- [x] 9.C Fused multi-type candidate set, no intent/type routing
+- [x] 9.C Dynamic relative threshold (top score - margin) instead of fixed 0.3
+- [x] 9.C Fast path: dominant local match surfaces directly, skipping the decision LLM
+
+### E. Decision LLM optimization
+- [x] 9.E response_format json_object, trimmed system+candidate prompt, max_tokens 120
+- [x] 9.E (Trade-off) chose json_object + low tokens + fast-path over token-streaming for robustness
+
+### F. Frequency & speaker attribution
+- [x] 9.F Permanent suggestedIds dedup replaced with re-surface cooldown
+- [x] 9.F Fixed 60s rate-limit replaced with short cooldown (15s)
+- [x] 9.F Lightweight customer-statement heuristic so the engine reacts to the customer
+- [x] 9.F markSuggestionUsed/markSuggestionDismissed implemented (were called but missing)
+
+### H. Tests & config
+- [x] 9.H server/tests/suggestion-engine.test.js — pivotal embedding, fast path, decision LLM, cooldown, layered context, speculative warm reuse
+- [x] 9.H ai-provider tests extended for transcription-model defaults/override
+- [x] 9.H Managed defaults + Setup.jsx copy updated to gpt-4o-mini-transcribe
+- [x] 9.H web partial-transcript wiring (CallSessionContext) for live in-flight utterance
+
+### Verification
+- [x] Server suite green (122 tests); web build clean (vite); server boots clean
+- [ ] Live latency measurement pending real audio session
+- [ ] RISK: Azure/managed deployments must expose a gpt-4o-mini-transcribe deployment (verify availability)
