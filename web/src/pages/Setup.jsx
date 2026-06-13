@@ -462,7 +462,7 @@ export default function Setup({ onComplete }) {
                     </div>
                     <div>
                       <span className="font-medium text-gray-800">Realtime: gpt-realtime-mini</span>
-                      <p className="mt-0.5">Lightweight realtime model for live audio transcription. Lower cost than the full gpt-4o realtime model while still providing accurate transcription.</p>
+                      <p className="mt-0.5">Lightweight realtime model that carries the live audio session. Streaming transcription runs on gpt-4o-mini-transcribe (partial results as the customer speaks) for faster, lower-latency suggestions.</p>
                     </div>
                     <div>
                       <span className="font-medium text-gray-800">Embedding: text-embedding-3-small</span>
@@ -492,9 +492,9 @@ export default function Setup({ onComplete }) {
                       <p className="mt-0.5">Fast and cheap for scoring suggestions in real time. Keeps up with live conversation without noticeable delay and keeps costs low.</p>
                     </div>
                     <div>
-                      <span className="font-medium text-gray-800">Transcription: gpt-realtime-mini</span>
+                      <span className="font-medium text-gray-800">Transcription: gpt-4o-mini-transcribe</span>
                       <span className="ml-1.5 text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">default</span>
-                      <p className="mt-0.5">Lightweight realtime model for live audio transcription. Lower cost than the full gpt-4o realtime model while still providing accurate transcription.</p>
+                      <p className="mt-0.5">Streaming transcription model that returns partial results as the customer speaks, so live suggestions surface in around a second instead of waiting for the full sentence.</p>
                     </div>
                     <div>
                       <span className="font-medium text-gray-800">Embedding: text-embedding-3-small</span>
