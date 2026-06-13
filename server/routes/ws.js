@@ -60,7 +60,10 @@ function setupWebSocket(httpServer) {
     await suggestionEngine.init('local');
 
     let transcriptBuffer = '';
-    let isAnalyzing = false;
+    // In-flight (partial) utterance assembled from streaming transcription deltas.
+    let currentUtterance = '';
+    let utteranceStartedAt = 0; // wall-clock of the first delta in this utterance
+    let warmTimer = null;       // debounce for warm speculative matching
     let isConnectedToOpenAI = false;
     let isConnecting = false;
     let connectionFailed = false;
@@ -81,22 +84,31 @@ function setupWebSocket(httpServer) {
 
           setTimeout(() => {
             if (openaiWs.readyState === WebSocket.OPEN) {
+              // Streaming transcription via gpt-4o-mini-transcribe (delta + completed
+              // events). whisper-1 has been removed entirely. The model is sourced
+              // from the active provider's single transcription-model setting.
+              const transcriptionModel = typeof activeProvider.getTranscriptionModel === 'function'
+                ? activeProvider.getTranscriptionModel()
+                : 'gpt-4o-mini-transcribe';
+
               openaiWs.send(JSON.stringify({
                 type: 'transcription_session.update',
                 session: {
                   input_audio_format: 'pcm16',
                   input_audio_transcription: {
-                    model: 'whisper-1'
+                    model: transcriptionModel
                   },
                   turn_detection: {
                     type: 'server_vad',
                     threshold: 0.5,
                     prefix_padding_ms: 300,
-                    silence_duration_ms: 500
+                    // Tightened from 500ms so we react ~200ms sooner at each pause.
+                    silence_duration_ms: 300
                   }
                 }
               }));
 
+              console.log(`[WS] Transcription model: ${transcriptionModel}`);
               isConnectedToOpenAI = true;
               resolve();
             } else {
@@ -145,10 +157,34 @@ function setupWebSocket(httpServer) {
           console.log('[WS] Realtime session configured');
           break;
 
+        case 'conversation.item.input_audio_transcription.delta':
+        case 'transcription.text.delta': {
+          // Partial transcript — accumulate the in-flight utterance and warm the
+          // local candidate set so a suggestion is ready the instant of the pause.
+          const delta = event.delta || event.text || '';
+          if (!delta) break;
+          if (!currentUtterance) utteranceStartedAt = Date.now();
+          currentUtterance += delta;
+
+          // Expose partials to the client for a live, low-latency transcript feel.
+          sendToClient({ type: 'transcript_partial', text: currentUtterance });
+
+          // Debounced warm matching (~400ms of quiet within the utterance).
+          if (warmTimer) clearTimeout(warmTimer);
+          const snapshot = currentUtterance;
+          warmTimer = setTimeout(() => {
+            suggestionEngine.warmUtterance(snapshot).catch(() => {});
+          }, 400);
+          break;
+        }
+
         case 'conversation.item.input_audio_transcription.completed':
         case 'transcription.text.done': {
           const transcript = event.transcript || event.text;
+          if (warmTimer) { clearTimeout(warmTimer); warmTimer = null; }
+
           if (transcript && transcript.trim()) {
+            const statementAt = utteranceStartedAt || Date.now();
             console.log(`[WS] Transcript: "${transcript.substring(0, 80)}..."`);
 
             sendToClient({ type: 'transcript', text: transcript });
@@ -162,21 +198,22 @@ function setupWebSocket(httpServer) {
               sendToClient({ type: 'meddpicc_update', meddpicc });
             }
 
-            // Check for suggestions
-            if (!isAnalyzing && transcriptBuffer.split(/\s+/).length >= 50) {
-              isAnalyzing = true;
-              try {
-                const suggestion = await suggestionEngine.getBestSuggestion(transcriptBuffer);
+            // Evaluate this finalized utterance immediately. The engine handles
+            // latest-wins cancellation, cooldowns, fast-path and the decision LLM,
+            // so there is no buffer gate or hard analysis lock here anymore.
+            suggestionEngine.getBestSuggestion(transcript, { utterance: transcript })
+              .then(suggestion => {
                 if (suggestion) {
-                  console.log(`[WS] Suggestion: ${suggestion.type}`);
+                  const latency = Date.now() - statementAt;
+                  console.log(`[WS] Suggestion: ${suggestion.type} (statement->emit ${latency}ms)`);
                   sendToClient({ type: 'suggestion', suggestion });
                 }
-                const words = transcriptBuffer.split(/\s+/);
-                transcriptBuffer = words.slice(-75).join(' ');
-              } finally {
-                isAnalyzing = false;
-              }
-            }
+              })
+              .catch(err => console.error('[WS] Suggestion error:', err.message));
+
+            // Reset in-flight utterance state for the next turn.
+            currentUtterance = '';
+            utteranceStartedAt = 0;
           }
           break;
         }
