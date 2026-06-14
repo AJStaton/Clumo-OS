@@ -13,33 +13,18 @@ export default function SuggestionCard({ suggestion }) {
   const triggeredAt = suggestion.triggeredAt || item.triggeredAt;
   const triggerTime = triggeredAt ? new Date(triggeredAt).toLocaleTimeString() : null;
   const trigger = suggestion.trigger || item.trigger;
-  const triggerTip = trigger ? `Trigger: "${trigger}"` : null;
 
   return (
-    <div
-      className={`${style.bg} ${style.border} border rounded-lg p-4 mb-3 relative animate-in`}
-      title={triggerTip || undefined}
-    >
+    <div className={`${style.bg} ${style.border} border rounded-lg p-4 mb-3 relative animate-in`}>
       <div className="flex items-center justify-between mb-2">
         <span className={`text-xs font-semibold uppercase tracking-wide ${style.text}`}>
           {style.label}
         </span>
-        <div className="flex items-center gap-1.5">
-          {triggerTip && (
-            <span
-              className="text-xs text-gray-300 hover:text-gray-500 cursor-help select-none"
-              title={triggerTip}
-              aria-label={triggerTip}
-            >
-              &ldquo;&rdquo;
-            </span>
-          )}
-          {triggerTime && (
-            <span className="text-xs text-gray-400" title="When the customer said the triggering statement">
-              {triggerTime}
-            </span>
-          )}
-        </div>
+        {triggerTime && (
+          <span className="text-xs text-gray-400" title="When the customer said the triggering statement">
+            {triggerTime}
+          </span>
+        )}
       </div>
 
       {suggestion.type === 'case_study' && (
@@ -86,6 +71,16 @@ export default function SuggestionCard({ suggestion }) {
             </a>
           )}
         </>
+      )}
+
+      {trigger && (
+        <p
+          className="mt-2 pt-2 border-t border-black/5 text-xs italic text-gray-400 truncate"
+          title={`Why now — the customer said: "${trigger}"`}
+        >
+          <span className="not-italic text-gray-300 mr-1">&#8627;</span>
+          &ldquo;{trigger}&rdquo;
+        </p>
       )}
     </div>
   );
