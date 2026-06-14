@@ -11,17 +11,17 @@ const SuggestionEngine = require('../suggestion-engine');
 function makeKb() {
   return {
     discoveryQuestions: [
-      { id: 'dq1', question: 'What does your data pipeline look like today?', context: 'pipelines', embedding: [1, 0, 0] },
-      { id: 'dq2', question: 'Who owns the budget?', context: 'budget', embedding: [0, 1, 0] }
+      { id: 'dq1', question: 'What does your data pipeline look like today?', context: 'pipelines', embedding: [1, 0, 0], triggers: ['pipeline', 'data pipeline'] },
+      { id: 'dq2', question: 'Who owns the budget?', context: 'budget', embedding: [0, 1, 0], triggers: ['budget', 'cost'] }
     ],
     caseStudies: [
-      { id: 'cs1', company: 'Astronomer', headline: 'Scaled data pipelines', result: '5x faster', link: 'https://x', embedding: [0.9, 0.1, 0] }
+      { id: 'cs1', company: 'Astronomer', headline: 'Scaled data pipelines', result: '5x faster', link: 'https://x', embedding: [0.9, 0.1, 0], triggers: ['pipeline', 'scale'] }
     ],
     proofPoints: [
-      { id: 'pp1', stat: '99.9% uptime', source: 'SLA', link: 'https://y', embedding: [0, 0, 1] }
+      { id: 'pp1', stat: '99.9% uptime', source: 'SLA', link: 'https://y', embedding: [0, 0, 1], triggers: ['uptime', 'sla', 'reliability'] }
     ],
     productTruths: [
-      { id: 'pt1', fact: 'SOC2 Type II certified', category: 'security', link: 'https://pt', embedding: [0, 0.6, 0.8] }
+      { id: 'pt1', fact: 'SOC2 Type II certified', category: 'security', link: 'https://pt', embedding: [0, 0.6, 0.8], triggers: ['soc2', 'certified'] }
     ]
   };
 }
@@ -121,7 +121,9 @@ describe('suggestion-engine — fast path', () => {
 });
 
 describe('suggestion-engine — decision LLM path', () => {
-  it('returns the candidate the LLM chooses by id', async () => {
+  it('returns the candidate the LLM chooses by id (trigger grounded to transcript)', async () => {
+    // The LLM's paraphrased trigger ("pipeline is slow") is NOT a verbatim
+    // substring of the transcript, so grounding falls back to the real utterance.
     const chat = makeChatClient(JSON.stringify({ suggest: true, confidence: 0.9, id: 'cs1', trigger: 'pipeline is slow' }));
     const engine = makeEngine(chat, makeEmbeddingProvider());
     const suggestion = await engine.getBestSuggestion('Our data pipeline is way too slow today.');
@@ -129,7 +131,15 @@ describe('suggestion-engine — decision LLM path', () => {
     expect(suggestion).toBeTruthy();
     expect(suggestion.type).toBe('case_study');
     expect(suggestion.company).toBe('Astronomer');
-    expect(suggestion.trigger).toBe('pipeline is slow');
+    expect(suggestion.trigger).toBe('Our data pipeline is way too slow today.');
+  });
+
+  it('keeps the LLM trigger when it is a verbatim substring of the transcript', async () => {
+    const chat = makeChatClient(JSON.stringify({ suggest: true, confidence: 0.9, id: 'cs1', trigger: 'data pipeline is way too slow' }));
+    const engine = makeEngine(chat, makeEmbeddingProvider());
+    const suggestion = await engine.getBestSuggestion('Our data pipeline is way too slow today.');
+    expect(suggestion).toBeTruthy();
+    expect(suggestion.trigger).toBe('data pipeline is way too slow');
   });
 
   it('suppresses low-confidence decisions', async () => {
@@ -229,3 +239,101 @@ describe('suggestion-engine — trigger timestamp & links', () => {
     expect(suggestion.link).toBe('https://y');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Variety overhaul: per-type quotas, hybrid trigger scoring, anti-monotony,
+// decision-LLM steering. These guarantee the LLM sees a fair multi-type
+// shortlist instead of a discovery-question monoculture.
+// ---------------------------------------------------------------------------
+
+function makeEngineWithKb(kb, chatClient, embedProvider) {
+  const engine = new SuggestionEngine(
+    chatClient || makeChatClient(),
+    'test-session',
+    embedProvider || makeEmbeddingProvider()
+  );
+  engine.knowledgeBase = kb;
+  return engine;
+}
+
+describe('suggestion-engine — per-type quotas', () => {
+  it('caps a dominant type and guarantees a multi-type shortlist', async () => {
+    // Six discovery questions all embed identically to the query, plus one of
+    // each evidence type. Without quotas the shortlist would be all discovery.
+    const kb = {
+      discoveryQuestions: Array.from({ length: 6 }, (_, i) => ({
+        id: `dq${i}`, question: `q${i}`, context: 'c', embedding: [1, 0, 0]
+      })),
+      caseStudies: [{ id: 'cs1', company: 'C', headline: 'h', result: 'r', embedding: [0.95, 0.05, 0] }],
+      proofPoints: [{ id: 'pp1', stat: 's', source: 'src', embedding: [0.95, 0, 0.05] }],
+      productTruths: [{ id: 'pt1', fact: 'f', category: 'cat', embedding: [0.9, 0.1, 0.1] }]
+    };
+    const engine = makeEngineWithKb(kb);
+    const { scored } = await engine._semanticCandidates('our data pipeline');
+    const selected = engine._selectCandidates(scored);
+    const kinds = selected.map(c => c.kind);
+    // Discovery is capped at its quota (4), not all 6.
+    expect(kinds.filter(k => k === 'discovery').length).toBe(4);
+    // Every evidence type that cleared the floor earns a seat.
+    expect(kinds).toContain('case_study');
+    expect(kinds).toContain('proof_point');
+    expect(kinds).toContain('product_truth');
+  });
+});
+
+describe('suggestion-engine — hybrid trigger scoring', () => {
+  it('ranks a trigger-hit item above an equal-cosine item with no hit', async () => {
+    const kb = {
+      discoveryQuestions: [],
+      caseStudies: [
+        { id: 'hit', company: 'A', headline: 'h', result: 'r', embedding: [1, 0, 0], triggers: ['gartner'] },
+        { id: 'miss', company: 'B', headline: 'h', result: 'r', embedding: [1, 0, 0], triggers: ['unrelated'] }
+      ],
+      proofPoints: [],
+      productTruths: []
+    };
+    const engine = makeEngineWithKb(kb);
+    // Both have identical cosine to the query; only 'hit' matches a trigger word.
+    const { scored } = await engine._semanticCandidates('what about gartner rankings for data pipeline');
+    const hit = scored.find(c => c.id === 'hit');
+    const miss = scored.find(c => c.id === 'miss');
+    expect(hit.score).toBeGreaterThan(miss.score);
+    expect(hit.hits).toBeGreaterThan(0);
+    expect(miss.hits).toBe(0);
+  });
+});
+
+describe('suggestion-engine — anti-monotony rotation', () => {
+  it('de-emphasises the most recently surfaced type', () => {
+    const engine = makeEngine(makeChatClient(), makeEmbeddingProvider());
+    engine.recentTypes = ['discovery'];
+    const scored = [
+      { kind: 'discovery', id: 'dqX', score: 0.90, item: {} },
+      { kind: 'case_study', id: 'csX', score: 0.88, item: {} }
+    ];
+    const selected = engine._selectCandidates(scored);
+    // The just-shown discovery (0.90 − 0.03 = 0.87) now ranks below the case
+    // study (0.88), so the case study leads the shortlist.
+    expect(selected[0].kind).toBe('case_study');
+  });
+});
+
+describe('suggestion-engine — decision-LLM steering', () => {
+  it('buildDecisionPrompt surfaces recently-shown types to discourage repeats', () => {
+    const engine = makeEngine(makeChatClient(), makeEmbeddingProvider());
+    engine.recentTypes = ['discovery', 'discovery'];
+    const prompt = engine.buildDecisionPrompt('our data pipeline is slow', [
+      { kind: 'case_study', id: 'cs1', item: engine.knowledgeBase.caseStudies[0] }
+    ]);
+    expect(prompt).toContain('RECENTLY SHOWN');
+    expect(prompt.toLowerCase()).toContain('discovery question');
+  });
+
+  it('tracks recent suggestion types as suggestions are committed', () => {
+    const engine = makeEngine(makeChatClient(), makeEmbeddingProvider());
+    engine._commitSuggestion({ type: 'discovery' }, 'dq1');
+    engine._commitSuggestion({ type: 'case_study' }, 'cs1');
+    expect(engine.recentTypes).toEqual(['discovery', 'case_study']);
+  });
+});
+

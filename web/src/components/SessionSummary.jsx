@@ -109,8 +109,10 @@ export default function SessionSummary({ session, analysis, badge, onAnalyze, an
               <div className="space-y-2">
                 {(session.suggestions || []).map((s, i) => {
                   const ts = s.suggestion?.triggeredAt || s.timestamp;
+                  const trigger = s.suggestion?.trigger || s.trigger;
+                  const triggerTip = trigger ? `Trigger: "${trigger}"` : undefined;
                   return (
-                  <div key={i} className="text-sm p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
+                  <div key={i} className="text-sm p-3 bg-gray-50 dark:bg-gray-700 rounded-md" title={triggerTip}>
                     <span className="font-medium text-gray-700 dark:text-gray-300">
                       {s.type === 'case_study' && `Case Study: ${s.suggestion?.company}${s.suggestion?.headline ? ` — ${s.suggestion.headline}` : ''}`}
                       {s.type === 'discovery' && `Discovery: ${s.suggestion?.question}`}

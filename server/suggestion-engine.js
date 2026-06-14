@@ -10,9 +10,27 @@ const SUGGESTION_COOLDOWN_MS = 15000;       // min gap between any two suggestio
 const RESURFACE_COOLDOWN_MS = 240000;       // same item can re-surface after 4 min
 // Retrieval: dynamic relative threshold instead of a fixed 0.3 cutoff.
 const RETRIEVAL_FLOOR = 0.28;               // absolute minimum cosine score to consider
-const DYNAMIC_MARGIN = 0.08;                // keep candidates within (top - margin)
 const MIN_CANDIDATES = 4;                   // don't starve the LLM of choice
 const MAX_CANDIDATES = 12;                  // fused shortlist cap sent to the LLM
+// Variety: per-type seats in the shortlist so a single linguistically-dominant
+// type (discovery questions embed closest to customer statements) can't crowd out
+// evidence. Sums to MAX_CANDIDATES. The LLM still chooses FREELY across whatever
+// is seated — no routing, no forced pick.
+const TYPE_QUOTAS = {
+  discovery: 4,
+  case_study: 3,
+  proof_point: 2,
+  product_truth: 3
+};
+// Hybrid retrieval: blend the curated per-item trigger phrases into the score so
+// literal mentions ("AWS", "Gartner", "SLA", "data residency") lift the matching
+// evidence out of the semantic basement. Bounded so keywords can't win alone.
+const TRIGGER_BONUS_WEIGHT = 0.04;          // score added per matched trigger phrase
+const TRIGGER_BONUS_MAX_HITS = 3;           // cap on counted hits (max +0.12)
+// Anti-monotony: gently de-emphasise the most-recently surfaced type during
+// selection so the engine rotates types instead of repeating one. Soft, not a ban.
+const ANTI_MONOTONY_PENALTY = 0.03;
+const RECENT_TYPE_WINDOW = 3;               // how many recent suggestion types to track
 // Fast path: surface the top match without an LLM round-trip when it dominates.
 const FAST_PATH_MIN_SCORE = 0.62;
 const FAST_PATH_GAP = 0.12;
@@ -38,6 +56,11 @@ ONLY suggest when ALL of these are true:
 Do NOT suggest for small talk, when the rep is already handling it well, when a topic was only mentioned in passing, or when you are not highly confident. When in doubt, return {"suggest": false, "confidence": 0}. A great coach speaks 2-3 times per 30-minute call.
 
 Choose the single best candidate by its id - any type is allowed; pick whatever fits the moment.
+
+PICKING THE RIGHT TYPE (guidance, not rules - you still choose freely):
+- Lean to EVIDENCE (case study, proof point, product truth) when the customer is skeptical, asks for proof, names a competitor or alternative, states a concrete requirement, or asks a product / security / pricing question.
+- Lean to a DISCOVERY QUESTION to open a new topic or when key information is missing.
+- You will be shown the types surfaced most recently; avoid repeating the same type back-to-back unless it is clearly the best choice.
 
 Respond ONLY with valid JSON:
 {"suggest": true, "confidence": 0.0-1.0, "id": "candidate id", "trigger": "the exact words the CUSTOMER said that prompted this", "reasoning": "brief"}
@@ -114,6 +137,8 @@ class SuggestionEngine {
     this.suggestedAt = new Map();
     this.sessionHistory = []; // Full history of suggestions with timestamps and triggers
     this.knowledgeBase = null; // Loaded async via init()
+    // Recent suggestion kinds (most-recent last) for anti-monotony rotation.
+    this.recentTypes = [];
 
     // Turn-by-turn transcript window (pivotal context for the decision LLM).
     this.turns = [];
@@ -361,6 +386,16 @@ Keep evidence snippets to 1 short sentence each. Brief arrays should hold at mos
       (this.knowledgeBase.discoveryQuestions || []).some(dq => dq.embedding));
   }
 
+  // Count how many of an item's curated trigger phrases appear in the utterance.
+  _triggerHits(item, lowerText) {
+    const triggers = item.triggers || [];
+    let hits = 0;
+    for (const tr of triggers) {
+      if (tr && lowerText.includes(tr.toLowerCase())) hits++;
+    }
+    return hits;
+  }
+
   // Trigger-word fallback (used only when embeddings are unavailable). Returns a
   // single fused, scored candidate list rather than per-type buckets.
   _triggerCandidates(text) {
@@ -369,8 +404,7 @@ Keep evidence snippets to 1 short sentence each. Brief arrays should hold at mos
     for (const { kind, list } of this._kbGroups()) {
       for (const item of list) {
         if (this.isOnCooldown(item.id)) continue;
-        const triggers = item.triggers || [];
-        const matchCount = triggers.filter(tr => lowerText.includes(tr.toLowerCase())).length;
+        const matchCount = this._triggerHits(item, lowerText);
         if (matchCount >= 2) out.push({ kind, id: item.id, score: matchCount, item });
       }
     }
@@ -378,36 +412,68 @@ Keep evidence snippets to 1 short sentence each. Brief arrays should hold at mos
     return out.slice(0, MAX_CANDIDATES);
   }
 
-  // --- Candidate selection (fused, dynamic threshold) ------------------------
+  // --- Candidate selection (fused, hybrid, per-type quotas) ------------------
 
-  // Score the whole KB against an embedding and return one fused, sorted list.
+  // Score the whole KB against an embedding. Hybrid: cosine similarity blended
+  // with a bounded bonus for curated trigger phrases the customer literally said,
+  // so evidence isn't buried by discovery-question phrasing. Returns a fused,
+  // sorted list (highest blended score first).
   async _semanticCandidates(text, precomputedEmbedding = null) {
     const embedding = precomputedEmbedding ||
       await this.embeddingProvider.generateEmbedding(text);
+    const lowerText = (text || '').toLowerCase();
     const scored = [];
     for (const { kind, list } of this._kbGroups()) {
       for (const item of list) {
         if (!item.embedding) continue;
-        const score = cosineSimilarity(embedding, item.embedding);
-        scored.push({ kind, id: item.id, score, item });
+        const semantic = cosineSimilarity(embedding, item.embedding);
+        const hits = this._triggerHits(item, lowerText);
+        const bonus = Math.min(hits, TRIGGER_BONUS_MAX_HITS) * TRIGGER_BONUS_WEIGHT;
+        scored.push({ kind, id: item.id, score: semantic + bonus, semantic, hits, item });
       }
     }
     scored.sort((a, b) => b.score - a.score);
     return { embedding, scored };
   }
 
-  // Dynamic relative cutoff: keep candidates within (top - margin), topping up to
-  // MIN_CANDIDATES from anything above the absolute floor so the LLM has choice.
+  // Per-type quota selection: give each type up to TYPE_QUOTAS[type] seats from
+  // the fused list (>= floor, not on cooldown), so the LLM always sees a
+  // multi-type shortlist. A soft anti-monotony penalty de-emphasises the most
+  // recently surfaced type. Falls back to MIN_CANDIDATES top items if quotas
+  // under-fill, and never pads with junk below the floor.
   _selectCandidates(scored) {
-    const eligible = scored.filter(c => !this.isOnCooldown(c.id));
+    const recentType = this.recentTypes[this.recentTypes.length - 1];
+    const eligible = scored
+      .filter(c => !this.isOnCooldown(c.id) && c.score >= RETRIEVAL_FLOOR)
+      .map(c => ({
+        ...c,
+        rankScore: c.score - (c.kind === recentType ? ANTI_MONOTONY_PENALTY : 0)
+      }))
+      .sort((a, b) => b.rankScore - a.rankScore);
     if (!eligible.length) return [];
-    const top = eligible[0].score;
-    if (top < RETRIEVAL_FLOOR) return [];
-    const cutoff = Math.max(RETRIEVAL_FLOOR, top - DYNAMIC_MARGIN);
-    let selected = eligible.filter(c => c.score >= cutoff);
-    if (selected.length < MIN_CANDIDATES) {
-      selected = eligible.filter(c => c.score >= RETRIEVAL_FLOOR).slice(0, MIN_CANDIDATES);
+
+    const taken = { discovery: 0, case_study: 0, proof_point: 0, product_truth: 0 };
+    const selected = [];
+    for (const c of eligible) {
+      const quota = TYPE_QUOTAS[c.kind] || 0;
+      if (taken[c.kind] < quota) {
+        selected.push(c);
+        taken[c.kind]++;
+      }
+      if (selected.length >= MAX_CANDIDATES) break;
     }
+
+    // Under-filled quotas (few types relevant): top up by rank so the LLM still
+    // has at least MIN_CANDIDATES to choose from when the KB supports it.
+    if (selected.length < MIN_CANDIDATES) {
+      for (const c of eligible) {
+        if (selected.includes(c)) continue;
+        selected.push(c);
+        if (selected.length >= MIN_CANDIDATES) break;
+      }
+    }
+
+    selected.sort((a, b) => b.rankScore - a.rankScore);
     return selected.slice(0, MAX_CANDIDATES);
   }
 
@@ -542,7 +608,7 @@ Keep evidence snippets to 1 short sentence each. Brief arrays should hold at mos
     const chosen = this._candidateById(candidates, decision.id);
     if (!chosen) { this._logLatency(t, `unknown-id ${decision.id}`); return null; }
 
-    const suggestion = this._materialize(chosen.kind, chosen.id, decision.trigger || pivotal);
+    const suggestion = this._materialize(chosen.kind, chosen.id, this._groundTrigger(decision.trigger, pivotal));
     if (!suggestion) return null;
     this._stampTriggerTime(suggestion, opts);
     this._commitSuggestion(suggestion, chosen.id);
@@ -614,9 +680,26 @@ Keep evidence snippets to 1 short sentence each. Brief arrays should hold at mos
     suggestion.triggeredAt = new Date(ms).toISOString();
   }
 
+  // Guarantee the surfaced trigger is something the customer verifiably said.
+  // Accept the LLM-provided trigger only if it's a case-insensitive substring of
+  // the recent transcript; otherwise fall back to the verbatim pivotal utterance.
+  _groundTrigger(llmTrigger, pivotal) {
+    const t = (llmTrigger || '').trim();
+    if (!t) return pivotal;
+    const haystack = `${this.recentTranscript || ''} ${pivotal || ''}`.toLowerCase();
+    if (haystack.includes(t.toLowerCase())) return t;
+    return pivotal;
+  }
+
   _commitSuggestion(suggestion, id) {
     this.lastSuggestionTime = Date.now();
     this.suggestedAt.set(id, Date.now());
+    if (suggestion && suggestion.type) {
+      this.recentTypes.push(suggestion.type);
+      if (this.recentTypes.length > RECENT_TYPE_WINDOW) {
+        this.recentTypes = this.recentTypes.slice(-RECENT_TYPE_WINDOW);
+      }
+    }
     this.recordSuggestion(suggestion, id);
   }
 
@@ -680,6 +763,11 @@ Keep evidence snippets to 1 short sentence each. Brief arrays should hold at mos
     let prompt = `WHAT JUST HAPPENED (most important):\n"${pivotal}"\n\n`;
     if (recent) prompt += `RECENT CONVERSATION:\n"${recent.slice(-1200)}"\n\n`;
     if (brief) prompt += `CALL BRIEF:\n${brief}\n\n`;
+    if (this.recentTypes.length) {
+      const labels = { discovery: 'discovery question', case_study: 'case study', proof_point: 'proof point', product_truth: 'product truth' };
+      const shown = this.recentTypes.map(t => labels[t] || t).join(', ');
+      prompt += `RECENTLY SHOWN (avoid repeating the same type unless clearly best): ${shown}\n\n`;
+    }
     prompt += `CANDIDATE SUGGESTIONS (choose at most one, by id):\n`;
     candidates.forEach(c => { prompt += `- id: ${c.id} | ${this._describeCandidate(c)}\n`; });
     prompt += `\nShould the rep be shown one of these RIGHT NOW? Respond with the JSON schema.`;
@@ -694,6 +782,7 @@ Keep evidence snippets to 1 short sentence each. Brief arrays should hold at mos
     this.suggestedAt.clear();
     this.sessionHistory = [];
     this.turns = [];
+    this.recentTypes = [];
     this._warm = { text: '', embedding: null, candidates: null };
     this._speculative = null;
     this._evalSeq = 0;

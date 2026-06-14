@@ -12,18 +12,34 @@ export default function SuggestionCard({ suggestion }) {
   const item = suggestion.suggestion || suggestion;
   const triggeredAt = suggestion.triggeredAt || item.triggeredAt;
   const triggerTime = triggeredAt ? new Date(triggeredAt).toLocaleTimeString() : null;
+  const trigger = suggestion.trigger || item.trigger;
+  const triggerTip = trigger ? `Trigger: "${trigger}"` : null;
 
   return (
-    <div className={`${style.bg} ${style.border} border rounded-lg p-4 mb-3 relative animate-in`}>
+    <div
+      className={`${style.bg} ${style.border} border rounded-lg p-4 mb-3 relative animate-in`}
+      title={triggerTip || undefined}
+    >
       <div className="flex items-center justify-between mb-2">
         <span className={`text-xs font-semibold uppercase tracking-wide ${style.text}`}>
           {style.label}
         </span>
-        {triggerTime && (
-          <span className="text-xs text-gray-400" title="When the customer said the triggering statement">
-            {triggerTime}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5">
+          {triggerTip && (
+            <span
+              className="text-xs text-gray-300 hover:text-gray-500 cursor-help select-none"
+              title={triggerTip}
+              aria-label={triggerTip}
+            >
+              &ldquo;&rdquo;
+            </span>
+          )}
+          {triggerTime && (
+            <span className="text-xs text-gray-400" title="When the customer said the triggering statement">
+              {triggerTime}
+            </span>
+          )}
+        </div>
       </div>
 
       {suggestion.type === 'case_study' && (
