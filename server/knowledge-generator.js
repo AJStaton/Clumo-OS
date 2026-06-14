@@ -512,6 +512,7 @@ Return ONLY a JSON array (no markdown):
     "id": "pt1",
     "fact": "the factual product statement",
     "category": "Security|Platform|Infrastructure|Data|Reliability|Integration",
+    "link": "source URL or file reference this fact comes from, or empty string",
     "triggers": ["keyword1", "keyword2", ...]
   }
 ]`
@@ -525,7 +526,14 @@ Return ONLY a JSON array (no markdown):
       max_tokens: 4000
     });
 
-    return this.parseJsonArray(response.choices[0].message.content, 'pt');
+    const productTruths = this.parseJsonArray(response.choices[0].message.content, 'pt');
+    return productTruths.map((pt, i) => ({
+      id: pt.id || `pt${i + 1}`,
+      fact: pt.fact || '',
+      category: pt.category || '',
+      link: pt.link || '',
+      triggers: pt.triggers || []
+    }));
   }
   processExtractedCaseStudies(extractedCaseStudies) {
     try {

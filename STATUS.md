@@ -173,3 +173,9 @@ Target: cut customer-statement -> suggestion latency from 3-5s to <=1.5s and sha
 - [x] Realtime transcription session now connects via the transcription model itself (intent=transcription), so a separate realtime host deployment (gpt-realtime-mini) is no longer required. realtimeModel/realtimeDeployment kept only as a backward-compatible fallback.
 - [x] gpt-4o-mini-transcribe is the single deployment for all transcription elements (managed default + provider default).
 - [x] Azure: realtime deployment no longer required by loadProvider or the settings API; added a Transcription deployment field in Setup + AI Models settings (maps to transcription_model). Verified live against Azure AI Foundry (single gpt-4o-mini-transcribe deployment hosts + transcribes).
+
+### Phase 10: suggestion trigger timestamps + source links
+- [x] Each surfaced suggestion carries a triggeredAt timestamp = when the customer spoke the triggering statement (WS passes statementAt -> engine stamps ISO time; shown on the live SuggestionCard and in the session summary).
+- [x] Case study, proof point and product truth suggestions render a clickable source link when present. Case studies/proof points already had link data; added an optional link field to product truths (empty for existing entries).
+- [x] knowledge-base.js product truths gained an optional link field; knowledge-generator.js prompt + normalization capture a source URL/file for newly generated product truths; KB page shows the product-truth source link.
+- [x] Server suite green (131 tests); web build clean.

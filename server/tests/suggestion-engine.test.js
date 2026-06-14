@@ -21,7 +21,7 @@ function makeKb() {
       { id: 'pp1', stat: '99.9% uptime', source: 'SLA', link: 'https://y', embedding: [0, 0, 1] }
     ],
     productTruths: [
-      { id: 'pt1', fact: 'SOC2 Type II certified', category: 'security', embedding: [0, 0.6, 0.8] }
+      { id: 'pt1', fact: 'SOC2 Type II certified', category: 'security', link: 'https://pt', embedding: [0, 0.6, 0.8] }
     ]
   };
 }
@@ -193,5 +193,39 @@ describe('suggestion-engine — guards', () => {
     const engine = makeEngine(makeChatClient(), makeEmbeddingProvider());
     const suggestion = await engine.getBestSuggestion('too short');
     expect(suggestion).toBeNull();
+  });
+});
+
+describe('suggestion-engine — trigger timestamp & links', () => {
+  it('stamps the suggestion with opts.triggeredAt (when the customer spoke)', async () => {
+    const engine = makeEngine(makeChatClient(), makeEmbeddingProvider());
+    const when = Date.parse('2025-01-01T10:00:00.000Z');
+    const suggestion = await engine.getBestSuggestion(
+      'Tell me about your security compliance posture.',
+      { triggeredAt: when }
+    );
+    expect(suggestion).toBeTruthy();
+    expect(suggestion.triggeredAt).toBe(new Date(when).toISOString());
+  });
+
+  it('falls back to current time when no triggeredAt is provided', async () => {
+    const engine = makeEngine(makeChatClient(), makeEmbeddingProvider());
+    const suggestion = await engine.getBestSuggestion('Tell me about your security compliance posture.');
+    expect(suggestion).toBeTruthy();
+    expect(Number.isNaN(Date.parse(suggestion.triggeredAt))).toBe(false);
+  });
+
+  it('materializes a product_truth with its source link', () => {
+    const engine = makeEngine(makeChatClient(), makeEmbeddingProvider());
+    const suggestion = engine._materialize('product_truth', 'pt1', 'security');
+    expect(suggestion.type).toBe('product_truth');
+    expect(suggestion.link).toBe('https://pt');
+  });
+
+  it('materializes a proof_point with its source link', () => {
+    const engine = makeEngine(makeChatClient(), makeEmbeddingProvider());
+    const suggestion = engine._materialize('proof_point', 'pp1', 'uptime');
+    expect(suggestion.type).toBe('proof_point');
+    expect(suggestion.link).toBe('https://y');
   });
 });

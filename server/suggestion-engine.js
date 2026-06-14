@@ -504,6 +504,7 @@ Keep evidence snippets to 1 short sentence each. Brief arrays should hold at mos
     if (fast) {
       const suggestion = this._materialize(fast.kind, fast.id, pivotal);
       if (suggestion && this._evalSeq === seq) {
+        this._stampTriggerTime(suggestion, opts);
         this._commitSuggestion(suggestion, fast.id);
         t.llmStart = t.llmDone = Date.now();
         this._logLatency(t, `fast-path ${fast.kind} ${fast.score.toFixed(2)}`);
@@ -543,6 +544,7 @@ Keep evidence snippets to 1 short sentence each. Brief arrays should hold at mos
 
     const suggestion = this._materialize(chosen.kind, chosen.id, decision.trigger || pivotal);
     if (!suggestion) return null;
+    this._stampTriggerTime(suggestion, opts);
     this._commitSuggestion(suggestion, chosen.id);
     this._logLatency(t, `llm ${chosen.kind} conf=${confidence}`);
     return suggestion;
@@ -600,9 +602,16 @@ Keep evidence snippets to 1 short sentence each. Brief arrays should hold at mos
     if (kind === 'product_truth') {
       const item = (this.knowledgeBase.productTruths || []).find(x => x.id === id);
       if (!item) return null;
-      return { type: 'product_truth', fact: item.fact, category: item.category, trigger };
+      return { type: 'product_truth', fact: item.fact, category: item.category, link: item.link, trigger };
     }
     return null;
+  }
+
+  // Stamp the suggestion with when the customer spoke the triggering statement.
+  // opts.triggeredAt (epoch ms, from the WS layer) is preferred; fall back to now.
+  _stampTriggerTime(suggestion, opts = {}) {
+    const ms = Number(opts.triggeredAt) || Date.now();
+    suggestion.triggeredAt = new Date(ms).toISOString();
   }
 
   _commitSuggestion(suggestion, id) {

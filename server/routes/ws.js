@@ -201,7 +201,7 @@ function setupWebSocket(httpServer) {
             // Evaluate this finalized utterance immediately. The engine handles
             // latest-wins cancellation, cooldowns, fast-path and the decision LLM,
             // so there is no buffer gate or hard analysis lock here anymore.
-            suggestionEngine.getBestSuggestion(transcript, { utterance: transcript })
+            suggestionEngine.getBestSuggestion(transcript, { utterance: transcript, triggeredAt: statementAt })
               .then(suggestion => {
                 if (suggestion) {
                   const latency = Date.now() - statementAt;

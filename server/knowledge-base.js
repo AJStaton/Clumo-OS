@@ -748,36 +748,42 @@ const defaultKnowledgeBase = {
         id: "pt1",
         fact: "Azure OpenAI Service provides enterprise-grade security with private endpoints, managed identity, and content filtering built in. Data is not used to train models.",
         category: "Security & Privacy",
+        link: "",
         triggers: ["security", "secure", "privacy", "private", "data protection", "data residency", "compliance", "gdpr", "hipaa", "train", "training data", "my data", "data usage", "content filter"]
       },
       {
         id: "pt2",
         fact: "Azure AI Foundry supports over 1,800 models from OpenAI, Meta, Mistral, Cohere, and others — all deployable through a single unified platform.",
         category: "Platform",
+        link: "",
         triggers: ["model", "models", "foundry", "platform", "openai", "meta", "llama", "mistral", "cohere", "choice", "options", "vendor lock", "lock-in", "multi-model", "model catalog"]
       },
       {
         id: "pt3",
         fact: "Azure regions span 60+ announced regions — more than any other cloud provider — with data residency guarantees in each.",
         category: "Infrastructure",
+        link: "",
         triggers: ["region", "regions", "data residency", "sovereignty", "country", "local", "where", "location", "latency", "geographic", "global", "worldwide"]
       },
       {
         id: "pt4",
         fact: "Azure Kubernetes Service (AKS) supports GPU-enabled node pools, confidential containers, and automatic scaling — purpose-built for AI inference at scale.",
         category: "Infrastructure",
+        link: "",
         triggers: ["kubernetes", "k8s", "aks", "gpu", "inference", "scale", "scaling", "container", "containers", "workload", "compute", "node pool"]
       },
       {
         id: "pt5",
         fact: "Microsoft Fabric unifies data engineering, data science, real-time analytics, and business intelligence into a single SaaS platform with OneLake storage.",
         category: "Data & Analytics",
+        link: "",
         triggers: ["fabric", "data platform", "unified", "lakehouse", "onelake", "data engineering", "real-time", "realtime", "analytics", "bi", "business intelligence", "power bi", "data science"]
       },
       {
         id: "pt6",
         fact: "Azure offers a 99.999% SLA for availability zones and a financially-backed SLA across all major services including AI, compute, and storage.",
         category: "Reliability",
+        link: "",
         triggers: ["sla", "uptime", "availability", "reliable", "reliability", "downtime", "five nines", "99.9", "guarantee", "financially backed", "outage"]
       }
   ]
