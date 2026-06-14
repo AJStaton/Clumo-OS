@@ -387,6 +387,11 @@ export default function KB() {
                     {item.category && (
                       <span className="inline-block mt-1 text-xs bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">{item.category}</span>
                     )}
+                    {item.link && (
+                      <a href={item.link} target="_blank" rel="noopener noreferrer" className="block text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1 truncate">
+                        Source: {item.link}
+                      </a>
+                    )}
                     <div className="mt-2 flex flex-wrap gap-1">
                       {(item.triggers || []).slice(0, 5).map((t, j) => (
                         <span key={j} className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded">{t}</span>

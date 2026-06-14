@@ -10,6 +10,9 @@ const TYPE_STYLES = {
 export default function SuggestionCard({ suggestion }) {
   const style = TYPE_STYLES[suggestion.type] || TYPE_STYLES.case_study;
   const item = suggestion.suggestion || suggestion;
+  const triggeredAt = suggestion.triggeredAt || item.triggeredAt;
+  const triggerTime = triggeredAt ? new Date(triggeredAt).toLocaleTimeString() : null;
+  const trigger = suggestion.trigger || item.trigger;
 
   return (
     <div className={`${style.bg} ${style.border} border rounded-lg p-4 mb-3 relative animate-in`}>
@@ -17,6 +20,11 @@ export default function SuggestionCard({ suggestion }) {
         <span className={`text-xs font-semibold uppercase tracking-wide ${style.text}`}>
           {style.label}
         </span>
+        {triggerTime && (
+          <span className="text-xs text-gray-400" title="When the customer said the triggering statement">
+            {triggerTime}
+          </span>
+        )}
       </div>
 
       {suggestion.type === 'case_study' && (
@@ -43,6 +51,12 @@ export default function SuggestionCard({ suggestion }) {
         <>
           <p className="font-semibold text-sm">{item.stat}</p>
           {item.source && <p className="text-xs text-gray-500 mt-1">Source: {item.source}</p>}
+          {item.link && (
+            <a href={item.link} target="_blank" rel="noopener noreferrer"
+              className="text-xs text-blue-600 hover:underline mt-1 inline-block">
+              View source
+            </a>
+          )}
         </>
       )}
 
@@ -50,7 +64,23 @@ export default function SuggestionCard({ suggestion }) {
         <>
           <p className="font-semibold text-sm">{item.fact}</p>
           {item.category && <p className="text-xs text-gray-500 mt-1">{item.category}</p>}
+          {item.link && (
+            <a href={item.link} target="_blank" rel="noopener noreferrer"
+              className="text-xs text-blue-600 hover:underline mt-1 inline-block">
+              View source
+            </a>
+          )}
         </>
+      )}
+
+      {trigger && (
+        <p
+          className="mt-2 pt-2 border-t border-black/5 text-xs italic text-gray-400 truncate"
+          title={`Why now — the customer said: "${trigger}"`}
+        >
+          <span className="not-italic text-gray-300 mr-1">&#8627;</span>
+          &ldquo;{trigger}&rdquo;
+        </p>
       )}
     </div>
   );

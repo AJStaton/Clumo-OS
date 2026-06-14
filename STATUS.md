@@ -168,3 +168,73 @@ Reframe from filtering to volume + ordering. User inputs now PRIORITISE (never d
 
 ### Tests
 - [x] 10.15 headless-fetcher.test.js (new, fake-browser): JSON extraction, listing loop + accumulation, non-listing isolation, graceful degrade; page-fetcher listing link-preference + jsonLinks threading; full suite 146 green
+
+## Phase 11: Realtime Suggestions — Speed + Relevance Overhaul
+Target: cut customer-statement -> suggestion latency from 3-5s to <=1.5s and sharpen relevance.
+
+### G. Instrumentation (baseline)
+- [x] 9.G Per-stage latency tracker in suggestion-engine (`statement->decision` with embed/match/llm splits); statement->emit timing in ws.js. `[Suggestion]`/`[WS]` prefixes.
+
+### A. Streaming transcription
+- [x] 9.A gpt-4o-mini-transcribe everywhere; whisper-1 removed (no fallback)
+- [x] 9.A Handle input_audio_transcription.delta (partial utterance) + .completed (authoritative finalize)
+- [x] 9.A VAD silence_duration_ms lowered to 300; prefix_padding_ms kept
+- [x] 9.A Transcription model surfaced across Azure/OpenAI/Managed providers + managed default (gpt-4o-mini-transcribe)
+
+### B. Warm-candidate / speculative pipeline
+- [x] 9.B Removed 50-word buffer gate; analysis driven off utterance deltas (debounced ~400ms)
+- [x] 9.B Continuous local semantic match on current utterance; warm candidate set + incremental embedding
+- [x] 9.B Speculative decision-LLM pre-fire on strong local trigger; confirm/discard at pause
+- [x] 9.B isAnalyzing hard-lock replaced with latest-wins (_evalSeq cancel-in-flight)
+
+### D. Retrieval vs decision-context split
+- [x] 9.D Retrieval embeds the pivotal recent utterance (last sentence/turn), not the full rolling buffer
+- [x] 9.D Decision context layered: pivotal "what just happened" + recent turns + running call brief + candidate shortlist
+- [x] 9.D Running call brief (industry/goals/requirements/competitors/pains) maintained in the meddpicc pass
+
+### C. Candidate selection redesign
+- [x] 9.C Fused multi-type candidate set, no intent/type routing
+- [x] 9.C Dynamic relative threshold (top score - margin) instead of fixed 0.3
+- [x] 9.C Fast path: dominant local match surfaces directly, skipping the decision LLM
+
+### E. Decision LLM optimization
+- [x] 9.E response_format json_object, trimmed system+candidate prompt, max_tokens 120
+- [x] 9.E (Trade-off) chose json_object + low tokens + fast-path over token-streaming for robustness
+
+### F. Frequency & speaker attribution
+- [x] 9.F Permanent suggestedIds dedup replaced with re-surface cooldown
+- [x] 9.F Fixed 60s rate-limit replaced with short cooldown (15s)
+- [x] 9.F Lightweight customer-statement heuristic so the engine reacts to the customer
+- [x] 9.F markSuggestionUsed/markSuggestionDismissed implemented (were called but missing)
+
+### H. Tests & config
+- [x] 9.H server/tests/suggestion-engine.test.js — pivotal embedding, fast path, decision LLM, cooldown, layered context, speculative warm reuse
+- [x] 9.H ai-provider tests extended for transcription-model defaults/override
+- [x] 9.H Managed defaults + Setup.jsx copy updated to gpt-4o-mini-transcribe
+- [x] 9.H web partial-transcript wiring (CallSessionContext) for live in-flight utterance
+
+### Verification
+- [x] Server suite green (122 tests); web build clean (vite); server boots clean
+- [ ] Live latency measurement pending real audio session
+- [ ] RISK: Azure/managed deployments must expose a gpt-4o-mini-transcribe deployment (verify availability)
+
+### Phase 11 addendum: single-model transcription
+- [x] Realtime transcription session now connects via the transcription model itself (intent=transcription), so a separate realtime host deployment (gpt-realtime-mini) is no longer required. realtimeModel/realtimeDeployment kept only as a backward-compatible fallback.
+- [x] gpt-4o-mini-transcribe is the single deployment for all transcription elements (managed default + provider default).
+- [x] Azure: realtime deployment no longer required by loadProvider or the settings API; added a Transcription deployment field in Setup + AI Models settings (maps to transcription_model). Verified live against Azure AI Foundry (single gpt-4o-mini-transcribe deployment hosts + transcribes).
+
+### Phase 12: suggestion trigger timestamps + source links
+- [x] Each surfaced suggestion carries a triggeredAt timestamp = when the customer spoke the triggering statement (WS passes statementAt -> engine stamps ISO time; shown on the live SuggestionCard and in the session summary).
+- [x] Case study, proof point and product truth suggestions render a clickable source link when present. Case studies/proof points already had link data; added an optional link field to product truths (empty for existing entries).
+- [x] knowledge-base.js product truths gained an optional link field; knowledge-generator.js prompt + normalization capture a source URL/file for newly generated product truths; KB page shows the product-truth source link.
+- [x] Server suite green (131 tests); web build clean.
+
+### Phase 13: suggestion variety + "why" trigger line
+- [x] Root cause measured: single-vector cosine favours discovery questions (they embed closest to customer statements), so the old relative-margin candidate set was ~57% discovery and the LLM could only pick DQs even on clear evidence moments. Not a missing-data problem (KB: dq=105 cs=59 pp=47 pt=159, all embedded).
+- [x] V1 Per-type retrieval quotas in _selectCandidates (discovery 4 / case_study 3 / proof_point 2 / product_truth 3 = MAX_CANDIDATES) so the LLM always sees a fair multi-type shortlist. Under-fill tops up to MIN_CANDIDATES; nothing padded below the floor.
+- [x] V2 Hybrid semantic+trigger scoring in _semanticCandidates: final = cosine + min(triggerHits,3)x0.04 using each item's curated triggers (lifts evidence when the customer literally says "AWS", "SLA", "Gartner", "data residency", etc). Bounded so keywords can't win alone. Shared _triggerHits helper reused by the no-embeddings fallback.
+- [x] V3 Decision-LLM steering: DECISION_SYSTEM now prefers evidence on skepticism/proof/competitor/requirement/product questions (still free choice, no routing); buildDecisionPrompt adds a "RECENTLY SHOWN" line from recent suggestion types.
+- [x] V4 Anti-monotony rotation: engine tracks recentTypes (last 3); selection applies a soft -0.03 de-emphasis to the most-recently-used type. Gentle, not a ban.
+- [x] V5 "Why" trigger (verbatim-grounded): engine _groundTrigger accepts the LLM trigger only if it is a real substring of the recent transcript, else falls back to the verbatim pivotal utterance — every surfaced suggestion carries a genuine customer quote. SuggestionCard shows an always-visible muted, truncated trigger line ("why now") with the full quote in the title on hover; SessionSummary rows get the same tooltip. Card stays minimal.
+- [x] V6 Tests + verify: 137 server tests green (added quota multi-type guarantee, hybrid ranking, anti-monotony, prompt steering + recent-types, verbatim grounding kept/fallback). Web bundle rebuilt clean.
+- [x] Offline diagnostic re-run vs real KB: candidate composition shifted from ~57% discovery to dq=32 cs=21 pp=12 pt=19 across 8 utterances (evidence now the majority of seats); proof/skepticism utterance tops with proof_point, SLA utterance fast-paths a product_truth, security tops with product_truth.

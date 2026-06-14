@@ -71,6 +71,22 @@ describe('ai-provider.js — provider classes', () => {
     expect(p.embeddingModel).toBe('text-embedding-ada-002');
   });
 
+  it('providers default the transcription model to gpt-4o-mini-transcribe', () => {
+    const azure = new ai.AzureOpenAIProvider({
+      endpoint: 'x', apiKey: 'k', chatDeployment: 'c', realtimeDeployment: 'r', embeddingDeployment: 'e'
+    });
+    const openai = new ai.OpenAIProvider({ apiKey: 'k' });
+    const managed = new ai.ManagedProvider({ endpoint: 'https://x', apiKey: 'k' });
+    expect(azure.getTranscriptionModel()).toBe('gpt-4o-mini-transcribe');
+    expect(openai.getTranscriptionModel()).toBe('gpt-4o-mini-transcribe');
+    expect(managed.getTranscriptionModel()).toBe('gpt-4o-mini-transcribe');
+  });
+
+  it('transcription model is overridable per-config', () => {
+    const p = new ai.OpenAIProvider({ apiKey: 'k', transcriptionModel: 'whisper-x' });
+    expect(p.getTranscriptionModel()).toBe('whisper-x');
+  });
+
   it('createRealtimeWebSocket on Azure builds wss URL with deployment', () => {
     const p = new ai.AzureOpenAIProvider({
       endpoint: 'https://x.openai.azure.com',
@@ -140,6 +156,30 @@ describe('ai-provider.js — saveProviderConfig + loadProvider', () => {
     expect(db.getSecureConfig('managed_api_key')).toBe('mk-secret');
   });
 
+  it('seedManagedCredentials is idempotent and reports model changes on re-seed', () => {
+    const first = ai.seedManagedCredentials('https://managed.example', 'mk-secret', {
+      chatModel: 'gpt-4o-mini', transcriptionModel: 'gpt-4o-mini-transcribe'
+    });
+    expect(first.seeded).toBe(true);
+    expect(first.updated).toEqual([]);
+    expect(db.getConfig('managed_transcription_model')).toBe('gpt-4o-mini-transcribe');
+
+    // Same values again -> nothing reported as updated
+    const second = ai.seedManagedCredentials('https://managed.example', 'mk-secret', {
+      chatModel: 'gpt-4o-mini', transcriptionModel: 'gpt-4o-mini-transcribe'
+    });
+    expect(second.seeded).toBe(false);
+    expect(second.updated).toEqual([]);
+
+    // Rotate the transcription deployment -> reported + persisted
+    const third = ai.seedManagedCredentials('https://managed.example', 'mk-secret', {
+      chatModel: 'gpt-4o-mini', transcriptionModel: 'gpt-4o-transcribe'
+    });
+    expect(third.seeded).toBe(false);
+    expect(third.updated).toContain('transcription');
+    expect(db.getConfig('managed_transcription_model')).toBe('gpt-4o-transcribe');
+  });
+
   it('loadProvider in managed mode prefers managed creds', () => {
     db.setConfig('provider_mode', 'managed');
     ai.seedManagedCredentials('https://managed.example', 'mk-secret');
@@ -153,10 +193,40 @@ describe('ai-provider.js — saveProviderConfig + loadProvider', () => {
     expect(ai.loadProvider()).toBeNull();
   });
 
+  it('realtime transcription session connects via the transcription model (no separate host)', () => {
+    const azure = new ai.AzureOpenAIProvider({
+      endpoint: 'https://x.openai.azure.com', apiKey: 'k', chatDeployment: 'c',
+      realtimeDeployment: 'gpt-realtime-mini', embeddingDeployment: 'e',
+      transcriptionModel: 'gpt-4o-mini-transcribe'
+    });
+    const azureUrl = azure.buildRealtimeUrl();
+    expect(azureUrl).toContain('deployment=gpt-4o-mini-transcribe');
+    expect(azureUrl).toContain('intent=transcription');
+    expect(azureUrl).not.toContain('gpt-realtime-mini');
+
+    const openai = new ai.OpenAIProvider({ apiKey: 'k', realtimeModel: 'gpt-realtime-mini', transcriptionModel: 'gpt-4o-mini-transcribe' });
+    expect(openai.buildRealtimeUrl()).toContain('model=gpt-4o-mini-transcribe');
+
+    const managed = new ai.ManagedProvider({ endpoint: 'https://x.services.ai.azure.com', apiKey: 'k', realtimeModel: 'gpt-realtime-mini', transcriptionModel: 'gpt-4o-mini-transcribe' });
+    expect(managed.buildRealtimeUrl()).toContain('deployment=gpt-4o-mini-transcribe');
+  });
+
+  it('loadProvider builds an Azure provider without a realtime deployment', () => {
+    db.setConfig('ai_provider', 'azure');
+    db.setConfig('azure_endpoint', 'https://x.openai.azure.com');
+    db.setSecureConfig('azure_api_key', 'k');
+    db.setConfig('azure_chat_deployment', 'c');
+    db.setConfig('azure_embedding_deployment', 'e');
+    // No azure_realtime_deployment set
+    const p = ai.loadProvider();
+    expect(p).toBeInstanceOf(ai.AzureOpenAIProvider);
+    expect(p.buildRealtimeUrl()).toContain('deployment=gpt-4o-mini-transcribe');
+  });
+
   it('returns null when Azure required fields are missing', () => {
     db.setConfig('ai_provider', 'azure');
     db.setConfig('azure_endpoint', 'https://x');
-    // missing apiKey + deployments
+    // missing apiKey + chat deployment
     expect(ai.loadProvider()).toBeNull();
   });
 });

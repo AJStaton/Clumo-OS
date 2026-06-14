@@ -82,6 +82,7 @@ router.get('/api/settings', (req, res) => {
     settings.apiVersion = db.getConfig('azure_api_version');
     settings.chatDeployment = db.getConfig('azure_chat_deployment');
     settings.realtimeDeployment = db.getConfig('azure_realtime_deployment');
+    settings.transcriptionDeployment = db.getConfig('transcription_model');
     settings.embeddingDeployment = db.getConfig('azure_embedding_deployment');
     settings.hasApiKey = !!db.getSecureConfig('azure_api_key');
   } else if (provider === 'openai') {
@@ -120,8 +121,8 @@ router.post('/api/settings', async (req, res) => {
   }
 
   if (provider === 'azure') {
-    if (!config.endpoint || !config.chatDeployment || !config.realtimeDeployment || !config.embeddingDeployment) {
-      return res.status(400).json({ error: 'Azure requires: endpoint, apiKey, chatDeployment, realtimeDeployment, embeddingDeployment' });
+    if (!config.endpoint || !config.chatDeployment || !config.embeddingDeployment) {
+      return res.status(400).json({ error: 'Azure requires: endpoint, apiKey, chatDeployment, embeddingDeployment' });
     }
     if (!config.apiKey && !existingAzureApiKey) {
       return res.status(400).json({ error: 'Azure requires: apiKey' });

@@ -624,6 +624,7 @@ Return ONLY a JSON array (no markdown):
     "id": "pt1",
     "fact": "the factual product statement",
     "category": "Security|Platform|Infrastructure|Data|Reliability|Integration",
+    "link": "source URL or file reference this fact comes from, or empty string",
     "triggers": ["keyword1", "keyword2", ...]
   }
 ]`;
