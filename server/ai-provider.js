@@ -4,6 +4,12 @@
 const WebSocket = require('ws');
 const { getConfig, getSecureConfig, setConfig, setSecureConfig } = require('./db');
 
+// Single source of truth for the live-transcription model. We standardised on
+// gpt-4o-mini-transcribe (streaming partial deltas) and removed whisper-1
+// entirely — see the Realtime Suggestions overhaul. Any provider can override
+// per-config, but this is the default everywhere including managed mode.
+const DEFAULT_TRANSCRIPTION_MODEL = 'gpt-4o-mini-transcribe';
+
 class AzureOpenAIProvider {
   constructor(config) {
     this.endpoint = config.endpoint;
@@ -12,7 +18,12 @@ class AzureOpenAIProvider {
     this.chatDeployment = config.chatDeployment;
     this.realtimeDeployment = config.realtimeDeployment;
     this.embeddingDeployment = config.embeddingDeployment;
+    this.transcriptionModel = config.transcriptionModel || DEFAULT_TRANSCRIPTION_MODEL;
     this.client = null;
+  }
+
+  getTranscriptionModel() {
+    return this.transcriptionModel;
   }
 
   getClient() {
@@ -36,11 +47,18 @@ class AzureOpenAIProvider {
     });
   }
 
-  createRealtimeWebSocket() {
+  buildRealtimeUrl() {
     const host = this.endpoint.replace('https://', '').replace('http://', '').replace(/\/$/, '');
-    const url = `wss://${host}/openai/realtime?api-version=${this.apiVersion}&deployment=${this.realtimeDeployment}&intent=transcription`;
+    // This socket is always an intent=transcription session, so connect it using
+    // the transcription deployment itself. A separate realtime "host" model
+    // (e.g. gpt-realtime-mini) is not required; realtimeDeployment is kept only
+    // as a backward-compatible fallback.
+    const deployment = this.transcriptionModel || this.realtimeDeployment;
+    return `wss://${host}/openai/realtime?api-version=${this.apiVersion}&deployment=${deployment}&intent=transcription`;
+  }
 
-    return new WebSocket(url, {
+  createRealtimeWebSocket() {
+    return new WebSocket(this.buildRealtimeUrl(), {
       headers: {
         'api-key': this.apiKey
       }
@@ -79,7 +97,12 @@ class OpenAIProvider {
     this.apiKey = config.apiKey;
     this.chatModel = config.chatModel || 'gpt-4o-mini';
     this.realtimeModel = config.realtimeModel || 'gpt-realtime-mini';
+    this.transcriptionModel = config.transcriptionModel || DEFAULT_TRANSCRIPTION_MODEL;
     this.client = null;
+  }
+
+  getTranscriptionModel() {
+    return this.transcriptionModel;
   }
 
   getClient() {
@@ -98,10 +121,14 @@ class OpenAIProvider {
     });
   }
 
-  createRealtimeWebSocket() {
-    const url = `wss://api.openai.com/v1/realtime?model=${this.realtimeModel}&intent=transcription`;
+  buildRealtimeUrl() {
+    // intent=transcription session: connect using the transcription model itself.
+    const model = this.transcriptionModel || this.realtimeModel;
+    return `wss://api.openai.com/v1/realtime?model=${model}&intent=transcription`;
+  }
 
-    return new WebSocket(url, {
+  createRealtimeWebSocket() {
+    return new WebSocket(this.buildRealtimeUrl(), {
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,
         'OpenAI-Beta': 'realtime=v1'
@@ -145,7 +172,12 @@ class ManagedProvider {
     this.chatModel = config.chatModel || 'gpt-4o-mini';
     this.realtimeModel = config.realtimeModel || 'gpt-realtime-mini';
     this.embeddingModel = config.embeddingModel || 'text-embedding-ada-002';
+    this.transcriptionModel = config.transcriptionModel || DEFAULT_TRANSCRIPTION_MODEL;
     this.client = null;
+  }
+
+  getTranscriptionModel() {
+    return this.transcriptionModel;
   }
 
   getClient() {
@@ -169,12 +201,18 @@ class ManagedProvider {
     });
   }
 
-  createRealtimeWebSocket() {
+  buildRealtimeUrl() {
     const host = this.baseUrl.replace('https://', '').replace('http://', '');
     // Realtime API requires a preview api-version
     const realtimeApiVersion = '2024-10-01-preview';
-    const url = `wss://${host}/openai/realtime?api-version=${realtimeApiVersion}&deployment=${this.realtimeModel}&intent=transcription`;
-    return new WebSocket(url, {
+    // intent=transcription session: connect using the transcription deployment
+    // itself. realtimeModel is kept only as a backward-compatible fallback.
+    const deployment = this.transcriptionModel || this.realtimeModel;
+    return `wss://${host}/openai/realtime?api-version=${realtimeApiVersion}&deployment=${deployment}&intent=transcription`;
+  }
+
+  createRealtimeWebSocket() {
+    return new WebSocket(this.buildRealtimeUrl(), {
       headers: { 'api-key': this.apiKey }
     });
   }
@@ -238,7 +276,8 @@ function loadProvider() {
         apiKey: managedKey,
         chatModel: getConfig('managed_chat_model') || 'gpt-4o-mini',
         realtimeModel: getConfig('managed_realtime_model') || 'gpt-realtime-mini',
-        embeddingModel: getConfig('managed_embedding_model') || 'text-embedding-ada-002'
+        embeddingModel: getConfig('managed_embedding_model') || 'text-embedding-ada-002',
+        transcriptionModel: getConfig('transcription_model') || getConfig('managed_transcription_model') || DEFAULT_TRANSCRIPTION_MODEL
       });
     }
     // Fall through to BYOK check
@@ -255,10 +294,14 @@ function loadProvider() {
     const realtimeDeployment = getConfig('azure_realtime_deployment');
     const embeddingDeployment = getConfig('azure_embedding_deployment');
 
-    if (!endpoint || !apiKey || !chatDeployment || !realtimeDeployment) return null;
+    // realtimeDeployment is optional now: the realtime transcription session
+    // connects via the transcription model, so a separate realtime deployment
+    // is not required.
+    if (!endpoint || !apiKey || !chatDeployment) return null;
 
     return new AzureOpenAIProvider({
-      endpoint, apiKey, apiVersion, chatDeployment, realtimeDeployment, embeddingDeployment
+      endpoint, apiKey, apiVersion, chatDeployment, realtimeDeployment, embeddingDeployment,
+      transcriptionModel: getConfig('transcription_model') || DEFAULT_TRANSCRIPTION_MODEL
     });
   }
 
@@ -272,7 +315,8 @@ function loadProvider() {
     return new OpenAIProvider({
       apiKey,
       chatModel: chatModel || 'gpt-4o-mini',
-      realtimeModel: realtimeModel || 'gpt-realtime-mini'
+      realtimeModel: realtimeModel || 'gpt-realtime-mini',
+      transcriptionModel: getConfig('transcription_model') || DEFAULT_TRANSCRIPTION_MODEL
     });
   }
 
@@ -292,7 +336,8 @@ function loadEmbeddingProvider() {
         apiKey: managedKey,
         chatModel: getConfig('managed_chat_model') || 'gpt-4o-mini',
         realtimeModel: getConfig('managed_realtime_model') || 'gpt-realtime-mini',
-        embeddingModel: getConfig('managed_embedding_model') || 'text-embedding-ada-002'
+        embeddingModel: getConfig('managed_embedding_model') || 'text-embedding-ada-002',
+        transcriptionModel: getConfig('transcription_model') || getConfig('managed_transcription_model') || DEFAULT_TRANSCRIPTION_MODEL
       });
     }
     console.warn('[AI Provider] Managed mode selected but credentials not found');
@@ -304,12 +349,37 @@ function loadEmbeddingProvider() {
 
 // --- Seed managed credentials into DB (called during setup or first run) ---
 
+// Idempotent: safe to call on every startup. Only writes values that actually
+// changed and reports what was touched, so centrally-managed model deployments
+// can be rotated/retired over time and picked up on the next launch without
+// rewriting (re-encrypting) unchanged secrets.
 function seedManagedCredentials(endpoint, apiKey, models = {}) {
-  setSecureConfig('managed_endpoint', endpoint);
-  setSecureConfig('managed_api_key', apiKey);
-  if (models.chatModel) setConfig('managed_chat_model', models.chatModel);
-  if (models.realtimeModel) setConfig('managed_realtime_model', models.realtimeModel);
-  if (models.embeddingModel) setConfig('managed_embedding_model', models.embeddingModel);
+  const firstRun = !getSecureConfig('managed_endpoint');
+  const updated = [];
+
+  if (getSecureConfig('managed_endpoint') !== endpoint) {
+    setSecureConfig('managed_endpoint', endpoint);
+    if (!firstRun) updated.push('endpoint');
+  }
+  if (getSecureConfig('managed_api_key') !== apiKey) {
+    setSecureConfig('managed_api_key', apiKey);
+    if (!firstRun) updated.push('api_key');
+  }
+
+  const modelConfig = {
+    managed_chat_model: models.chatModel,
+    managed_realtime_model: models.realtimeModel,
+    managed_embedding_model: models.embeddingModel,
+    managed_transcription_model: models.transcriptionModel
+  };
+  for (const [key, value] of Object.entries(modelConfig)) {
+    if (value && getConfig(key) !== value) {
+      setConfig(key, value);
+      if (!firstRun) updated.push(key.replace('managed_', '').replace('_model', ''));
+    }
+  }
+
+  return { seeded: firstRun, updated };
 }
 
 // --- Save provider config ---
@@ -324,7 +394,14 @@ function saveProviderConfig(providerType, config) {
     }
     setConfig('azure_api_version', config.apiVersion || '2024-10-21');
     setConfig('azure_chat_deployment', config.chatDeployment);
-    setConfig('azure_realtime_deployment', config.realtimeDeployment);
+    // Realtime deployment is optional: the transcription session connects via
+    // the transcription deployment. Kept for backward compatibility if provided.
+    if (config.realtimeDeployment) {
+      setConfig('azure_realtime_deployment', config.realtimeDeployment);
+    }
+    if (config.transcriptionDeployment) {
+      setConfig('transcription_model', config.transcriptionDeployment);
+    }
     setConfig('azure_embedding_deployment', config.embeddingDeployment);
   } else if (providerType === 'openai') {
     if (config.apiKey) {
@@ -342,5 +419,6 @@ module.exports = {
   loadProvider,
   loadEmbeddingProvider,
   saveProviderConfig,
-  seedManagedCredentials
+  seedManagedCredentials,
+  DEFAULT_TRANSCRIPTION_MODEL
 };

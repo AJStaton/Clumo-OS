@@ -11,14 +11,21 @@ const db = require('./db');
 const managedCreds = require('./managed-credentials');
 const { seedManagedCredentials } = require('./ai-provider');
 
-// Auto-seed managed credentials on first run if available
-if (managedCreds.isConfigured() && !db.getSecureConfig('managed_endpoint')) {
-  seedManagedCredentials(managedCreds.endpoint, managedCreds.apiKey, {
+// Sync managed credentials on every startup so centrally-managed model
+// deployments can be updated/retired over time. Endpoint + key are written on
+// first run; model deployment names are refreshed whenever they change.
+if (managedCreds.isConfigured()) {
+  const { seeded, updated } = seedManagedCredentials(managedCreds.endpoint, managedCreds.apiKey, {
     chatModel: managedCreds.chatModel,
     realtimeModel: managedCreds.realtimeModel,
-    embeddingModel: managedCreds.embeddingModel
+    embeddingModel: managedCreds.embeddingModel,
+    transcriptionModel: managedCreds.transcriptionModel
   });
-  console.log('[Server] Managed AI credentials seeded from build config');
+  if (seeded) {
+    console.log('[Server] Managed AI credentials seeded from build config');
+  } else if (updated.length) {
+    console.log(`[Server] Managed config refreshed from build config: ${updated.join(', ')}`);
+  }
 }
 
 // Catch unhandled promise rejections

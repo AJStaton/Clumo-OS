@@ -23,7 +23,7 @@ export default function AiModelsSettings() {
             setConfig({
               endpoint: data.endpoint || '',
               chatDeployment: data.chatDeployment || '',
-              realtimeDeployment: data.realtimeDeployment || '',
+              transcriptionDeployment: data.transcriptionDeployment || '',
               embeddingDeployment: data.embeddingDeployment || '',
               apiKey: ''
             });
@@ -151,7 +151,7 @@ export default function AiModelsSettings() {
             <input type="text" placeholder="Endpoint" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.endpoint || ''} onChange={e => setConfig({ ...config, endpoint: e.target.value })} />
             <input type="password" placeholder={settings?.hasApiKey ? 'API Key (leave blank to keep current)' : 'API Key'} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.apiKey || ''} onChange={e => setConfig({ ...config, apiKey: e.target.value })} />
             <input type="text" placeholder="Chat deployment name" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.chatDeployment || ''} onChange={e => setConfig({ ...config, chatDeployment: e.target.value })} />
-            <input type="text" placeholder="Realtime deployment name" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.realtimeDeployment || ''} onChange={e => setConfig({ ...config, realtimeDeployment: e.target.value })} />
+            <input type="text" placeholder="Transcription deployment name (e.g. gpt-4o-mini-transcribe)" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.transcriptionDeployment || ''} onChange={e => setConfig({ ...config, transcriptionDeployment: e.target.value })} />
             <input type="text" placeholder="Embedding deployment name (e.g. text-embedding-3-small)" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.embeddingDeployment || ''} onChange={e => setConfig({ ...config, embeddingDeployment: e.target.value })} />
           </div>
         )}

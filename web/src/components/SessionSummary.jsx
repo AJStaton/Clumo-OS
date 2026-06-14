@@ -107,21 +107,26 @@ export default function SessionSummary({ session, analysis, badge, onAnalyze, an
               <p className="text-gray-400 dark:text-gray-500 text-sm">No suggestions were surfaced</p>
             ) : (
               <div className="space-y-2">
-                {(session.suggestions || []).map((s, i) => (
-                  <div key={i} className="text-sm p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
+                {(session.suggestions || []).map((s, i) => {
+                  const ts = s.suggestion?.triggeredAt || s.timestamp;
+                  const trigger = s.suggestion?.trigger || s.trigger;
+                  const triggerTip = trigger ? `Trigger: "${trigger}"` : undefined;
+                  return (
+                  <div key={i} className="text-sm p-3 bg-gray-50 dark:bg-gray-700 rounded-md" title={triggerTip}>
                     <span className="font-medium text-gray-700 dark:text-gray-300">
                       {s.type === 'case_study' && `Case Study: ${s.suggestion?.company}${s.suggestion?.headline ? ` — ${s.suggestion.headline}` : ''}`}
                       {s.type === 'discovery' && `Discovery: ${s.suggestion?.question}`}
                       {s.type === 'proof_point' && `Proof Point: ${s.suggestion?.stat}`}
                       {s.type === 'product_truth' && `Product Truth: ${s.suggestion?.fact}`}
                     </span>
-                    {s.timestamp && (
+                    {ts && (
                       <span className="text-gray-400 dark:text-gray-500 text-xs ml-2">
-                        {new Date(s.timestamp).toLocaleTimeString()}
+                        {new Date(ts).toLocaleTimeString()}
                       </span>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

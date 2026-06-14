@@ -13,6 +13,7 @@ export function CallSessionProvider({ children }) {
   const [status, setStatus] = useState('idle'); // idle | connecting | listening | stopped
   const [sessionId, setSessionId] = useState(null);
   const [transcript, setTranscript] = useState([]);
+  const [partialTranscript, setPartialTranscript] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [meddpicc, setMeddpicc] = useState(null);
   const [error, setError] = useState(null);
@@ -39,6 +40,10 @@ export function CallSessionProvider({ children }) {
         break;
       case 'transcript':
         setTranscript(prev => [...prev, { text: msg.text, timestamp: new Date().toISOString() }]);
+        setPartialTranscript('');
+        break;
+      case 'transcript_partial':
+        setPartialTranscript(msg.text || '');
         break;
       case 'suggestion':
         setSuggestions(prev => [...prev, { ...msg.suggestion, _id: Date.now() + Math.random() }]);
@@ -74,6 +79,7 @@ export function CallSessionProvider({ children }) {
       setStatus('connecting');
       setError(null);
       setTranscript([]);
+      setPartialTranscript('');
       setSuggestions([]);
       setMeddpicc(null);
       setSessionId(null);
@@ -167,6 +173,7 @@ export function CallSessionProvider({ children }) {
     setStatus('idle');
     setSessionId(null);
     setTranscript([]);
+    setPartialTranscript('');
     setSuggestions([]);
     setMeddpicc(null);
     setError(null);
@@ -179,6 +186,7 @@ export function CallSessionProvider({ children }) {
     status,
     sessionId,
     transcript,
+    partialTranscript,
     suggestions,
     meddpicc,
     error,
