@@ -29,7 +29,7 @@ export default function SuggestionCard({ suggestion }) {
 
       {suggestion.type === 'case_study' && (
         <>
-          <p className="font-semibold text-sm">{item.company} — {item.headline}</p>
+          <p className="font-semibold text-sm">{item.company}: {item.headline}</p>
           <p className="text-sm text-gray-600 mt-1">{item.result}</p>
           {item.link && (
             <a href={item.link} target="_blank" rel="noopener noreferrer"

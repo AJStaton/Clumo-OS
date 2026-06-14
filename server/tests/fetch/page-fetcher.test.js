@@ -139,4 +139,40 @@ describe('page-fetcher escalation', () => {
     expect(r.renderedVia).toBe('static');
     expect(r.signals.mainTextChars).toBeGreaterThan(1000);
   });
+
+  it('prefers a rendered listing that yields links even when its text is thinner', async () => {
+    // A listing whose rendered tiles are links, but whose extracted main text is thin —
+    // for a forced (listing) render we keep it because the links are the point of expanding.
+    const thinLinksPage = (url) => ({
+      url, ok: true, status: 200, renderedVia: 'headless',
+      mainText: 'Customers', summary: '', title: 'Customers',
+      links: ['https://x.com/customers/story/a', 'https://x.com/customers/story/b'],
+      jsonLinks: ['https://x.com/customers/story/c'], jsonld: [], meta: {},
+      signals: { mainTextChars: 60, boilerplateRatio: 0.3, hasNextData: false, jsonldCount: 0, hasOgDescription: false }
+    });
+    const mediumPage = (url) => ({
+      url, ok: true, status: 200, renderedVia: 'static',
+      mainText: 'Customers using our platform. '.repeat(30), summary: '', title: 'Customers', links: [], jsonld: [], meta: {},
+      signals: { mainTextChars: 900, boilerplateRatio: 0.3, hasNextData: false, jsonldCount: 0, hasOgDescription: false }
+    });
+    const headless = fakeHeadless(async (u) => thinLinksPage(u));
+    const pf = createPageFetcher({
+      fetchStaticFn: async (u) => mediumPage(u),
+      headlessFetcher: headless
+    });
+    await pf.fetch('https://x.com/customers', { expectedType: null });            // cache static
+    const r = await pf.fetch('https://x.com/customers', { expectedType: 'case_study', forceHeadless: true });
+    expect(r.renderedVia).toBe('headless');
+    expect(r.links.length).toBe(2);
+    expect(r.jsonLinks).toEqual(['https://x.com/customers/story/c']);
+  });
+
+  it('threads jsonLinks (defaulting to []) onto the final result', async () => {
+    const pf = createPageFetcher({
+      fetchStaticFn: async (u) => richPage(u),
+      headlessFetcher: fakeHeadless(async () => null)
+    });
+    const r = await pf.fetch('https://x.com/product', { expectedType: 'product_truth' });
+    expect(r.jsonLinks).toEqual([]);
+  });
 });

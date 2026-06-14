@@ -3,6 +3,23 @@
 // from extracted website and document content
 
 const storage = require('./storage');
+const { caseStudyKey } = require('./case-study-identity');
+
+// Quality-dependent volume targets. These are CEILINGS the gathered content may or may not fill —
+// the generators are instructed never to pad or fabricate to reach them. Overridable per-run via
+// generate({ targets }) (wired from config in routes/api.js).
+const DEFAULT_TARGETS = {
+  discoveryQuestions: 100,
+  caseStudies: 30,        // inference fallback only; the primary path is harvested/extracted stories
+  proofPoints: 50,
+  productTruths: 100
+};
+// Per-pass output token ceiling. 8000 is proven-safe across the providers we support (gpt-4o /
+// gpt-4o-mini allow 16k, but some Azure deployments cap lower). Volume comes from MULTI-PASS, not
+// from one huge response — so we keep each call within a safe ceiling and run continuation passes.
+const GEN_MAX_TOKENS = 8000;
+const GEN_INPUT_CHARS = 48000;   // per-pass input grounding budget (was 20k — see plan)
+const GEN_MAX_PASSES = 3;        // continuation passes per type (bounded for runtime/cost)
 
 class KnowledgeGenerator {
   constructor(provider, embeddingProvider = null) {
@@ -34,7 +51,8 @@ class KnowledgeGenerator {
 
   // Main generation pipeline
   async generate(websiteContent, documentContents, onProgress, options = {}) {
-    const { merge = false, userId = null, sources = null, profile = null } = options;
+    const { merge = false, userId = null, sources = null, profile = null, targets: targetOverrides = {} } = options;
+    const targets = { ...DEFAULT_TARGETS, ...(targetOverrides || {}) };
 
     // Combine all content
     let allContent = '';
@@ -110,25 +128,25 @@ class KnowledgeGenerator {
     // Phase 2: Generate Discovery Questions
     if (onProgress) onProgress({ stage: 'discovery_questions', message: merge ? 'Extracting new discovery questions...' : 'Generating discovery questions...' });
     typePaths.discoveryQuestions = bundles.discovery && bundles.discovery.length > 200 ? 'primary' : 'fallback';
-    const discoveryQuestions = await this.generateDiscoveryQuestions(discoveryContent, companyAnalysis, merge, profileCtx);
+    const discoveryQuestions = await this.generateDiscoveryQuestions(discoveryContent, companyAnalysis, merge, profileCtx, targets.discoveryQuestions);
     console.log(`[Knowledge Generator] LLM returned ${discoveryQuestions.length} discovery questions`);
 
     // Phase 3: Generate Case Studies
     if (onProgress) onProgress({ stage: 'case_studies', message: merge ? 'Extracting new case studies...' : 'Creating case studies...' });
     typePaths.caseStudies = (extractedCaseStudies && extractedCaseStudies.length > 0) ? 'primary' : 'fallback';
-    const caseStudies = await this.generateCaseStudies(caseStudyContent, companyAnalysis, merge, extractedCaseStudies);
+    const caseStudies = await this.generateCaseStudies(caseStudyContent, companyAnalysis, merge, extractedCaseStudies, profileCtx, targets.caseStudies);
     console.log(`[Knowledge Generator] LLM returned ${caseStudies.length} case studies`);
 
     // Phase 4: Generate Proof Points
     if (onProgress) onProgress({ stage: 'proof_points', message: merge ? 'Extracting new proof points...' : 'Building proof points...' });
     typePaths.proofPoints = bundles.proof && bundles.proof.length > 200 ? 'primary' : 'fallback';
-    const proofPoints = await this.generateProofPoints(proofContent, companyAnalysis, merge, profileCtx);
+    const proofPoints = await this.generateProofPoints(proofContent, companyAnalysis, merge, profileCtx, targets.proofPoints);
     console.log(`[Knowledge Generator] LLM returned ${proofPoints.length} proof points`);
 
     // Phase 4b: Generate Product Truths
     if (onProgress) onProgress({ stage: 'product_truths', message: merge ? 'Extracting new product truths...' : 'Building product truths...' });
     typePaths.productTruths = bundles.productTruth && bundles.productTruth.length > 200 ? 'primary' : 'fallback';
-    const productTruths = await this.generateProductTruths(productTruthContent, companyAnalysis, merge);
+    const productTruths = await this.generateProductTruths(productTruthContent, companyAnalysis, merge, profileCtx, targets.productTruths);
     console.log(`[Knowledge Generator] LLM returned ${productTruths.length} product truths`);
 
     // Phase 5: Generate embeddings for all KB items
@@ -223,12 +241,101 @@ class KnowledgeGenerator {
     const lines = [];
     const personas = Array.isArray(profile.personas) ? profile.personas.filter(Boolean) : [];
     const competitors = Array.isArray(profile.competitors) ? profile.competitors.filter(Boolean) : [];
+    const focusProducts = Array.isArray(profile.focusProducts) ? profile.focusProducts.filter(Boolean) : [];
+    const focusIndustries = Array.isArray(profile.focusIndustries) ? profile.focusIndustries.filter(Boolean) : [];
+    const companySize = Array.isArray(profile.companySize) ? profile.companySize.filter(Boolean) : [];
+    const priorities = Array.isArray(profile.priorities) ? profile.priorities.filter(Boolean) : [];
+    if (profile.role) lines.push(`Seller's role: ${profile.role}`);
+    if (focusProducts.length) lines.push(`Products they sell / focus on: ${focusProducts.join(', ')}`);
+    if (priorities.length) lines.push(`Prioritised product/solution areas for this knowledge base: ${priorities.join(', ')}`);
     if (personas.length) lines.push(`Target buyer personas: ${personas.join(', ')}`);
-    if (profile.icpIndustry) lines.push(`Ideal customer industry: ${profile.icpIndustry}`);
-    if (profile.icpCompanySize) lines.push(`Ideal customer size: ${profile.icpCompanySize}`);
+    if (focusIndustries.length) lines.push(`Target industries: ${focusIndustries.join(', ')}`);
+    else if (profile.icpIndustry) lines.push(`Ideal customer industry: ${profile.icpIndustry}`);
+    if (companySize.length) lines.push(`Target company size: ${companySize.join(', ')}`);
+    else if (profile.icpCompanySize) lines.push(`Ideal customer size: ${profile.icpCompanySize}`);
     if (competitors.length) lines.push(`Key competitors to differentiate against: ${competitors.join(', ')}`);
     if (lines.length === 0) return '';
     return `\n\nSELLER CONTEXT (use to tailor and sharpen output):\n- ${lines.join('\n- ')}`;
+  }
+
+  // Split content into ordered chunks of ~perPassChars, capped at maxChunks. Used by multi-pass
+  // generation so each continuation pass is grounded in a fresh slice of the gathered material.
+  _chunkContent(content, perPassChars = GEN_INPUT_CHARS, maxChunks = GEN_MAX_PASSES) {
+    const text = (content || '').toString();
+    if (text.length <= perPassChars) return [text];
+    const chunks = [];
+    for (let i = 0; i < text.length && chunks.length < maxChunks; i += perPassChars) {
+      chunks.push(text.substring(i, i + perPassChars));
+    }
+    return chunks;
+  }
+
+  // Build a compact "do not repeat these" block from already-collected items so continuation
+  // passes add DISTINCT items instead of re-emitting the same ones.
+  _avoidList(collected, identityOf) {
+    if (!collected || collected.length === 0) return '';
+    const ids = collected
+      .map((it) => (identityOf(it) || '').toString().trim().replace(/\s+/g, ' ').slice(0, 90))
+      .filter(Boolean)
+      .slice(-80);
+    if (ids.length === 0) return '';
+    return `\n\nALREADY CAPTURED — do NOT repeat or restate these (generate only NEW, distinct items):\n- ${ids.join('\n- ')}`;
+  }
+
+  // Generic multi-pass generator. Runs continuation passes over content chunks (and re-queries the
+  // last chunk with a do-not-repeat list when content is short) until the target is reached, the
+  // pass budget is exhausted, or the content yields no new grounded items. Quality-dependent: it
+  // never pads — if the content only supports N items, it returns N.
+  //   buildSystem(remaining) -> system prompt string (should reference `remaining` as the target)
+  //   userIntro              -> lead-in line for the user message (content appended after it)
+  //   identityOf(item)       -> string used for dedupe + the avoid list
+  async _generateItems({ buildSystem, userIntro, content, idPrefix, target, identityOf, temperature = 0.5,
+    maxTokens = GEN_MAX_TOKENS, maxPasses = GEN_MAX_PASSES, perPassChars = GEN_INPUT_CHARS }) {
+    const chunks = this._chunkContent(content, perPassChars, maxPasses);
+    const collected = [];
+    const seen = new Set();
+    const keyOf = (it) => (identityOf(it) || '').toString().trim().toLowerCase().slice(0, 120);
+    const add = (items) => {
+      let n = 0;
+      for (const it of items || []) {
+        const k = keyOf(it);
+        if (!k || seen.has(k)) continue;
+        seen.add(k);
+        collected.push(it);
+        n += 1;
+      }
+      return n;
+    };
+
+    let passes = 0;
+    let chunkIdx = 0;
+    while (collected.length < target && passes < maxPasses) {
+      const chunk = chunks[Math.min(chunkIdx, chunks.length - 1)];
+      const remaining = target - collected.length;
+      const avoid = this._avoidList(collected, identityOf);
+      let added = 0;
+      try {
+        const response = await this.openai.chat.completions.create({
+          messages: [
+            { role: 'system', content: buildSystem(remaining) },
+            { role: 'user', content: `${userIntro}\n\n${chunk}${avoid}` }
+          ],
+          temperature,
+          max_tokens: maxTokens
+        });
+        added = add(this.parseJsonArray(response.choices[0].message.content, idPrefix));
+      } catch (e) {
+        console.warn(`[Knowledge Generator] ${idPrefix} pass ${passes + 1} failed: ${e.message}`);
+      }
+      passes += 1;
+      chunkIdx += 1;
+      // Stop once every chunk has been consumed and the latest pass added nothing new
+      // (the content is exhausted — never pad to hit the target).
+      if (chunkIdx >= chunks.length && added === 0) break;
+    }
+
+    // Re-id sequentially so the saved KB has clean, unique ids.
+    return collected.map((it, i) => ({ ...it, id: `${idPrefix}${i + 1}` }));
   }
 
   // Phase 1: Analyze the company from extracted content
@@ -273,12 +380,12 @@ Return ONLY valid JSON, no markdown formatting.`
   }
 
   // Phase 2: Generate discovery questions
-  async generateDiscoveryQuestions(content, analysis, isAdditional = false, profileCtx = '') {
+  async generateDiscoveryQuestions(content, analysis, isAdditional = false, profileCtx = '', target = DEFAULT_TARGETS.discoveryQuestions) {
     const quantityInstruction = isAdditional
-      ? `Generate discovery questions that are DIRECTLY supported by specific content in the documents provided. Extract every question that the content supports — including questions inspired by third-party research, industry insights, analyst findings, or market data found in the documents. These are valuable because they let a salesperson reference credible external sources during discovery. Do NOT invent questions beyond what the content supports, but DO be thorough in extracting all questions the content can ground.`
-      : `Generate Challenger-style discovery questions that are DIRECTLY grounded in the provided content. Every question must be clearly supported by specific product capabilities, pain points, or value propositions found in the source material. Do NOT pad with generic or filler questions — quality over quantity.
+      ? `Generate discovery questions that are DIRECTLY supported by specific content in the documents provided. Extract every NEW question that the content supports — including questions inspired by third-party research, industry insights, analyst findings, or market data found in the documents. These are valuable because they let a salesperson reference credible external sources during discovery. Do NOT invent questions beyond what the content supports, but DO be thorough in extracting all questions the content can ground.`
+      : `Generate Challenger-style discovery questions that are DIRECTLY grounded in the provided content. Every question must be clearly supported by specific product capabilities, pain points, or value propositions found in the source material. Do NOT pad with generic or filler questions — only generate as many as the content genuinely supports.
 
-Aim for a minimum of 30 discovery questions covering all three categories below:
+Generate up to {{REMAINING}} NEW discovery questions in this pass (quality-dependent — fewer is fine if the content does not support more), covering all three categories below:
 
 Category 1 — Product-Specific Pain Point Questions:
 Questions that uncover pain points the product directly solves, challenge prospect assumptions about their current approach, create urgency around the problems, and guide conversations toward the product's strengths.
@@ -289,19 +396,22 @@ Questions that explore the prospect's broader business strategy, long-term goals
 Category 3 — MEDDIC-Style Discovery Questions:
 Questions focused on key metrics (how they measure success), economic impact (cost of inaction, ROI expectations), decision process (who is involved, approval steps), decision timeline (urgency, deadlines), pain points today (current challenges and workarounds), and potential competition (other solutions being evaluated).`;
 
-    const response = await this.openai.chat.completions.create({
-      messages: [
-        {
-          role: 'system',
-          content: `You are an expert sales coach specializing in the Challenger Sale methodology. Generate discovery questions that a salesperson selling ${analysis.companyName}'s product would ask prospects.
+    // Active tailoring: when the seller gave a profile, lead with questions framed for their exact
+    // buyer/industry/segment/role — prioritisation, not exclusion (still cover the product broadly).
+    const tailoring = profileCtx
+      ? `\nTAILORING (prioritise, do not exclude): Lead with questions tailored to the seller's role, target buyer personas, target industries, and company segment described in SELLER CONTEXT — phrase them the way that specific buyer in that industry and segment would actually experience the problem. Then broaden to cover the rest of the product's value. Do NOT drop well-grounded questions just because they are not persona-specific.`
+      : '';
+
+    const buildSystem = (remaining) => `You are an expert sales coach specializing in the Challenger Sale methodology. Generate discovery questions that a salesperson selling ${analysis.companyName}'s product would ask prospects.
 
 The company: ${analysis.productDescription}
 Target market: ${analysis.targetMarket}
 Pain points solved: ${analysis.painPointsSolved?.join(', ')}
 Value propositions: ${analysis.valuePropositions?.join(', ')}
 ${profileCtx}
+${tailoring}
 
-${quantityInstruction}
+${quantityInstruction.replace('{{REMAINING}}', remaining)}
 
 For each question, generate 15-20 trigger keywords - individual words and short phrases a PROSPECT might say during a sales call that would make this question relevant.
 
@@ -324,22 +434,21 @@ Return ONLY a JSON array (no markdown):
     "context": "why this question is valuable and what it uncovers",
     "triggers": ["keyword1", "keyword2", "phrase variation", "related term", "synonym", ...]
   }
-]`
-        },
-        {
-          role: 'user',
-          content: `Generate discovery questions based on this company content:\n\n${content.substring(0, 20000)}`
-        }
-      ],
-      temperature: 0.5,
-      max_tokens: 8000
-    });
+]`;
 
-    return this.parseJsonArray(response.choices[0].message.content, 'dq');
+    return this._generateItems({
+      buildSystem,
+      userIntro: 'Generate discovery questions based on this company content:',
+      content,
+      idPrefix: 'dq',
+      target,
+      temperature: 0.5,
+      identityOf: (q) => q.question
+    });
   }
 
   // Phase 3: Generate case studies
-  async generateCaseStudies(content, analysis, isAdditional = false, extractedCaseStudies = null) {
+  async generateCaseStudies(content, analysis, isAdditional = false, extractedCaseStudies = null, profileCtx = '', target = DEFAULT_TARGETS.caseStudies) {
     // Use pre-extracted case studies from hybrid scraper if available
     if (extractedCaseStudies && extractedCaseStudies.length > 0) {
       console.log(`[Knowledge Generator] Using ${extractedCaseStudies.length} extracted case studies (hybrid scraper)`);
@@ -349,18 +458,20 @@ Return ONLY a JSON array (no markdown):
 
     const quantityInstruction = isAdditional
       ? `Generate case studies that are DIRECTLY supported by specific customer stories, metrics, or use cases found in the documents provided. Do NOT fabricate or infer case studies that aren't clearly described in the content. Every case study must be grounded in the provided content. Do NOT create duplicate entries for companies that already exist in the knowledge base.`
-      : `Generate case study entries that are DIRECTLY grounded in the provided content. Use REAL customer stories, testimonials, and use cases found in the content. Do NOT fabricate case studies or invent customer scenarios that aren't supported by the source material. Every case study must be traceable back to something in the provided content. Quality over quantity. Aim for a minimum of 15 case studies.`;
+      : `Generate case study entries that are DIRECTLY grounded in the provided content. Use REAL customer stories, testimonials, and use cases found in the content. Do NOT fabricate case studies or invent customer scenarios that aren't supported by the source material. Every case study must be traceable back to something in the provided content. Generate up to {{REMAINING}} NEW case studies in this pass — only as many as the content genuinely supports (fewer is fine; never invent companies).`;
 
-    const response = await this.openai.chat.completions.create({
-      messages: [
-        {
-          role: 'system',
-          content: `You are a sales content specialist. Generate case study entries for ${analysis.companyName}'s sales team.
+    const tailoring = profileCtx
+      ? `\nTAILORING (prioritise, do not exclude): When the content contains stories matching the seller's focus products, target industries, or company segment in SELLER CONTEXT, surface those FIRST. Still include other well-grounded customer stories — do not drop a real story just because it is off-focus.`
+      : '';
+
+    const buildSystem = (remaining) => `You are a sales content specialist. Generate case study entries for ${analysis.companyName}'s sales team.
 
 The company: ${analysis.productDescription}
 Known customers/stories: ${analysis.customerStories?.join(', ')}
+${profileCtx}
+${tailoring}
 
-${quantityInstruction}
+${quantityInstruction.replace('{{REMAINING}}', remaining)}
 
 CRITICAL RULES:
 1. "company" MUST be the company/organization name (e.g. "Salesforce", "Wells Fargo", "Hilti"). NEVER use a person's name. If the content mentions "John Smith at Acme Corp", the company is "Acme Corp".
@@ -396,22 +507,21 @@ Return ONLY a JSON array (no markdown):
     "link": "https://full-url-if-available or empty string",
     "triggers": ["single", "word", "triggers", "mostly", ...]
   }
-]`
-        },
-        {
-          role: 'user',
-          content: `Generate case studies from this content:\n\n${content.substring(0, 40000)}`
-        }
-      ],
-      temperature: 0.5,
-      max_tokens: 8000
-    });
+]`;
 
-    return this.parseJsonArray(response.choices[0].message.content, 'cs');
+    return this._generateItems({
+      buildSystem,
+      userIntro: 'Generate case studies from this content:',
+      content,
+      idPrefix: 'cs',
+      target,
+      temperature: 0.5,
+      identityOf: (cs) => cs.company
+    });
   }
 
   // Phase 4: Generate proof points
-  async generateProofPoints(content, analysis, isAdditional = false, profileCtx = '') {
+  async generateProofPoints(content, analysis, isAdditional = false, profileCtx = '', target = DEFAULT_TARGETS.proofPoints) {
     const quantityInstruction = isAdditional
       ? `Extract ALL proof points that are DIRECTLY supported by specific statistics, metrics, research findings, analyst insights, awards, or verifiable claims found in the documents provided. This includes:
 - Industry research and analyst reports (e.g. IDC, Gartner, Forrester, McKinsey) — these are HIGH-VALUE proof points for sales conversations
@@ -427,20 +537,21 @@ Do NOT fabricate or infer proof points that aren't explicitly stated in the cont
 - Industry recognition or rankings specifically mentioned
 - Quantifiable achievements directly cited
 
-Do NOT fabricate or infer proof points that aren't explicitly stated in the content. Quality over quantity. Aim for a minimum of 10 proof points.`;
+Do NOT fabricate or infer proof points that aren't explicitly stated in the content. Generate up to {{REMAINING}} NEW proof points in this pass — extract every legitimate one the content supports, but never invent figures (fewer is fine if the content is thin).`;
 
-    const response = await this.openai.chat.completions.create({
-      messages: [
-        {
-          role: 'system',
-          content: `You are a sales enablement specialist. Generate proof point entries for ${analysis.companyName}'s sales team.
+    const tailoring = profileCtx
+      ? `\nTAILORING (prioritise, do not exclude): Surface proof points relevant to the seller's focus products, target industries, and personas in SELLER CONTEXT FIRST. Still include other well-grounded proof points — do not drop a real statistic just because it is off-focus.`
+      : '';
+
+    const buildSystem = (remaining) => `You are a sales enablement specialist. Generate proof point entries for ${analysis.companyName}'s sales team.
 
 The company: ${analysis.productDescription}
 Known stats/metrics: ${analysis.keyStats?.join(', ')}
 Differentiators: ${analysis.differentiators?.join(', ')}
 ${profileCtx}
+${tailoring}
 
-${quantityInstruction}
+${quantityInstruction.replace('{{REMAINING}}', remaining)}
 
 For each proof point, generate 15-20 trigger keywords - words/phrases a PROSPECT might say when they need validation or evidence.
 
@@ -460,27 +571,26 @@ Return ONLY a JSON array (no markdown):
     "link": "",
     "triggers": ["skepticism phrase", "comparison", "topic keyword", "validation need", "variation", ...]
   }
-]`
-        },
-        {
-          role: 'user',
-          content: `Generate proof points from this content:\n\n${content.substring(0, 20000)}`
-        }
-      ],
-      temperature: 0.4,
-      max_tokens: 4000
-    });
+]`;
 
-    return this.parseJsonArray(response.choices[0].message.content, 'pp');
+    return this._generateItems({
+      buildSystem,
+      userIntro: 'Generate proof points from this content:',
+      content,
+      idPrefix: 'pp',
+      target,
+      temperature: 0.4,
+      identityOf: (pp) => pp.stat
+    });
   }
 
   // Phase 4b: Generate Product Truths
-  async generateProductTruths(content, analysis, isAdditional = false) {
+  async generateProductTruths(content, analysis, isAdditional = false, profileCtx = '', target = DEFAULT_TARGETS.productTruths) {
     const quantityInstruction = isAdditional
       ? `Extract ALL factual product statements that are DIRECTLY supported by specific content in the documents. Focus on technical capabilities, security features, platform specifications, compliance certifications, and architectural facts.`
       : `Generate factual product truth statements that are DIRECTLY grounded in the provided content. Product truths are objective, verifiable statements about the product's capabilities, architecture, security, compliance, or performance that a salesperson can confidently state during a call.
 
-Aim for 8-15 product truths covering:
+Generate up to {{REMAINING}} NEW product truths in this pass — only as many as the content genuinely supports (fewer is fine; never invent specs), covering:
 - Security & compliance features
 - Platform capabilities and specifications
 - Technical architecture facts
@@ -488,16 +598,18 @@ Aim for 8-15 product truths covering:
 - Integration capabilities
 - Deployment options`;
 
-    const response = await this.openai.chat.completions.create({
-      messages: [
-        {
-          role: 'system',
-          content: `You are a sales enablement specialist. Generate product truth entries for ${analysis.companyName}'s sales team.
+    const tailoring = profileCtx
+      ? `\nTAILORING (prioritise, do not exclude): Surface product truths about the seller's focus products in SELLER CONTEXT FIRST. Still include other well-grounded facts about the product — do not drop a real capability just because it is off-focus.`
+      : '';
+
+    const buildSystem = (remaining) => `You are a sales enablement specialist. Generate product truth entries for ${analysis.companyName}'s sales team.
 
 The company: ${analysis.productDescription}
 Differentiators: ${analysis.differentiators?.join(', ')}
+${profileCtx}
+${tailoring}
 
-${quantityInstruction}
+${quantityInstruction.replace('{{REMAINING}}', remaining)}
 
 For each product truth, generate 10-15 trigger keywords - words/phrases a PROSPECT might say when asking about capabilities or features.
 
@@ -515,25 +627,17 @@ Return ONLY a JSON array (no markdown):
     "link": "source URL or file reference this fact comes from, or empty string",
     "triggers": ["keyword1", "keyword2", ...]
   }
-]`
-        },
-        {
-          role: 'user',
-          content: `Generate product truths from this content:\n\n${content.substring(0, 20000)}`
-        }
-      ],
-      temperature: 0.3,
-      max_tokens: 4000
-    });
+]`;
 
-    const productTruths = this.parseJsonArray(response.choices[0].message.content, 'pt');
-    return productTruths.map((pt, i) => ({
-      id: pt.id || `pt${i + 1}`,
-      fact: pt.fact || '',
-      category: pt.category || '',
-      link: pt.link || '',
-      triggers: pt.triggers || []
-    }));
+    return this._generateItems({
+      buildSystem,
+      userIntro: 'Generate product truths from this content:',
+      content,
+      idPrefix: 'pt',
+      target,
+      temperature: 0.3,
+      identityOf: (pt) => pt.fact
+    });
   }
   processExtractedCaseStudies(extractedCaseStudies) {
     try {
@@ -604,7 +708,7 @@ Return ONLY a JSON array (no markdown):
 
   // Parse a JSON array from GPT response, handling markdown code blocks
   parseJsonArray(content, idPrefix) {
-    let cleaned = content.trim();
+    let cleaned = (content || '').trim();
 
     // Remove markdown code blocks if present
     cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
@@ -620,7 +724,7 @@ Return ONLY a JSON array (no markdown):
       }
       return [];
     } catch (e) {
-      // Try to extract array from the content
+      // Try to extract a well-formed array from the content
       const match = cleaned.match(/\[[\s\S]*\]/);
       if (match) {
         try {
@@ -630,13 +734,52 @@ Return ONLY a JSON array (no markdown):
             id: item.id || `${idPrefix}${i + 1}`
           }));
         } catch (e2) {
-          console.error(`Failed to parse ${idPrefix} response:`, cleaned.substring(0, 200));
-          return [];
+          // fall through to truncation salvage
         }
+      }
+      // Salvage: high-volume responses can be truncated mid-array (no closing ]). Recover every
+      // COMPLETE top-level object so we keep what the model did finish writing.
+      const salvaged = this._salvageObjects(cleaned, idPrefix);
+      if (salvaged.length > 0) {
+        console.warn(`[Knowledge Generator] Salvaged ${salvaged.length} ${idPrefix} items from a truncated response`);
+        return salvaged;
       }
       console.error(`Failed to parse ${idPrefix} response:`, cleaned.substring(0, 200));
       return [];
     }
+  }
+
+  // Extract complete top-level {...} objects from a (possibly truncated) JSON array string by
+  // tracking brace depth and ignoring braces inside strings. Drops any trailing incomplete object.
+  _salvageObjects(text, idPrefix) {
+    const items = [];
+    let depth = 0;
+    let start = -1;
+    let inString = false;
+    let escaped = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === '\\') escaped = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') { inString = true; continue; }
+      if (ch === '{') { if (depth === 0) start = i; depth += 1; }
+      else if (ch === '}') {
+        depth -= 1;
+        if (depth === 0 && start >= 0) {
+          const chunk = text.substring(start, i + 1);
+          try {
+            const obj = JSON.parse(chunk);
+            items.push({ ...obj, id: obj.id || `${idPrefix}${items.length + 1}` });
+          } catch (e) { /* skip malformed object */ }
+          start = -1;
+        }
+      }
+    }
+    return items;
   }
 
   // Merge new KB items with existing KB (for additional uploads)
@@ -698,7 +841,7 @@ Return ONLY a JSON array (no markdown):
     kb.caseStudies = this.deduplicateItems(
       kb.caseStudies,
       'cs',
-      (item) => item.company.toLowerCase().trim()
+      (item) => caseStudyKey(item)
     );
 
     kb.proofPoints = this.deduplicateItems(

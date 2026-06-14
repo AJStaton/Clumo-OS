@@ -49,7 +49,7 @@ export function BackgroundProcessProvider({ children }) {
       const data = JSON.parse(e.data);
       setProcesses(prev => ({
         ...prev,
-        [id]: { ...prev[id], status: 'complete', counts: data.counts }
+        [id]: { ...prev[id], status: 'complete', counts: data.counts, coverage: data.coverage || null }
       }));
       eventSource.close();
       delete eventSourcesRef.current[id];

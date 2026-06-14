@@ -120,7 +120,56 @@
 - Case studies fail two ways: discovery (Beamery: no sitemap + JS listing) and extraction (Legora individual pages are client-rendered shells — headless does not fully rescue; extract from rich SSR listing + structured data with low confidence + "paste a URL" warning).
 - New pipeline recovers 12-15 case studies on Legora/Beamery/HappyRobot where the old scraper returned 0.
 
-## Phase 9: Realtime Suggestions — Speed + Relevance Overhaul
+## Phase 9: Guided Onboarding + Relevance-Ranked Knowledge Base
+Fixes two defects: (1) onboarding azure.microsoft.com/en-gb returned all-SAP case studies; (2) the user was never prompted for profile/source specifics (inputs were hidden behind collapsed toggles).
+
+### Backend — relevance + listing hygiene (fixes the SAP flood)
+- [x] 9.1 server/discovery/classify.js — narrow/vertical listing detection (/solutions/<x>/customers), locale-dedupe (prefers user locale -> en-us -> first), fragment-URL stripping; narrow + fragment listings down-ranked
+- [x] 9.2 server/discovery/url-discovery.js — diversifyCaseStudies(): per-listing contribution cap (narrow <=5, round-robin master-first) so one vertical listing cannot flood the bucket; userLocale-aware ranking
+- [x] 9.3 server/onboarding/relevance.js (new) — weighted keyword/phrase scorer (priorities/focusProducts=3, industries=2, personas/companyKeywords=1); URL-slug bonus; returns null when no seller context (preserves discovery order)
+- [x] 9.4 server/onboarding/source-collector.js — two-pass fetch->score->extract; demote case studies below RELEVANCE_FLOOR (0.12) to weak candidates only when the seller gave explicit focus; csDemoted telemetry + coverage warning
+
+### Backend — wizard support
+- [x] 9.5 server/onboarding/site-scanner.js (new) — scanSite(url): fast, discovery-only detection of products/solutions + case-study/docs/blog hubs (sitemap + homepage anchors + classifier; no per-page LLM, no headless)
+- [x] 9.6 routes/api.js — POST /api/onboarding/scan; threaded priorities + richer profile through start/add-documents/SSE
+- [x] 9.7 knowledge-generator.js — buildProfileContext extended with role, focusProducts, focusIndustries, companySize, personas, priorities
+
+### Frontend — guided wizard
+- [x] 9.8 Setup.jsx — stepped onboarding wizard: About you (5 structured fields) -> Website + upload -> Scan -> Priorities -> Confirm sources -> Run; replaces hidden collapsibles. Scan-race guard, dirty-field protection on source prefill, re-scan priority reconciliation, double-submit guard, EventSource cleanup
+
+### Tests
+- [x] 9.9 classify/diversity/relevance/collector/site-scanner unit tests (no live network); full suite 125 green
+- [x] 9.10 Live-validated: azure.microsoft.com/en-gb scan resolves the master /en-gb/resources/customer-stories hub (not the SAP narrow listing) + 24 products/24 solutions; beamery.com scan resolves /customers/ + 5 products/4 solutions
+
+## Phase 10: Maximize KB Volume + Soft Prioritisation (host-agnostic)
+Reframe from filtering to volume + ordering. User inputs now PRIORITISE (never delete) across all four KB types; targets raised and grounded via multi-pass generation; case-study harvest hardened generically; the only host-specific code (Microsoft adapter) retired.
+
+### Volume (quality-dependent — never padded/fabricated)
+- [x] 10.1 knowledge-generator.js — config-driven targets (DQ 100, proof 50, product truths 100, case-study inference 30); GEN_MAX_TOKENS 8000; GEN_INPUT_CHARS 48000
+- [x] 10.2 knowledge-generator.js — _generateItems() multi-pass continuation (chunk content, do-not-repeat avoid-list, dedupe by per-type identity, stop on target/exhaustion/no-new) for all four types
+- [x] 10.3 knowledge-generator.js — parseJsonArray + _salvageObjects() recover complete objects from truncated arrays
+- [x] 10.4 source-collector.js — BUNDLE_CHAR_CAP 45k->120k, MAX_PAGES_PER_BUNDLE 12->30; url-discovery perTypeBudget 20->30
+- [x] 10.5 routes/api.js — reads max_discovery_questions/max_proof_points/max_product_truths/max_case_studies_inferred config; passes targets into generate()
+
+### Soft prioritisation (order, never filter)
+- [x] 10.6 source-collector.js — hard demotion gate REMOVED; every extracted case study kept; relevance used only to sort (trusted -> relevance -> confidence); telemetry caseStudyOnFocus/OffFocus/Trusted
+- [x] 10.7 relevance.js — scoreCaseStudyDetailed rewritten for partial/proportional token matching + GENERIC_TERMS downweighting; matchedFocus is telemetry-only, not a gate
+- [x] 10.8 knowledge-generator.js — profileCtx threaded into ALL four generators; DQ prompt actively tailors to role/persona/industry/segment; soft "lead with these, still include others" language everywhere
+
+### Host-agnostic case-study harvest
+- [x] 10.9 headless-fetcher.js — listing mode: bounded scroll/load-more loop (driveListing) accumulating anchors across rounds (handles list-replacing pagination); generic JSON-response sniffing (extractStoryUrlsFromJson) for SPA tiles; playwright injection seam for tests
+- [x] 10.10 page-fetcher.js — forced listings prefer rendered result when it surfaces candidate STORY links (story-path heuristic, not nav chrome) even if text is thinner; threads jsonLinks
+- [x] 10.11 url-discovery.js — expand() merges DOM links (primary) + jsonLinks (secondary) with host-check, dedupe, harvestMethod provenance; jsonHarvestedLinks/listingExpansionIncomplete telemetry
+- [x] 10.12 RETIRED server/discovery/adapters/microsoft.js (the SAP-flood sitemap firehose); registry now empty []; generic SPA harvest replaces its value. No host-specific code ships.
+
+### UI
+- [x] 10.13 OnboardingWizard.jsx — "ranking/limiting" copy replaced with prioritisation language ("others still included")
+- [x] 10.14 KB.jsx — per-type counts already shown; thin-grounding coverage warnings now surfaced at first-run parity with Setup.jsx (BackgroundProcessContext carries coverage)
+
+### Tests
+- [x] 10.15 headless-fetcher.test.js (new, fake-browser): JSON extraction, listing loop + accumulation, non-listing isolation, graceful degrade; page-fetcher listing link-preference + jsonLinks threading; full suite 146 green
+
+## Phase 11: Realtime Suggestions — Speed + Relevance Overhaul
 Target: cut customer-statement -> suggestion latency from 3-5s to <=1.5s and sharpen relevance.
 
 ### G. Instrumentation (baseline)
@@ -169,23 +218,23 @@ Target: cut customer-statement -> suggestion latency from 3-5s to <=1.5s and sha
 - [ ] Live latency measurement pending real audio session
 - [ ] RISK: Azure/managed deployments must expose a gpt-4o-mini-transcribe deployment (verify availability)
 
-### Phase 9 addendum: single-model transcription
+### Phase 11 addendum: single-model transcription
 - [x] Realtime transcription session now connects via the transcription model itself (intent=transcription), so a separate realtime host deployment (gpt-realtime-mini) is no longer required. realtimeModel/realtimeDeployment kept only as a backward-compatible fallback.
 - [x] gpt-4o-mini-transcribe is the single deployment for all transcription elements (managed default + provider default).
 - [x] Azure: realtime deployment no longer required by loadProvider or the settings API; added a Transcription deployment field in Setup + AI Models settings (maps to transcription_model). Verified live against Azure AI Foundry (single gpt-4o-mini-transcribe deployment hosts + transcribes).
 
-### Phase 10: suggestion trigger timestamps + source links
+### Phase 12: suggestion trigger timestamps + source links
 - [x] Each surfaced suggestion carries a triggeredAt timestamp = when the customer spoke the triggering statement (WS passes statementAt -> engine stamps ISO time; shown on the live SuggestionCard and in the session summary).
 - [x] Case study, proof point and product truth suggestions render a clickable source link when present. Case studies/proof points already had link data; added an optional link field to product truths (empty for existing entries).
 - [x] knowledge-base.js product truths gained an optional link field; knowledge-generator.js prompt + normalization capture a source URL/file for newly generated product truths; KB page shows the product-truth source link.
 - [x] Server suite green (131 tests); web build clean.
 
-### Phase 11: suggestion variety + "why" tooltip
+### Phase 13: suggestion variety + "why" trigger line
 - [x] Root cause measured: single-vector cosine favours discovery questions (they embed closest to customer statements), so the old relative-margin candidate set was ~57% discovery and the LLM could only pick DQs even on clear evidence moments. Not a missing-data problem (KB: dq=105 cs=59 pp=47 pt=159, all embedded).
 - [x] V1 Per-type retrieval quotas in _selectCandidates (discovery 4 / case_study 3 / proof_point 2 / product_truth 3 = MAX_CANDIDATES) so the LLM always sees a fair multi-type shortlist. Under-fill tops up to MIN_CANDIDATES; nothing padded below the floor.
 - [x] V2 Hybrid semantic+trigger scoring in _semanticCandidates: final = cosine + min(triggerHits,3)x0.04 using each item's curated triggers (lifts evidence when the customer literally says "AWS", "SLA", "Gartner", "data residency", etc). Bounded so keywords can't win alone. Shared _triggerHits helper reused by the no-embeddings fallback.
 - [x] V3 Decision-LLM steering: DECISION_SYSTEM now prefers evidence on skepticism/proof/competitor/requirement/product questions (still free choice, no routing); buildDecisionPrompt adds a "RECENTLY SHOWN" line from recent suggestion types.
 - [x] V4 Anti-monotony rotation: engine tracks recentTypes (last 3); selection applies a soft -0.03 de-emphasis to the most-recently-used type. Gentle, not a ban.
-- [x] V5 "Why" tooltip (verbatim-grounded): engine _groundTrigger accepts the LLM trigger only if it is a real substring of the recent transcript, else falls back to the verbatim pivotal utterance — every surfaced suggestion carries a genuine customer quote. SuggestionCard shows a subtle quote glyph + native title tooltip Trigger: "<words>"; SessionSummary rows get the same tooltip. Card stays minimal.
+- [x] V5 "Why" trigger (verbatim-grounded): engine _groundTrigger accepts the LLM trigger only if it is a real substring of the recent transcript, else falls back to the verbatim pivotal utterance — every surfaced suggestion carries a genuine customer quote. SuggestionCard shows an always-visible muted, truncated trigger line ("why now") with the full quote in the title on hover; SessionSummary rows get the same tooltip. Card stays minimal.
 - [x] V6 Tests + verify: 137 server tests green (added quota multi-type guarantee, hybrid ranking, anti-monotony, prompt steering + recent-types, verbatim grounding kept/fallback). Web bundle rebuilt clean.
 - [x] Offline diagnostic re-run vs real KB: candidate composition shifted from ~57% discovery to dq=32 cs=21 pp=12 pt=19 across 8 utterances (evidence now the majority of seats); proof/skepticism utterance tops with proof_point, SLA utterance fast-paths a product_truth, security tops with product_truth.

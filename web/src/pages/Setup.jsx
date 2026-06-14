@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import OnboardingWizard from '../components/OnboardingWizard';
 
 function SecurityModal({ onClose }) {
   return (
@@ -50,7 +51,7 @@ function SecurityModal({ onClose }) {
               </li>
               <li className="flex gap-2">
                 <span className="text-gray-400 shrink-0">&#8226;</span>
-                <span><strong>Embeddings</strong> — text is converted to numeric vectors for semantic matching. See "How search works" below for details.</span>
+                <span><strong>Embeddings</strong>: text is converted to numeric vectors for semantic matching. See "How search works" below for details.</span>
               </li>
               <li className="flex gap-2">
                 <span className="text-gray-400 shrink-0">&#8226;</span>
@@ -120,48 +121,16 @@ export default function Setup({ onComplete }) {
   const [saving, setSaving] = useState(false);
   const [showSecurity, setShowSecurity] = useState(false);
 
-  // Onboarding state
-  const fileInputRef = useRef(null);
-  const [websiteUrl, setWebsiteUrl] = useState('');
-  const [files, setFiles] = useState([]);
-  const [uploadedFiles, setUploadedFiles] = useState([]);
+  // Onboarding state — the data-gathering wizard lives in <OnboardingWizard/>; this page
+  // owns the run lifecycle (start + SSE progress + results).
   const [onboardingStatus, setOnboardingStatus] = useState('idle');
   const [onboardingMessages, setOnboardingMessages] = useState([]);
   const [onboardingCounts, setOnboardingCounts] = useState(null);
   const [onboardingCoverage, setOnboardingCoverage] = useState(null);
+  const eventSourceRef = useRef(null);
 
-  // Guided multi-source + profile inputs (all optional beyond the main URL/files)
-  const [showSources, setShowSources] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
-  const [sourceUrls, setSourceUrls] = useState({ caseStudies: '', blog: '', docs: '' });
-  const [profile, setProfile] = useState({ personas: '', icpIndustry: '', icpCompanySize: '', competitors: '' });
-
-  // Split a textarea/comma string into a clean array of URLs or terms.
-  function splitList(value) {
-    return (value || '')
-      .split(/[\n,]/)
-      .map(s => s.trim())
-      .filter(Boolean);
-  }
-
-  function buildSourcePayload() {
-    return {
-      caseStudies: splitList(sourceUrls.caseStudies),
-      blog: splitList(sourceUrls.blog),
-      docs: splitList(sourceUrls.docs)
-    };
-  }
-
-  function buildProfilePayload() {
-    const personas = splitList(profile.personas);
-    const competitors = splitList(profile.competitors);
-    const p = {};
-    if (personas.length) p.personas = personas;
-    if (competitors.length) p.competitors = competitors;
-    if (profile.icpIndustry.trim()) p.icpIndustry = profile.icpIndustry.trim();
-    if (profile.icpCompanySize.trim()) p.icpCompanySize = profile.icpCompanySize.trim();
-    return Object.keys(p).length ? p : null;
-  }
+  // Tear down any live SSE stream on unmount.
+  useEffect(() => () => { try { eventSourceRef.current?.close(); } catch { /* noop */ } }, []);
 
   async function handleSelectManaged() {
     setSaving(true);
@@ -208,7 +177,7 @@ export default function Setup({ onComplete }) {
       try {
         data = JSON.parse(text);
       } catch {
-        data = { valid: false, error: text || 'Connection test failed — no response from server' };
+        data = { valid: false, error: text || 'Connection test failed: no response from server' };
       }
       setTestResult(data);
 
@@ -221,32 +190,17 @@ export default function Setup({ onComplete }) {
     setTesting(false);
   }
 
-  async function handleUploadFiles() {
-    if (files.length === 0) return;
-
-    const formData = new FormData();
-    for (const f of files) {
-      formData.append('documents', f);
-    }
-
-    const res = await fetch('/api/onboarding/upload', {
-      method: 'POST',
-      body: formData
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      setUploadedFiles(data.files);
-    }
-  }
-
-  async function handleStartOnboarding() {
+  async function handleStartOnboarding({ websiteUrl, files, profile, priorities, sourceUrls }) {
+    if (onboardingStatus === 'running') return; // guard against double-submit
     setOnboardingStatus('running');
     setOnboardingMessages([]);
+    setOnboardingCounts(null);
+    setOnboardingCoverage(null);
+    try { eventSourceRef.current?.close(); } catch { /* noop */ }
 
-    // Upload files if not yet uploaded
-    let filesToSend = uploadedFiles;
-    if (files.length > 0 && uploadedFiles.length === 0) {
+    // Upload any selected files first.
+    let filesToSend = [];
+    if (files && files.length > 0) {
       const formData = new FormData();
       for (const f of files) {
         formData.append('documents', f);
@@ -268,8 +222,9 @@ export default function Setup({ onComplete }) {
       body: JSON.stringify({
         websiteUrl: websiteUrl || null,
         uploadedFiles: filesToSend.length > 0 ? filesToSend : null,
-        sourceUrls: buildSourcePayload(),
-        profile: buildProfilePayload()
+        sourceUrls: sourceUrls || null,
+        profile: profile || null,
+        priorities: priorities || []
       })
     });
 
@@ -284,6 +239,7 @@ export default function Setup({ onComplete }) {
 
     // Connect to SSE stream
     const eventSource = new EventSource(`/api/onboarding/stream?token=${sseToken}`);
+    eventSourceRef.current = eventSource;
 
     eventSource.addEventListener('progress', (e) => {
       const data = JSON.parse(e.data);
@@ -542,176 +498,9 @@ export default function Setup({ onComplete }) {
         {step === 2 && (
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <h2 className="text-lg font-semibold mb-4">Step 2: Build your knowledge base</h2>
-            <p className="text-sm text-gray-500 mb-4">
-              Enter your company website and/or upload sales documents. Clumo will extract case studies,
-              discovery questions, and proof points.
-            </p>
 
             {onboardingStatus === 'idle' && (
-              <>
-                <div className="space-y-3">
-                  <input
-                    type="url"
-                    placeholder="Company website URL (e.g. https://yourcompany.com)"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    value={websiteUrl}
-                    onChange={e => setWebsiteUrl(e.target.value)}
-                  />
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Upload documents (optional)
-                    </label>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      multiple
-                      accept=".pdf,.docx,.pptx,.md,.txt"
-                      className="hidden"
-                      onChange={e => setFiles(Array.from(e.target.files))}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current.click()}
-                      className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:border-gray-900 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                      </svg>
-                      Choose Files
-                    </button>
-                    {files.length > 0 && (
-                      <p className="text-sm text-gray-600 mt-2 font-medium">{files.length} file(s) selected</p>
-                    )}
-                  </div>
-
-                  {/* Optional: specific source URLs per knowledge type */}
-                  <div className="border border-gray-200 rounded-md">
-                    <button
-                      type="button"
-                      onClick={() => setShowSources(v => !v)}
-                      className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                      <span>Add specific sources (optional)</span>
-                      <span className="text-gray-400">{showSources ? '–' : '+'}</span>
-                    </button>
-                    {showSources && (
-                      <div className="px-3 pb-3 space-y-2">
-                        <p className="text-xs text-gray-500">
-                          Paste exact URLs to boost quality. One per line. Helpful when your case
-                          studies or docs live on a different page or render with JavaScript.
-                        </p>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Customer / case-study pages</label>
-                          <textarea
-                            rows={2}
-                            placeholder="https://yourcompany.com/customers/acme"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono"
-                            value={sourceUrls.caseStudies}
-                            onChange={e => setSourceUrls({ ...sourceUrls, caseStudies: e.target.value })}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Blog / research / ROI pages</label>
-                          <textarea
-                            rows={2}
-                            placeholder="https://yourcompany.com/blog/roi-study"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono"
-                            value={sourceUrls.blog}
-                            onChange={e => setSourceUrls({ ...sourceUrls, blog: e.target.value })}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Docs / product pages</label>
-                          <textarea
-                            rows={2}
-                            placeholder="https://docs.yourcompany.com"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono"
-                            value={sourceUrls.docs}
-                            onChange={e => setSourceUrls({ ...sourceUrls, docs: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Optional: who you sell to (sharpens discovery questions + differentiation) */}
-                  <div className="border border-gray-200 rounded-md">
-                    <button
-                      type="button"
-                      onClick={() => setShowProfile(v => !v)}
-                      className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                      <span>Who do you sell to? (optional)</span>
-                      <span className="text-gray-400">{showProfile ? '–' : '+'}</span>
-                    </button>
-                    {showProfile && (
-                      <div className="px-3 pb-3 space-y-2">
-                        <p className="text-xs text-gray-500">
-                          This tailors discovery questions and competitive differentiation to your buyers.
-                        </p>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Buyer personas / titles</label>
-                          <input
-                            type="text"
-                            placeholder="VP Sales, RevOps, CFO"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                            value={profile.personas}
-                            onChange={e => setProfile({ ...profile, personas: e.target.value })}
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">ICP industry</label>
-                            <input
-                              type="text"
-                              placeholder="Telecom"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                              value={profile.icpIndustry}
-                              onChange={e => setProfile({ ...profile, icpIndustry: e.target.value })}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Company size</label>
-                            <input
-                              type="text"
-                              placeholder="1,000+ employees"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                              value={profile.icpCompanySize}
-                              onChange={e => setProfile({ ...profile, icpCompanySize: e.target.value })}
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Key competitors</label>
-                          <input
-                            type="text"
-                            placeholder="Competitor A, Competitor B"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                            value={profile.competitors}
-                            onChange={e => setProfile({ ...profile, competitors: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-6 flex gap-3">
-                  <button
-                    onClick={() => setStep(1)}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50"
-                  >
-                    Back
-                  </button>
-                  <button
-                    onClick={handleStartOnboarding}
-                    disabled={!websiteUrl && files.length === 0}
-                    className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-md text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
-                  >
-                    Generate Knowledge Base
-                  </button>
-                </div>
-              </>
+              <OnboardingWizard onSubmit={handleStartOnboarding} onBack={() => setStep(1)} />
             )}
 
             {onboardingStatus === 'running' && (
@@ -768,7 +557,7 @@ export default function Setup({ onComplete }) {
                         You can paste specific URLs and re-run, or add them later from the Knowledge Base page.
                       </p>
                       <button
-                        onClick={() => { setShowSources(true); setOnboardingStatus('idle'); setOnboardingMessages([]); }}
+                        onClick={() => { setOnboardingStatus('idle'); setOnboardingMessages([]); }}
                         className="mt-3 px-3 py-1.5 border border-amber-300 bg-white rounded-md text-sm font-medium text-amber-800 hover:bg-amber-100"
                       >
                         Add a source &amp; re-run

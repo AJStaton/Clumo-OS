@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useBackgroundProcess } from '../context/BackgroundProcessContext';
+import OnboardingWizard from '../components/OnboardingWizard';
 
 const ONBOARDING_PROCESS_ID = 'kb-onboarding';
 const ADD_CONTENT_PROCESS_ID = 'kb-add-content';
@@ -14,10 +15,7 @@ export default function KB() {
   const [addFiles, setAddFiles] = useState([]);
   const fileInputRef = useRef(null);
 
-  // First-time setup state
-  const [setupUrl, setSetupUrl] = useState('');
-  const [setupFiles, setSetupFiles] = useState([]);
-  const setupFileRef = useRef(null);
+  // First-time setup is handled by the shared OnboardingWizard component.
 
   // Derive status from background processes
   const onboardingProcess = processes[ONBOARDING_PROCESS_ID];
@@ -25,6 +23,7 @@ export default function KB() {
   const setupStatus = onboardingProcess?.status || 'idle';
   const setupMessages = onboardingProcess?.messages || [];
   const setupCounts = onboardingProcess?.counts || null;
+  const setupCoverage = onboardingProcess?.coverage || null;
   const addStatus = addContentProcess?.status || 'idle';
   const addMessages = addContentProcess?.messages || [];
 
@@ -61,7 +60,7 @@ export default function KB() {
       .catch(() => setLoading(false));
   }
 
-  async function handleFirstTimeSetup() {
+  async function handleFirstTimeSetup({ websiteUrl, files, profile, priorities, sourceUrls }) {
     // Pre-check: verify AI provider is configured
     try {
       const statusRes = await fetch('/api/status');
@@ -81,9 +80,9 @@ export default function KB() {
 
     // Upload files first if any
     let filesToSend = [];
-    if (setupFiles.length > 0) {
+    if (files && files.length > 0) {
       const formData = new FormData();
-      for (const f of setupFiles) {
+      for (const f of files) {
         formData.append('documents', f);
       }
       const uploadRes = await fetch('/api/onboarding/upload', {
@@ -101,8 +100,11 @@ export default function KB() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        websiteUrl: setupUrl || null,
-        uploadedFiles: filesToSend.length > 0 ? filesToSend : null
+        websiteUrl: websiteUrl || null,
+        uploadedFiles: filesToSend.length > 0 ? filesToSend : null,
+        sourceUrls: sourceUrls || null,
+        profile: profile || null,
+        priorities: priorities || []
       })
     });
 
@@ -258,45 +260,7 @@ export default function KB() {
           </p>
 
           {setupStatus === 'idle' && (
-            <div className="space-y-4">
-              <input
-                type="url"
-                placeholder="Company website URL (e.g. https://yourcompany.com)"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md text-sm"
-                value={setupUrl}
-                onChange={e => setSetupUrl(e.target.value)}
-              />
-              <div>
-                <input
-                  ref={setupFileRef}
-                  type="file"
-                  multiple
-                  accept=".pdf,.docx,.pptx,.md,.txt"
-                  className="hidden"
-                  onChange={e => setSetupFiles(Array.from(e.target.files))}
-                />
-                <button
-                  type="button"
-                  onClick={() => setupFileRef.current.click()}
-                  className="w-full px-4 py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-gray-900 dark:hover:border-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                  </svg>
-                  Upload Documents (.pdf, .docx, .pptx, .md, .txt)
-                </button>
-                {setupFiles.length > 0 && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 font-medium">{setupFiles.length} file(s) selected</p>
-                )}
-              </div>
-              <button
-                onClick={handleFirstTimeSetup}
-                disabled={!setupUrl && setupFiles.length === 0}
-                className="w-full px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-md text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-50"
-              >
-                Generate Knowledge Base
-              </button>
-            </div>
+            <OnboardingWizard onSubmit={handleFirstTimeSetup} />
           )}
 
           {setupStatus === 'running' && (
@@ -319,6 +283,29 @@ export default function KB() {
                   {setupCounts.productTruths > 0 && <li>{setupCounts.productTruths} product truths</li>}
                 </ul>
               )}
+              {setupCoverage && (() => {
+                const labels = {
+                  case_study: 'Case studies',
+                  proof_point: 'Proof points',
+                  product_truth: 'Product truths',
+                  discovery_question: 'Discovery questions'
+                };
+                const warnings = Object.entries(setupCoverage)
+                  .filter(([, c]) => c && c.warning)
+                  .map(([type, c]) => ({ type, label: labels[type] || type, ...c }));
+                if (warnings.length === 0) return null;
+                return (
+                  <div className="mt-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-md p-3">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-1.5">Some sources came back thin</p>
+                    <ul className="text-sm text-amber-700 dark:text-amber-400 space-y-1">
+                      {warnings.map(w => (
+                        <li key={w.type}><strong>{w.label}:</strong> {w.warning}</li>
+                      ))}
+                    </ul>
+                    <p className="text-xs text-amber-600 dark:text-amber-500 mt-1.5">Add a docs, blog, or customer-story URL and re-run for more.</p>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -363,7 +350,7 @@ export default function KB() {
               <div key={item.id || i} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                 {tab === 'caseStudies' && (
                   <>
-                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">{item.company} — {item.headline}</p>
+                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">{item.company}: {item.headline}</p>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{item.result}</p>
                     <div className="mt-2 flex flex-wrap gap-1">
                       {(item.triggers || []).slice(0, 5).map((t, j) => (

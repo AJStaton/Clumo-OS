@@ -437,3 +437,108 @@ studies on Legora/Beamery/HappyRobot where the old scraper returned 0.
 ### Status
 Implemented + unit-tested (108 server tests green) + live-smoke validated. Packaged-build
 smoke on Win/macOS deferred (needs installer build env).
+
+### Phase 9: Guided Onboarding + Relevance-Ranked Knowledge Base ✓
+
+Turns onboarding into a short guided wizard that builds hyper-relevance from the first screen,
+and ranks case studies to what the seller actually sells. Fixes two reported defects:
+
+1. **All-SAP case studies for azure.microsoft.com/en-gb.** Root cause: discovery filled the
+   case-study bucket with listing pages, one of which (/solutions/sap/customers) is a single-vendor
+   vertical listing; it was headless-expanded and flooded the bucket. There was no per-listing
+   diversity cap, no relevance ranking, and locale duplicates wasted the expansion budget.
+2. **User never prompted for profile/sources.** The per-type source inputs and seller profile were
+   hidden behind collapsed `+` toggles defaulting to false, so the highest-leverage relevance
+   inputs were never collected.
+
+**Backend — relevance + hygiene.** classify.js detects narrow/vertical vs master customer-stories
+listings, locale-dedupes (preferring the user's locale), and strips fragment URLs. url-discovery.js
+caps per-listing contribution and round-robins master-first so one listing cannot dominate.
+A new relevance.js scores each fetched case study against {priorities, focusProducts,
+focusIndustries, personas, company keywords}; source-collector.js demotes low-relevance stories to
+weak candidates only when the seller supplied explicit focus (otherwise discovery order is kept).
+
+**Backend — wizard support.** New site-scanner.js (scanSite) does fast, discovery-only detection of
+the products/solutions a site offers plus its case-study/docs/blog hubs (no per-page LLM, no headless).
+New POST /api/onboarding/scan endpoint powers the wizard; priorities + a richer profile
+({role, focusProducts, focusIndustries, companySize, personas, competitors}) thread through
+start/add-documents/SSE and into buildProfileContext.
+
+**Frontend — guided wizard (Setup.jsx).** Stepped flow: About you (role segmented control;
+products/industries/competitors chip inputs; company-size + persona preset chips) -> Website +
+upload -> Scan -> Priorities (chips from the scan, pre-checked by focusProducts match) ->
+Confirm sources (pre-filled from detected hubs, editable) -> Run. Hardened against scan races,
+dirty-field clobbering on re-scan, stale priorities, and double-submit; EventSource torn down on unmount.
+
+**Local-first preserved:** the scan reads only the provided site; the only external calls remain the
+configured AI provider and the site being scraped. The about-you step and scan use no LLM.
+
+### Files
+- server/discovery/classify.js, server/discovery/url-discovery.js (listing hygiene + diversity)
+- server/onboarding/relevance.js (new), server/onboarding/site-scanner.js (new)
+- server/onboarding/source-collector.js (relevance ranking + demotion)
+- server/routes/api.js (/scan endpoint + priorities threading), server/knowledge-generator.js (profile context)
+- web/src/pages/Setup.jsx (guided wizard)
+
+### Status
+Implemented + unit-tested (125 server tests green). Live-validated: azure.microsoft.com/en-gb scan
+resolves the master /en-gb/resources/customer-stories hub (not the SAP narrow listing) with
+24 products / 24 solutions; beamery.com resolves /customers/ with 5 products / 4 solutions.
+
+---
+
+## Phase 10: Maximize KB Volume + Soft Prioritisation (host-agnostic) ✓
+
+**Problem.** The KB onboarding both under-produced and mis-prioritised. Narrow inputs collapsed
+the KB to a handful of stories (a hard demotion gate deleted off-focus case studies), while
+azure.microsoft.com flooded with generic SAP stories from a Microsoft-specific sitemap adapter.
+Volume was capped by low hardcoded prompt targets, small output-token ceilings, and a thin
+20k-char input slice; SPA listings (Beamery-style) yielded ~1 story from a single render pass.
+
+**Design principles (user).** (1) Inputs tailor Discovery Questions to the buyer/industry/segment.
+(2) Inputs PRIORITISE, never hard-filter — they raise on-focus items up the order across all four
+types, never remove or cap them. (3) Maximize the initial KB; the realtime pipeline refines later.
+(4-6) Raise targets: DQ -> up to 100, Proof Points -> up to 50, Product Truths -> up to 100 — all
+quality-dependent (never padded/fabricated). Must be a production solution that works across many
+websites — NO per-vendor code.
+
+**Volume.** Targets are config-driven (max_discovery_questions/proof_points/product_truths/
+case_studies_inferred) with new defaults. Generation uses a multi-pass continuation (_generateItems):
+chunk the (wider, 48k) source, request up to the remaining target per pass with a do-not-repeat
+avoid-list, dedupe by per-type identity, and stop on target/exhaustion/no-new — so high volume is
+achieved by grounding more source, not by inflating one response. Truncated JSON arrays are salvaged
+object-by-object. Source bundles widened (120k chars / 30 pages).
+
+**Soft prioritisation.** The hard case-study demotion gate is gone: every extracted story is kept,
+and relevance only ORDERS them (trusted/seller-intent -> relevance -> confidence). Relevance scoring
+moved to partial/proportional token matching with generic-term downweighting (ranking signal, not a
+gate). The seller profile now threads into ALL four generators, and the DQ prompt actively tailors
+questions to the chosen role/persona/industry/segment.
+
+**Host-agnostic harvest (replaces the vendor adapter).** The headless fetcher gained a generic
+listing mode: a bounded scroll/"load more"/"next" interaction loop that accumulates anchors across
+rounds (so list-replacing pagination doesn't lose earlier pages), plus generic JSON-response
+sniffing that extracts story-like URLs from any SPA's backing API. The page fetcher keeps a rendered
+listing when it surfaces candidate STORY links (story-path heuristic, not nav chrome). url-discovery
+merges DOM links (primary) + JSON links (secondary) with provenance. The Microsoft adapter — the only
+host-specific code and the source of the SAP flood — was deleted; the registry is now empty and the
+generic harvest covers SPA listings across sites.
+
+**UI.** Wizard copy reframed from "ranking/limiting" to prioritisation ("others still included").
+Per-type counts already shown; thin-grounding coverage warnings now surface at first-run in KB.jsx
+(parity with Setup.jsx).
+
+### Files
+- server/knowledge-generator.js (config targets, multi-pass _generateItems, profile in all four, JSON salvage)
+- server/routes/api.js (config-driven targets -> generate)
+- server/onboarding/source-collector.js (demotion gate removed; rank-only; trust/focus telemetry; wider bundles)
+- server/onboarding/relevance.js (partial-match scoring + generic-term downweighting)
+- server/fetch/headless-fetcher.js (listing mode: driveListing + JSON sniff + anchor accumulation; playwright injection)
+- server/fetch/page-fetcher.js (listing link-preference via story-path heuristic; jsonLinks threading)
+- server/discovery/url-discovery.js (DOM + JSON link merge with provenance; perTypeBudget 30)
+- server/discovery/adapters/ (microsoft.js DELETED; registry emptied)
+- web: OnboardingWizard.jsx (prioritisation copy), KB.jsx + BackgroundProcessContext.jsx (coverage at first-run)
+
+### Status
+Implemented + unit-tested. Full server suite 146 green (adds fake-browser headless-fetcher tests and
+page-fetcher listing tests). Web bundle rebuilt. No host-specific code remains in the discovery path.
