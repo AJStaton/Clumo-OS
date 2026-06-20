@@ -16,6 +16,7 @@ const { scanSite } = require('../onboarding/site-scanner');
 const DocumentParser = require('../document-parser');
 const KnowledgeGenerator = require('../knowledge-generator');
 const { generateAnalysis, formatSessionName } = require('../analysis');
+const crm = require('../crm-provider');
 
 const router = express.Router();
 
@@ -609,6 +610,135 @@ router.patch('/api/preferences', (req, res) => {
     theme: db.getConfig('theme') || 'system'
   };
   res.json(current);
+});
+
+// ============================================
+// CRM INTEGRATIONS
+// ============================================
+
+// Resolve a connected provider instance, or send the appropriate error.
+// Returns null (and ends the response) when unavailable / not connected.
+function resolveProvider(req, res) {
+  const id = req.params.provider;
+  if (!crm.getProviderClass(id)) {
+    res.status(404).json({ error: `Provider '${id}' is not available yet` });
+    return null;
+  }
+  const cfg = crm.getCrmConfig();
+  if (!cfg.connected || cfg.provider !== id) {
+    res.status(400).json({ error: 'CRM is not connected' });
+    return null;
+  }
+  return crm.loadCrmProvider(id);
+}
+
+function crmErrorStatus(e) {
+  // Auth/precondition problems are the user's to fix -> 400; everything else 502.
+  return e && typeof e.code === 'string' && e.code.startsWith('AZ_') ? 400 : 502;
+}
+
+// List providers, their capability descriptors, and connection status.
+router.get('/api/integrations', (req, res) => {
+  const cfg = crm.getCrmConfig();
+  const providers = crm.listProviderCatalog().map(p => {
+    const Cls = crm.getProviderClass(p.id);
+    const descriptor = Cls ? new Cls().getCapabilities() : null;
+    const connected = cfg.connected && cfg.provider === p.id;
+    return {
+      ...p,
+      descriptor,
+      connected,
+      userName: connected ? cfg.userName : null
+    };
+  });
+  res.json({ providers, active: cfg.connected ? cfg.provider : null });
+});
+
+// Connect: authenticate as the current user and persist the connection.
+router.post('/api/integrations/:provider/connect', async (req, res) => {
+  const id = req.params.provider;
+  const Cls = crm.getProviderClass(id);
+  if (!Cls) {
+    return res.status(400).json({ connected: false, error: `Provider '${id}' is not available yet` });
+  }
+  try {
+    const provider = new Cls({ orgUrl: db.getConfig('crm_org_url') || undefined });
+    const result = await provider.testConnection();
+    crm.saveCrmConnection(id, {
+      userName: result.userName,
+      userId: result.userId,
+      orgUrl: provider.orgUrl
+    });
+    res.json({ connected: true, provider: id, userName: result.userName });
+  } catch (e) {
+    console.error('[CRM] Connect failed:', e.message);
+    res.status(crmErrorStatus(e)).json({ connected: false, error: e.message, code: e.code });
+  }
+});
+
+// Disconnect: forget the saved connection.
+router.post('/api/integrations/:provider/disconnect', (req, res) => {
+  crm.clearCrmConnection();
+  res.json({ connected: false });
+});
+
+// Level 1: parents (accounts/companies) assigned to the current user.
+router.get('/api/integrations/:provider/parents', async (req, res) => {
+  const provider = resolveProvider(req, res);
+  if (!provider) return;
+  try {
+    res.json({ items: await provider.listParents() });
+  } catch (e) {
+    console.error('[CRM] listParents failed:', e.message);
+    res.status(crmErrorStatus(e)).json({ error: e.message, code: e.code });
+  }
+});
+
+// Level 2: records (opportunities/deals) under a parent.
+router.get('/api/integrations/:provider/parents/:parentId/records', async (req, res) => {
+  const provider = resolveProvider(req, res);
+  if (!provider) return;
+  try {
+    res.json({ items: await provider.listRecords(req.params.parentId) });
+  } catch (e) {
+    console.error('[CRM] listRecords failed:', e.message);
+    res.status(crmErrorStatus(e)).json({ error: e.message, code: e.code });
+  }
+});
+
+// Search a record by its external/business ID.
+router.get('/api/integrations/:provider/records/search', async (req, res) => {
+  const provider = resolveProvider(req, res);
+  if (!provider) return;
+  const number = req.query.number;
+  if (!number || !String(number).trim()) {
+    return res.status(400).json({ error: 'A record ID is required' });
+  }
+  try {
+    const record = await provider.findByExternalId(number);
+    if (!record) return res.status(404).json({ error: 'No matching record found' });
+    res.json(record);
+  } catch (e) {
+    console.error('[CRM] findByExternalId failed:', e.message);
+    res.status(crmErrorStatus(e)).json({ error: e.message, code: e.code });
+  }
+});
+
+// Append a note to a record.
+router.post('/api/integrations/:provider/records/:recordId/notes', async (req, res) => {
+  const provider = resolveProvider(req, res);
+  if (!provider) return;
+  const { text } = req.body || {};
+  if (!text || !String(text).trim()) {
+    return res.status(400).json({ error: 'Note text is required' });
+  }
+  try {
+    const result = await provider.appendNote(req.params.recordId, String(text).trim());
+    res.json(result);
+  } catch (e) {
+    console.error('[CRM] appendNote failed:', e.message);
+    res.status(crmErrorStatus(e)).json({ error: e.message, code: e.code });
+  }
 });
 
 module.exports = router;

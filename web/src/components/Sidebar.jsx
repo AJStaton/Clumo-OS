@@ -348,9 +348,16 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
           >
             AI Models
           </NavLink>
-          <span className="block px-3 py-1.5 text-xs text-gray-300 dark:text-gray-600 cursor-not-allowed">
-            Integrations <span className="text-[10px]">(coming soon)</span>
-          </span>
+          <NavLink
+            to="/settings/integrations"
+            className={({ isActive }) =>
+              `block px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                isActive ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-800 dark:hover:text-gray-200'
+              }`
+            }
+          >
+            Integrations
+          </NavLink>
           <span className="block px-3 py-1.5 text-xs text-gray-300 dark:text-gray-600 cursor-not-allowed">
             Automations <span className="text-[10px]">(coming soon)</span>
           </span>

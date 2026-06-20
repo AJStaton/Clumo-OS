@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import MeddpiccTracker from './MeddpiccTracker';
+import SyncToCrmPanel from './SyncToCrmPanel';
 
 function CopyButton({ text, label = 'Copy' }) {
   const [copied, setCopied] = useState(false);
@@ -170,6 +171,9 @@ export default function SessionSummary({ session, analysis, badge, onAnalyze, an
                 </div>
               </div>
             )}
+
+            {/* Sync to CRM */}
+            <SyncToCrmPanel analysis={analysis} />
 
             {/* Next Meeting Prep */}
             {analysis.nextMeeting && (

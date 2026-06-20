@@ -238,3 +238,35 @@ Target: cut customer-statement -> suggestion latency from 3-5s to <=1.5s and sha
 - [x] V5 "Why" trigger (verbatim-grounded): engine _groundTrigger accepts the LLM trigger only if it is a real substring of the recent transcript, else falls back to the verbatim pivotal utterance — every surfaced suggestion carries a genuine customer quote. SuggestionCard shows an always-visible muted, truncated trigger line ("why now") with the full quote in the title on hover; SessionSummary rows get the same tooltip. Card stays minimal.
 - [x] V6 Tests + verify: 137 server tests green (added quota multi-type guarantee, hybrid ranking, anti-monotony, prompt steering + recent-types, verbatim grounding kept/fallback). Web bundle rebuilt clean.
 - [x] Offline diagnostic re-run vs real KB: candidate composition shifted from ~57% discovery to dq=32 cs=21 pp=12 pt=19 across 8 utterances (evidence now the majority of seats); proof/skepticism utterance tops with proof_point, SLA utterance fast-paths a product_truth, security tops with product_truth.
+
+## Phase 14: CRM note sync (Dynamics 365 / MSX) — Phase 0
+Push a session's summary notes to the right Dynamics 365 (MSX) opportunity, picked via an Account → Opportunity cascade or by Opportunity ID. Built behind a CRM-agnostic provider abstraction (mirrors ai-provider.js) so Salesforce/HubSpot drop in later; the UI renders from a per-provider capability descriptor.
+
+### Auth (delegated, Phase 0)
+- [x] 14.1 server/crm/dynamics-auth.js — delegated Dataverse token via Azure CLI (pre-consented first-party public client, scope user_impersonation, ~1h auto-refresh). No app registration, no stored secret. getToken()/whoAmI() + AZ_NOT_FOUND/AZ_NOT_LOGGED_IN/AZ_ERROR classification. Phase 1 swaps this for in-app MSAL with no interface change.
+
+### Provider abstraction
+- [x] 14.2 server/crm-provider.js — DynamicsProvider implements generic verbs (getCapabilities/testConnection/listParents/listRecords/findByExternalId/appendNote) against the Dataverse Web API v9.2. MSX specifics (msp_* fields, msp_accountteam virtual entity) contained here. Registry + listProviderCatalog (dynamics=available, salesforce/hubspot=coming_soon) + loadCrmProvider + config helpers (no secret in Phase 0).
+- [x] 14.3 server/crm/note-format.js — pure, testable note composition: composeNote(analysis) (call notes + next steps), appendComment() appends into msp_forecastcommentsjsonfield JSON cards ({UPPER-GUID}/modifiedOn/comment, chronological) + mirrors the legacy plain-text field. Non-mutating; recovers from malformed JSON.
+
+### Verified facts (raw Dataverse Web API + delegated az token — no MCP)
+- Write confirmed via reversible PATCH test on a real opportunity (backup in session files/msx-comments-backup.json). Comments cards = msp_forecastcommentsjsonfield; legacy mirror = msp_forecastcomments. Business "Opportunity Id" = msp_opportunitynumber; PK = opportunityid.
+- L1 accounts: GET /msp_accountteams?$filter=_msp_systemuserid_value eq {me} (MSX virtual entity — needs filter, rejects $select). L2 opps: GET /opportunities?$filter=_parentaccountid_value eq {acc} and statecode eq 0. Search: msp_opportunitynumber eq '{id}'.
+
+### API routes (CRM-generic :provider segment)
+- [x] 14.4 routes/api.js — GET /api/integrations (catalog + descriptors + connection status); POST :provider/connect|disconnect; GET :provider/parents; GET :provider/parents/:parentId/records; GET :provider/records/search?number=; POST :provider/records/:recordId/notes. resolveProvider guard + crmErrorStatus (AZ_* → 400, else 502). Unknown providers 404.
+
+### UI (descriptor-driven, per-CRM)
+- [x] 14.5 web/src/pages/IntegrationsSettings.jsx — provider cards: Dynamics 365 Setup/Disconnect (shows signed-in user); Salesforce + HubSpot "Coming soon" (disabled). Auth initiated on Setup click, not app login. Routing enabled in App.jsx; Sidebar Integrations NavLink activated.
+- [x] 14.6 web/src/components/crm/GenericSyncPanel.jsx — renders the cascade entirely from the provider capability descriptor (step labels/order, ID-search affordance), editable note preview, Sync → POST notes with result/error. No CRM hardcoding.
+- [x] 14.7 web/src/components/crm/syncPanelRegistry.js — providerId → bespoke panel map, defaults to GenericSyncPanel (per-CRM UI override point).
+- [x] 14.8 web/src/components/SyncToCrmPanel.jsx — wrapper: resolves the connected provider + descriptor, picks the registry panel, composes the default note from analysis. Mounted in SessionSummary.jsx near the CRM Update card; shows a "set up an integration" hint when nothing is connected.
+
+### Tests + verification
+- [x] 14.9 server/tests/crm/note-format.test.js (11) + crm-provider.test.js (9, _request stubbed — no live MSX): braceGuid/formatModifiedOn/composeNote/appendComment; cascade mapping, ID-search quote-escaping, append GET-then-PATCH ordering, registry catalog. Full server suite green (207 tests); web build clean (vite).
+
+### Phasing
+- Phase 0 (this): Dynamics only, az-CLI delegated auth, full sync + cascade, SF/HubSpot placeholders.
+- Phase 1 (later): Clumo's own multi-tenant public client; in-app MSAL replaces the az shell; encrypt refresh token. No interface change.
+- Phase 2 (later): SalesforceProvider / HubSpotProvider behind the same interface + descriptor.
+
