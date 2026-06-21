@@ -89,12 +89,11 @@ describe('DynamicsProvider — findByExternalId', () => {
 });
 
 describe('DynamicsProvider — appendNote', () => {
-  it('reads existing comments then PATCHes an appended entry', async () => {
+  it('reads existing comments then PATCHes only the JSON cards field', async () => {
     const p = providerWithRequest(async (method) => {
       if (method === 'GET') {
         return {
-          msp_forecastcommentsjsonfield: JSON.stringify([{ comment: 'Old' }]),
-          msp_forecastcomments: 'Old'
+          msp_forecastcommentsjsonfield: JSON.stringify([{ comment: 'Old' }])
         };
       }
       return {};
@@ -107,7 +106,9 @@ describe('DynamicsProvider — appendNote', () => {
     const sent = JSON.parse(patchCall[2].data.msp_forecastcommentsjsonfield);
     expect(sent.map(e => e.comment)).toEqual(['Old', 'Fresh note']);
     expect(sent[1].userId).toBe('{ME-GUID}');
-    expect(patchCall[2].data.msp_forecastcomments).toBe('Old\nFresh note');
+    // Legacy plain-text field must NOT be written — MSX derives it from the
+    // cards. Writing it ourselves causes duplicated/double-prefixed entries.
+    expect(patchCall[2].data).not.toHaveProperty('msp_forecastcomments');
   });
 });
 
