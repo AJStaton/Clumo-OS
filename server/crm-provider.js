@@ -139,23 +139,26 @@ class DynamicsProvider {
     };
   }
 
-  // Append a note into the opportunity comments (JSON cards + legacy text).
+  // Append a note as a new comment card.
+  //
+  // We only write msp_forecastcommentsjsonfield (the JSON cards that back the
+  // Comments UI). MSX has a server-side plugin that derives the legacy plain-text
+  // msp_forecastcomments field FROM these cards, prefixing each with the author's
+  // initials and date (e.g. "AS - 21/Jun - ..."). Writing msp_forecastcomments
+  // ourselves fights that plugin and produces duplicated / double-prefixed
+  // entries, so we deliberately leave it untouched and let MSX sync it.
   async appendNote(recordId, text) {
     const userId = await this._me();
     const current = await this._request('GET', `/opportunities(${recordId})`, {
-      params: { $select: 'msp_forecastcommentsjsonfield,msp_forecastcomments' }
+      params: { $select: 'msp_forecastcommentsjsonfield' }
     });
-    const { jsonValue, textValue } = noteFormat.appendComment({
+    const { jsonValue } = noteFormat.appendComment({
       existingJson: current.msp_forecastcommentsjsonfield,
-      existingText: current.msp_forecastcomments,
       userId,
       comment: text
     });
     await this._request('PATCH', `/opportunities(${recordId})`, {
-      data: {
-        msp_forecastcommentsjsonfield: jsonValue,
-        msp_forecastcomments: textValue
-      }
+      data: { msp_forecastcommentsjsonfield: jsonValue }
     });
     return { ok: true, newLength: jsonValue.length };
   }
