@@ -79,12 +79,15 @@ class DynamicsProvider {
   }
 
   // Accounts the current user is assigned to (MSX account team).
-  // NOTE: msp_accountteam is an MSX virtual entity — requires a filter, rejects
-  // $select. This MSX specificity is intentionally contained in this provider.
+  // NOTE: msp_accountteam is an MSX virtual entity backed by an external OData
+  // service — it requires a filter, rejects $select, and caps $top at 500 (the
+  // Dataverse default page size of 5000 is rejected with 0x80040224, which is
+  // why $top is set explicitly). This MSX specificity is intentionally
+  // contained in this provider.
   async listParents() {
     const userId = await this._me();
     const data = await this._request('GET', '/msp_accountteams', {
-      params: { $filter: `_msp_systemuserid_value eq ${userId}` }
+      params: { $filter: `_msp_systemuserid_value eq ${userId}`, $top: 500 }
     });
     const seen = new Map();
     for (const row of data.value || []) {
