@@ -218,6 +218,34 @@ Target: cut customer-statement -> suggestion latency from 3-5s to <=1.5s and sha
 - [ ] Live latency measurement pending real audio session
 - [ ] RISK: Azure/managed deployments must expose a gpt-4o-mini-transcribe deployment (verify availability)
 
+## Phase 10: Realtime Coaching (R&D) — EXPERIMENTAL BRANCH `experimental/realtime-coaching`
+
+Generative live coach alongside knowledge retrieval. Flag-gated (`coaching_enabled`,
+default OFF). When OFF, behaviour is provably identical to today (engine never
+instantiated). Never to be pushed to main until validated. See session plan.md.
+
+### Server
+- [x] 10.1 server/coaching-personas.js — config-driven personas (SE/AE/Closer) + MOVES taxonomy
+- [x] 10.2 server/coaching-engine.js — stateful coach: two-tier moment-gate, persona routing, reactive + strategic passes, bounded coachingState
+- [x] 10.3 Shared "what's missing" brain — strategic pass emits MEDDPICC killer questions + optional nudge
+- [x] 10.4 routes/ws.js — flag-gated wiring (evaluate/noteWords/strategic), emits `coaching` + `meddpicc_questions`, persists coaching in session JSON
+- [x] 10.5 routes/api.js — preferences API carries `coachingEnabled`/`coaching_enabled`
+
+### Frontend
+- [x] 10.6 AppContext default preferences include `coachingEnabled: false`
+- [x] 10.7 PreferencesSettings.jsx — Experimental Realtime Coaching toggle
+- [x] 10.8 CallSessionContext.jsx — `coaching` + `meddpiccQuestions` state, message handling, reset on start/stop
+- [x] 10.9 components/CoachingPanel.jsx — single prioritised nudge (headline/why/say/persona tag/urgency) + idle state
+- [x] 10.10 components/Transcript.jsx — compact variant for thin rail
+- [x] 10.11 components/MeddpiccTracker.jsx — minimised variant + per-criterion killer-question hover tooltips
+- [x] 10.12 pages/Call.jsx — rename Suggestions→Knowledge; flag-gated reweighted 3-col layout (Coaching wide | Knowledge | rail)
+
+### Verification
+- [x] Web build clean (vite); server syntax + module-load smoke test green; persona routing + cadence verified
+- [ ] Live end-to-end coaching session with real audio (toggle ON) pending user test
+- [ ] Cost/latency of 4th LLM call on BYOK keys to be measured live
+
+
 ### Phase 11 addendum: single-model transcription
 - [x] Realtime transcription session now connects via the transcription model itself (intent=transcription), so a separate realtime host deployment (gpt-realtime-mini) is no longer required. realtimeModel/realtimeDeployment kept only as a backward-compatible fallback.
 - [x] gpt-4o-mini-transcribe is the single deployment for all transcription elements (managed default + provider default).

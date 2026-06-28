@@ -3,6 +3,7 @@ import AudioSourcePicker from '../components/AudioSourcePicker';
 import Transcript from '../components/Transcript';
 import SuggestionCard from '../components/SuggestionCard';
 import MeddpiccTracker from '../components/MeddpiccTracker';
+import CoachingPanel from '../components/CoachingPanel';
 import { useApp } from '../context/AppContext';
 import { useCallSession } from '../context/CallSessionContext';
 
@@ -32,6 +33,8 @@ export default function Call({ onListeningChange }) {
     transcript,
     suggestions,
     meddpicc,
+    coaching,
+    meddpiccQuestions,
     error,
     setAudioSourceId,
     startListening,
@@ -61,6 +64,7 @@ export default function Call({ onListeningChange }) {
 
   const methodologyLetters = preferences.methodology === 'bant' ? BANT_LETTERS : MEDDPICC_LETTERS;
   const isIdle = status === 'idle' || status === 'stopped';
+  const coachingOn = !!preferences.coachingEnabled;
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-800">
@@ -153,37 +157,93 @@ export default function Call({ onListeningChange }) {
             </div>
           )}
 
-          <div className="flex-1 flex overflow-hidden">
-            <div className="w-1/3 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Transcript</h2>
+          {coachingOn ? (
+            <div className="flex-1 flex overflow-hidden">
+              {/* Coaching — wide primary column */}
+              <div className="flex-1 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-y-auto">
+                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
+                  <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Coaching</h2>
+                  <span className="text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                    Experimental
+                  </span>
+                </div>
+                <CoachingPanel coaching={coaching} status={status} />
               </div>
-              <Transcript entries={transcript} />
-            </div>
 
-            <div className="w-1/3 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 overflow-y-auto p-4">
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Suggestions</h2>
-              {suggestions.length === 0 && (
-                <p className="text-sm text-gray-400 dark:text-gray-500">
-                  {status === 'listening'
-                    ? 'Listening for relevant moments...'
-                    : 'Suggestions will appear here during a call'}
-                </p>
-              )}
-              {suggestions.map(s => (
-                <SuggestionCard key={s._id} suggestion={s} />
-              ))}
-            </div>
+              {/* Knowledge — medium column (formerly Suggestions) */}
+              <div className="w-80 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 overflow-y-auto p-4 flex-shrink-0">
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Knowledge</h2>
+                {suggestions.length === 0 && (
+                  <p className="text-sm text-gray-400 dark:text-gray-500">
+                    {status === 'listening'
+                      ? 'Surfacing relevant knowledge...'
+                      : 'Knowledge will appear here during a call'}
+                  </p>
+                )}
+                {suggestions.map(s => (
+                  <SuggestionCard key={s._id} suggestion={s} />
+                ))}
+              </div>
 
-            <div className="w-1/3 bg-white dark:bg-gray-800 overflow-y-auto">
-              <MeddpiccTracker meddpicc={meddpicc} methodology={preferences.methodology} />
-              {!meddpicc && (
-                <p className="text-sm text-gray-400 dark:text-gray-500 p-4">
-                  {preferences.methodology === 'bant' ? 'BANT' : 'MEDDPICC'} tracking will begin when the call starts
-                </p>
-              )}
+              {/* Thin rail — compact Transcript over minimised MEDDPICC */}
+              <div className="w-64 bg-white dark:bg-gray-800 flex flex-col flex-shrink-0 overflow-hidden">
+                <div className="flex-1 min-h-0 flex flex-col border-b border-gray-200 dark:border-gray-700">
+                  <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700">
+                    <h2 className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Transcript</h2>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-hidden">
+                    <Transcript entries={transcript} compact />
+                  </div>
+                </div>
+                <div className="flex-shrink-0 max-h-[45%] overflow-y-auto">
+                  {meddpicc ? (
+                    <MeddpiccTracker
+                      meddpicc={meddpicc}
+                      methodology={preferences.methodology}
+                      minimised
+                      questions={meddpiccQuestions}
+                    />
+                  ) : (
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500 p-3">
+                      {preferences.methodology === 'bant' ? 'BANT' : 'MEDDPICC'} tracking starts with the call
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex-1 flex overflow-hidden">
+              <div className="w-1/3 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                  <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Transcript</h2>
+                </div>
+                <Transcript entries={transcript} />
+              </div>
+
+              <div className="w-1/3 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 overflow-y-auto p-4">
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Suggestions</h2>
+                {suggestions.length === 0 && (
+                  <p className="text-sm text-gray-400 dark:text-gray-500">
+                    {status === 'listening'
+                      ? 'Listening for relevant moments...'
+                      : 'Suggestions will appear here during a call'}
+                  </p>
+                )}
+                {suggestions.map(s => (
+                  <SuggestionCard key={s._id} suggestion={s} />
+                ))}
+              </div>
+
+              <div className="w-1/3 bg-white dark:bg-gray-800 overflow-y-auto">
+                <MeddpiccTracker meddpicc={meddpicc} methodology={preferences.methodology} />
+                {!meddpicc && (
+                  <p className="text-sm text-gray-400 dark:text-gray-500 p-4">
+                    {preferences.methodology === 'bant' ? 'BANT' : 'MEDDPICC'} tracking will begin when the call starts
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

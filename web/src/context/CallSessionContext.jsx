@@ -16,6 +16,8 @@ export function CallSessionProvider({ children }) {
   const [partialTranscript, setPartialTranscript] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [meddpicc, setMeddpicc] = useState(null);
+  const [coaching, setCoaching] = useState(null);
+  const [meddpiccQuestions, setMeddpiccQuestions] = useState({});
   const [error, setError] = useState(null);
   const [audioSourceId, setAudioSourceId] = useState(null);
 
@@ -51,6 +53,13 @@ export function CallSessionProvider({ children }) {
       case 'meddpicc_update':
         setMeddpicc(msg.meddpicc);
         break;
+      case 'coaching':
+        // Single prioritised nudge at a time — latest replaces previous.
+        setCoaching({ ...msg.coaching, _id: Date.now() + Math.random() });
+        break;
+      case 'meddpicc_questions':
+        setMeddpiccQuestions(msg.questions || {});
+        break;
       case 'error':
         setError(msg.message);
         break;
@@ -82,6 +91,8 @@ export function CallSessionProvider({ children }) {
       setPartialTranscript('');
       setSuggestions([]);
       setMeddpicc(null);
+      setCoaching(null);
+      setMeddpiccQuestions({});
       setSessionId(null);
 
       const isElectron = !!window.clumo?.isElectron;
@@ -176,6 +187,8 @@ export function CallSessionProvider({ children }) {
     setPartialTranscript('');
     setSuggestions([]);
     setMeddpicc(null);
+    setCoaching(null);
+    setMeddpiccQuestions({});
     setError(null);
   }, [cleanup]);
 
@@ -189,6 +202,8 @@ export function CallSessionProvider({ children }) {
     partialTranscript,
     suggestions,
     meddpicc,
+    coaching,
+    meddpiccQuestions,
     error,
     audioSourceId,
     setAudioSourceId,

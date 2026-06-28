@@ -3,6 +3,7 @@
 
 const WebSocket = require('ws');
 const SuggestionEngine = require('../suggestion-engine');
+const CoachingEngine = require('../coaching-engine');
 const { loadProvider, loadEmbeddingProvider } = require('../ai-provider');
 const storage = require('../storage');
 const db = require('../db');
@@ -58,6 +59,14 @@ function setupWebSocket(httpServer) {
     const openaiClient = activeProvider.getClient();
     const suggestionEngine = new SuggestionEngine(activeProvider, null, embeddingProvider);
     await suggestionEngine.init('local');
+
+    // Experimental, flag-gated realtime coaching. When OFF, no coaching engine is
+    // created and zero extra LLM calls are made — the experience is identical to
+    // today. A chat-capable provider is required (managed embedding-only mode has
+    // no coach).
+    const coachingEnabled = db.getConfig('coaching_enabled') === 'true' && !!provider;
+    const coachingEngine = coachingEnabled ? new CoachingEngine(provider) : null;
+    if (coachingEnabled) console.log('[WS] Coaching engine enabled');
 
     let transcriptBuffer = '';
     // In-flight (partial) utterance assembled from streaming transcription deltas.
@@ -211,6 +220,42 @@ function setupWebSocket(httpServer) {
               })
               .catch(err => console.error('[WS] Suggestion error:', err.message));
 
+            // Realtime coaching (flag-gated). Two paths share the engine:
+            //  - reactive: cheap heuristic moment-gate, then one persona move call.
+            //  - strategic: a slower-cadence "what's missing" pass that also feeds
+            //    the MEDDPICC killer-question tooltips.
+            if (coachingEngine) {
+              const coachCtx = {
+                turns: suggestionEngine.turns,
+                callBrief: suggestionEngine.callBrief,
+                meddpicc: suggestionEngine.meddpicc
+              };
+
+              coachingEngine.evaluate(transcript, coachCtx)
+                .then(nudge => {
+                  if (nudge) {
+                    console.log(`[WS] Coaching: ${nudge.persona}/${nudge.type} "${nudge.headline}"`);
+                    sendToClient({ type: 'coaching', coaching: nudge });
+                  }
+                })
+                .catch(err => console.error('[WS] Coaching error:', err.message));
+
+              if (coachingEngine.noteWords(transcript)) {
+                coachingEngine.strategic(coachCtx)
+                  .then(result => {
+                    if (!result) return;
+                    if (result.questions) {
+                      sendToClient({ type: 'meddpicc_questions', questions: result.questions });
+                    }
+                    if (result.nudge) {
+                      console.log(`[WS] Coaching (strategic): "${result.nudge.headline}"`);
+                      sendToClient({ type: 'coaching', coaching: result.nudge });
+                    }
+                  })
+                  .catch(err => console.error('[WS] Coaching strategic error:', err.message));
+              }
+            }
+
             // Reset in-flight utterance state for the next turn.
             currentUtterance = '';
             utteranceStartedAt = 0;
@@ -309,6 +354,9 @@ function setupWebSocket(httpServer) {
       if (openaiWs) openaiWs.close();
 
       const finalSessionData = suggestionEngine.reset();
+      if (coachingEngine) {
+        finalSessionData.coaching = coachingEngine.getSessionData();
+      }
       activeSessions.delete(sessionId);
       completedSessions.set(sessionId, finalSessionData);
 

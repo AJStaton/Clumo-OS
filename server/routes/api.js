@@ -594,20 +594,25 @@ router.get('/api/session/:sessionId/export', (req, res) => {
 router.get('/api/preferences', (req, res) => {
   const methodology = db.getConfig('methodology') || 'meddpicc';
   const theme = db.getConfig('theme') || 'system';
-  res.json({ methodology, theme });
+  const coachingEnabled = db.getConfig('coaching_enabled') === 'true';
+  res.json({ methodology, theme, coachingEnabled });
 });
 
 router.patch('/api/preferences', (req, res) => {
-  const { methodology, theme } = req.body;
+  const { methodology, theme, coachingEnabled } = req.body;
   if (methodology && ['meddpicc', 'bant'].includes(methodology)) {
     db.setConfig('methodology', methodology);
   }
   if (theme && ['light', 'dark', 'system'].includes(theme)) {
     db.setConfig('theme', theme);
   }
+  if (typeof coachingEnabled === 'boolean') {
+    db.setConfig('coaching_enabled', coachingEnabled ? 'true' : 'false');
+  }
   const current = {
     methodology: db.getConfig('methodology') || 'meddpicc',
-    theme: db.getConfig('theme') || 'system'
+    theme: db.getConfig('theme') || 'system',
+    coachingEnabled: db.getConfig('coaching_enabled') === 'true'
   };
   res.json(current);
 });

@@ -4,7 +4,7 @@ const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
   const [sessions, setSessions] = useState([]);
-  const [preferences, setPreferences] = useState({ methodology: 'meddpicc', theme: 'system' });
+  const [preferences, setPreferences] = useState({ methodology: 'meddpicc', theme: 'system', coachingEnabled: false });
   const [connectionStatus, setConnectionStatus] = useState('unknown'); // unknown, connected, disconnected, listening
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [kbConfigured, setKbConfigured] = useState(null); // null=loading, true, false

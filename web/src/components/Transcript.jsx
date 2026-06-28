@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-export default function Transcript({ entries }) {
+export default function Transcript({ entries, compact = false }) {
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -8,13 +8,15 @@ export default function Transcript({ entries }) {
   }, [entries]);
 
   return (
-    <div className="h-full overflow-y-auto p-4 space-y-2">
+    <div className={`h-full overflow-y-auto ${compact ? 'p-2 space-y-1' : 'p-4 space-y-2'}`}>
       {entries.length === 0 && (
-        <p className="text-gray-400 text-sm">Transcript will appear here when the call starts...</p>
+        <p className={`text-gray-400 ${compact ? 'text-xs' : 'text-sm'}`}>
+          Transcript will appear here when the call starts...
+        </p>
       )}
       {entries.map((entry, i) => (
-        <div key={i} className="text-sm leading-relaxed">
-          <span className="text-gray-400 text-xs mr-2">
+        <div key={i} className={compact ? 'text-xs leading-snug' : 'text-sm leading-relaxed'}>
+          <span className={`text-gray-400 mr-2 ${compact ? 'text-[10px]' : 'text-xs'}`}>
             {new Date(entry.timestamp).toLocaleTimeString()}
           </span>
           <span className="text-gray-800">{entry.text}</span>
