@@ -1,0 +1,37 @@
+{
+  "name": "clumo-server",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.js",
+    "test:integration:record": "cross-env POLLY_MODE=record vitest run --config vitest.integration.config.js",
+    "test:realtime": "vitest run --config vitest.realtime.config.js",
+    "test:coverage": "vitest run --coverage",
+    "install:chromium": "cross-env PLAYWRIGHT_BROWSERS_PATH=0 playwright install chromium"
+  },
+  "dependencies": {
+    "axios": "^1.15.0",
+    "better-sqlite3": "^11.7.0",
+    "cheerio": "^1.2.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "multer": "^2.0.2",
+    "officeparser": "^4.1.2",
+    "openai": "^4.77.0",
+    "playwright": "^1.49.0",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@pollyjs/adapter-node-http": "^6.0.6",
+    "@pollyjs/core": "^6.0.6",
+    "@pollyjs/persister-fs": "^6.0.6",
+    "@vitest/coverage-v8": "^2.1.8",
+    "cross-env": "^10.1.0",
+    "supertest": "^7.0.0",
+    "vitest": "^2.1.8"
+  }
+}

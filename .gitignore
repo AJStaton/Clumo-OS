@@ -1,0 +1,27 @@
+node_modules/
+dist/
+out/
+server/data/clumo.db
+server/data/clumo.key
+server/data/knowledge-base.json
+server/data/sessions/
+server/uploads/*
+!server/uploads/.gitkeep
+.env
+server/managed-credentials.local.js
+*.exe
+*.dmg
+*.AppImage
+*.deb
+.DS_Store
+Thumbs.db
+.gstack/
+.claude/
+
+# SQLite runtime artifacts
+*.db-shm
+*.db-wal
+
+# Playwright
+playwright-report/
+test-results/

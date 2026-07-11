@@ -1,0 +1,544 @@
+# Clumo OS Development Plan
+
+## Completed Features
+
+### Phase 1: Managed Embeddings + BYOK/Managed Key Architecture ✓
+Fully implemented. ManagedProvider class in server/ai-provider.js, loadEmbeddingProvider function, provider_mode config, embeddingProvider parameter threaded through KnowledgeGenerator and SuggestionEngine, and managed/BYOK toggle UI in both Setup.jsx and Settings.jsx.
+
+### Phase 2: Security Modal for Embeddings ✓
+Fully implemented. "How search works" section added to SecurityModal with embedding explanation, one-way conversion note, local processing assurance, and managed mode TLS note.
+
+### Phase 3: Simplified Audio Source Selection ✓
+Backend fully implemented: get-meeting-sources IPC handler with meeting pattern matching (Zoom, Teams, Webex, Google Meet), getMeetingSources exposed in preload.js, returns { meetings, screens, allSources }. Note: The AudioSourcePicker component currently auto-selects and returns null (hidden). The card-based visual UI from the original plan is not rendered, though all data infrastructure supports it.
+
+---
+
+## Phase 5: Post-Call Features & Enhancements ✓
+
+### Feature 1: Grey out Integrations & Automation in Settings ✓
+Integrations and Automation sidebar links are disabled with "Coming soon" labels. Routes redirect to /settings/ai-models.
+
+### Feature 2: Auto-generate post-call analysis ✓
+- `server/analysis.js`: Generates structured MEDDPICC scoring, follow-up email, and next meeting prep via GPT
+- Auto-triggers on session close (ws.js), manual trigger via POST /api/session/:id/analyze
+- Session.jsx renders structured CRM Update (MEDDPICC table + next steps), Next Meeting (gaps + topics), Follow-up Email
+
+### Feature 3: Product Truth knowledge base type ✓
+- Added `productTruths` array to default KB (6 default facts across Security, Platform, Infrastructure, Data, Reliability)
+- KnowledgeGenerator produces product truths from scraped content
+- SuggestionEngine matches product truths via triggers and semantic search
+- KB.jsx shows Product Truths tab; SuggestionCard renders product_truth type in amber
+
+### Feature 4: Sessions list enhancements ✓
+- GET /api/sessions includes `hasAnalysis` field
+- Sessions.jsx: search filter, "Analyzed" badge, delete with two-click confirmation
+
+---
+
+## Phase 6: Pre-Release Test Coverage ✓
+
+Two cheap, high-leverage additions that close the gap between "100 unit tests pass" and "the released installer actually works on a real machine talking to the real Azure OpenAI Realtime API."
+
+### Feature 1: Manual smoke test checklist ✓
+
+**File:** `e2e/manual/RELEASE-SMOKE-TEST.md`
+
+A ~10-minute checklist a human runs against a freshly built installer before every release. Lives in `e2e/manual/` to sit next to the other end-to-end layers (`e2e/browser/`, `e2e/electron/`) — this is the human-driven tier of the same pyramid.
+
+Walks the tester through six sections (~10 min total):
+
+1. **Pre-flight** — clean machine, no leftover `clumo.key` / `data/`, second device ready to drive a real Teams meeting, virtual audio driver installed on macOS.
+2. **Fresh install** — installer launches without smartscreen blocks, no console errors, lands on Setup.
+3. **Setup wizard** — BYOK toggle visible, provider Test Connection succeeds, file-upload button works, KB generation completes.
+4. **Live call with real Teams audio** — AudioSourcePicker detects Teams, transcripts appear live, at least one suggestion card renders within 60 s, MEDDPICC populates, post-call analysis completes.
+5. **Export** — exported session contains non-empty transcript (regression guard for F-13), MEDDPICC scores, follow-up email.
+6. **Restart resilience** — app reopens straight to Session page, history persists, API key field is masked (regression guard for the BYOK encryption invariant).
+
+Ends with a sign-off block (tester, date, commit SHA, installer build, OS, PASS/FAIL) and a failure protocol that ties back to `QA-REPORT.md`'s finding format. Cross-links to `npm run test:realtime` for the realtime-path failure case.
+
+### Feature 2: Real-API Realtime integration test ✓
+
+**Files:**
+- `server/tests/integration/ai-provider.azure-realtime.test.js` — the test
+- `server/tests/integration/fixtures/realtime-sample.wav` — committed audio fixture (16 kHz / mono / PCM16, ~118 KB, "The quick brown fox jumps over the lazy dog." generated via `espeak-ng`)
+- `server/vitest.realtime.config.js` — dedicated config (separate from Polly's `vitest.integration.config.js`)
+- `server/package.json` — new `test:realtime` script
+
+**Why a separate layer:** the Polly recordings (`test:integration`) cover HTTP-based chat/embedding paths. They cannot record WebSocket frames. Realtime transcription is the single most expensive code path to break unnoticed — every customer call goes through it — and it has no automated coverage today.
+
+**What it does:**
+1. Opens an Azure OpenAI Realtime WebSocket via `AzureOpenAIProvider.createRealtimeWebSocket()` — exercising the exact code path production uses.
+2. Sends `transcription_session.update` with the same `pcm16` / `whisper-1` / `server_vad` config as `server/routes/ws.js`.
+3. Streams the WAV in ~100 ms PCM16 chunks via `input_audio_buffer.append`, then `input_audio_buffer.commit`.
+4. Waits for `conversation.item.input_audio_transcription.completed` (or the older `transcription.text.done` — both are handled, matching `ws.js`).
+5. Asserts the transcript is a non-empty string and matches `/fox|quick|brown|lazy|dog/i` (soft regex — any one distinctive keyword passes, so Whisper version drift doesn't break the test).
+
+**Gating — opt-in, never red on a fresh clone:**
+- Runs only via `npm run test:realtime --workspace=server` (or `npm run test:realtime` from `server/`).
+- Excluded from default `npm test` (via `server/vitest.config.js`'s existing `tests/integration/**` exclusion).
+- Excluded from `npm run test:integration` (Polly replay) via an explicit `exclude` in `vitest.integration.config.js` — otherwise contributors replaying Polly fixtures would unexpectedly hit the live Realtime API.
+- When `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_KEY` / `AZURE_OPENAI_REALTIME_DEPLOYMENT` env vars are missing, the test **skips** (it does not fail) and a sentinel `it(...)` asserts the skip is intentional — so the suite still reports 1 test rather than 0.
+
+**Cost:** roughly $0.001 per run when credentials are set. Intended cadence: run before every release (linked from `RELEASE-SMOKE-TEST.md`), and ad-hoc whenever `ai-provider.js` or `routes/ws.js` realtime code changes.
+
+### Verification
+
+1. `npm test` from repo root → 106 tests pass, new realtime test is **not** picked up.
+2. `npm run test:integration --workspace=server` (no env vars) → existing Polly tests replay; realtime test is **not** picked up.
+3. `npm run test:realtime --workspace=server` (no env vars) → 1 skip + 1 sentinel pass, exit 0, ~1 s.
+4. `AZURE_OPENAI_ENDPOINT=… AZURE_OPENAI_KEY=… AZURE_OPENAI_REALTIME_DEPLOYMENT=… npm run test:realtime --workspace=server` → connects to live API, streams WAV, asserts transcript contains a fox/quick/brown/lazy/dog keyword, exit 0, ~5–15 s.
+5. `e2e/manual/RELEASE-SMOKE-TEST.md` is discoverable from `TESTING.md` and renders cleanly on GitHub.
+
+---
+
+## Archived: Phase 4 UI Improvements ✓
+
+## Next Features (Phase 4: UI Improvements)
+
+### Feature 1: Prominent File Upload Button (Setup Step 2)
+
+**File:** `web/src/pages/Setup.jsx` (lines 513-527)
+
+Replace native file input with a hidden input + styled button triggered via `useRef`.
+
+- Add `useRef` to React imports
+- Create `fileInputRef = useRef(null)` in component body
+- Hide the `<input type="file">` with `className="hidden"`, add `ref={fileInputRef}`
+- Add visible button: `w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:border-gray-900 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2`
+- Include upload SVG icon (arrow-up-tray, 5x5) + "Choose Files" label
+- Keep existing onChange handler and file count display
+
+---
+
+### Feature 2: Rename Navigation Labels and Routes
+
+| File | Change |
+|------|--------|
+| `web/src/components/Nav.jsx` | "/call" → "/session" (label "Session"), "/sessions" → "/history" (label "History"). Fix Settings NavLink to stay active on /settings/* sub-routes. |
+| `web/src/App.jsx` | Route paths: /call → /session, /sessions → /history. Default redirect → /session. Add redirect routes for old URLs: /call → /session, /sessions → /history. |
+| `web/src/pages/Sessions.jsx` | Heading "Sessions" → "History". Update empty state text. |
+| `web/src/pages/Session.jsx` | "Call Notes" → "Session Notes" |
+
+Component file names and internal function names stay unchanged.
+
+---
+
+### Feature 3: Settings Sidebar with Nested Routes
+
+**3a. Rewrite `web/src/pages/Settings.jsx` as layout**
+- Left sidebar (w-56, border-r) with vertical NavLink list: AI Models, Integrations, Automation
+- Right content area renders `<Outlet />`
+- `/settings` redirects to `/settings/ai-models`
+- Sidebar active styling: `bg-gray-900 text-white` (same pattern as Nav.jsx)
+
+**3b. Create `web/src/pages/AiModelsSettings.jsx`**
+- Extract current Settings.jsx content (Managed/BYOK toggle, provider selection, API key inputs, test/save, KB links)
+- Wrap in `<div className="max-w-lg">`
+
+**3c. Create `web/src/pages/IntegrationsSettings.jsx`**
+- Grid (2 columns) of cards for 6 CRMs
+- Each card has an "MCP" button indicating integration readiness:
+  - **Active:** Salesforce, HubSpot, Dynamics 365, Monday, Zoho (these have official MCP servers as of 2026)
+  - **Greyed out:** Pipedrive (tooltip: "MCP for this CRM is not yet published by the provider")
+- MCP buttons are visual indicators only for now (no connection logic yet)
+
+**3d. Create `web/src/pages/AutomationSettings.jsx`**
+- Header with "Automation Rules" title + "Add Rule" button
+- List of rules with Edit/Delete actions
+- Add/Edit form with mock dropdown fields:
+  - Type: select (CRM, Customer, Stakeholders)
+  - System: select (Salesforce, HubSpot, Dynamics 365, Monday, Zoho, Pipedrive)
+  - Fields to update: select (Deal Stage, Last Activity, Contact Notes, Meeting Summary, Next Steps, MEDDPICC Score)
+  - Data to use: select (Full Transcript, Session Notes, MEDDPICC Scores, Key Topics, Action Items)
+- Empty state: "No automation rules configured yet."
+- **localStorage persistence:** rules saved to `localStorage('clumo-automation-rules')` so they survive page refresh
+
+**3e. Update `web/src/App.jsx` routing**
+```jsx
+<Route path="/settings" element={needsSetup ? <Navigate to="/" /> : <Settings />}>
+  <Route path="ai-models" element={<AiModelsSettings />} />
+  <Route path="integrations" element={<IntegrationsSettings />} />
+  <Route path="automation" element={<AutomationSettings />} />
+</Route>
+```
+
+---
+
+### Implementation Order
+
+1. Feature 2 (rename) — touches routing, do first
+2. Feature 1 (upload button) — isolated to Setup.jsx
+3. Feature 3 (settings sidebar) — largest change, new files + routing
+
+---
+
+### Verification
+
+1. Nav shows "Session", "History", "Knowledge Base", "Settings"
+2. "Settings" stays highlighted on all /settings/* sub-pages
+3. Old URLs /call and /sessions redirect to new paths
+4. Setup Step 2: prominent "Choose Files" button opens file picker
+5. /settings redirects to /settings/ai-models with sidebar
+6. Integrations: 5 active MCP buttons, Pipedrive greyed out with tooltip
+7. Automation: add/edit/delete rules with dropdowns, rules persist on refresh
+
+---
+
+---
+
+## Archive: Original Plan Details
+
+## Phase 1: Managed Embeddings + BYOK/Managed Key Architecture
+
+### Goal
+When a user selects "Managed Models," Clumo uses a Clumo-owned Azure OpenAI endpoint for embeddings (and later for chat/realtime). When a user selects BYOK, they provide their own keys as today. The choice is integrated into the existing provider selection step.
+
+### Files to modify
+- `server/ai-provider.js` — new provider class + loader
+- `server/db.js` — new config key
+- `server/knowledge-generator.js` — accept embedding provider
+- `server/suggestion-engine.js` — accept embedding provider
+- `server/routes/api.js` — save/load provider mode, pass embedding provider
+- `server/routes/ws.js` — pass embedding provider to SuggestionEngine
+- `web/src/pages/Setup.jsx` — add managed/BYOK toggle in Step 1
+- `web/src/pages/Settings.jsx` — add managed/BYOK option
+
+### Implementation
+
+**1. Add `ManagedProvider` class in `server/ai-provider.js`**
+
+A new class that uses the Clumo-owned Azure OpenAI resource. The endpoint and key must NOT be stored in source code. Store them encrypted in the SQLite config table (same pattern as user API keys in `db.js`), seeded on first run or via a setup script.
+
+For now, the managed provider only needs `generateEmbedding()`. As managed models expand, add `chat()` and `createRealtimeConnection()`.
+
+```
+class ManagedProvider {
+  constructor(endpoint, apiKey) { ... }
+  async generateEmbedding(text) {
+    // Uses Azure OpenAI embeddings API
+    // Model: text-embedding-3-small
+    // Deployment name to be configured
+  }
+}
+```
+
+**2. Add `loadEmbeddingProvider()` function in `server/ai-provider.js`**
+
+```
+function loadEmbeddingProvider() {
+  const mode = db.getConfig('provider_mode'); // 'managed' or 'byok'
+  if (mode === 'managed') {
+    return new ManagedProvider(managedEndpoint, managedKey);
+  }
+  return loadProvider(); // existing BYOK provider
+}
+```
+
+**3. New config key: `provider_mode`**
+
+Values: `"managed"` or `"byok"`. Stored in SQLite config table via `db.js`. Default: `"byok"` (preserves current behavior).
+
+**4. Update `KnowledgeGenerator` constructor (`server/knowledge-generator.js`)**
+
+Accept optional `embeddingProvider` parameter. Use it for `generateEmbeddings()` calls instead of `this.provider`. Fall back to `this.provider` if not provided.
+
+**5. Update `SuggestionEngine` (`server/suggestion-engine.js`)**
+
+Accept optional `embeddingProvider` parameter. Use it in `findSemanticMatches()` for the `generateEmbedding(text)` call.
+
+**6. Update routes**
+
+- `server/routes/api.js`: Save `provider_mode` in POST `/api/settings`. Load and pass `embeddingProvider` when creating `KnowledgeGenerator`.
+- `server/routes/ws.js`: Pass `embeddingProvider` when creating `SuggestionEngine`.
+
+**7. UI: Setup.jsx Step 1**
+
+Before the Azure/OpenAI provider selection, add a top-level choice:
+
+- **Managed Models (recommended)** — "Clumo provides the AI. No API keys needed. Just start coaching."
+- **Bring Your Own Key** — "Use your own OpenAI or Azure OpenAI account."
+
+When "Managed" is selected, skip the API key form entirely and go straight to Step 2 (KB onboarding). When "BYOK" is selected, show the existing Azure/OpenAI forms.
+
+**8. UI: Settings.jsx**
+
+Add the same managed/BYOK toggle at the top of the settings page so users can switch modes later.
+
+### Managed key storage
+
+The Clumo-owned Azure endpoint and key need to be bundled with the app but not visible in source code. Options:
+- Encrypt them with a hardcoded app-level key and store in the SQLite DB, seeded on first install
+- Use environment variables during build and embed in the compiled Electron app
+- Store in a separate config file bundled as an Electron extra resource
+
+Recommended: Seed the encrypted values into the SQLite DB on first run via `db.js` initialization. The encryption key is already generated locally (`clumo.key`), so the managed credentials get the same AES-256-CBC protection as user keys.
+
+---
+
+## Phase 2: Update Security Modal for Embeddings
+
+### Goal
+Explain WHY embeddings are used and HOW they protect user data. Currently the modal mentions embeddings briefly but doesn't educate.
+
+### File to modify
+- `web/src/pages/Setup.jsx` — `SecurityModal` component (lines 3-95)
+
+### Implementation
+
+**1. Add a new "How search works" section** after the "Data sent to AI provider" section. Two paragraphs:
+
+- **Why embeddings:** Explain that embeddings let Clumo match by meaning, not keywords. When a prospect says "we are struggling with employee churn," Clumo recognizes it relates to a case study about reducing attrition by 40%, even though no words match. This makes suggestions accurate and timely.
+
+- **How embeddings are secure:** An embedding is a list of numbers (a vector) that captures meaning. The conversion is one-way. There is no known method to reconstruct the original text from its vector. Your knowledge base text never leaves your machine after the initial one-time conversion. During calls, transcript chunks are converted to vectors and compared locally against stored KB vectors.
+
+**2. Update the existing embedding bullet points** under "Data sent to AI provider" to be shorter and reference the new section.
+
+**3. Add a note for managed mode users:** "When using managed models, embedding requests are sent to Clumo's AI service over a TLS encrypted connection. The text is processed and discarded. Clumo does not store your text or vectors on any server."
+
+---
+
+## Phase 3: Simplified Audio Source Selection
+
+### Goal
+Replace the raw window dropdown with smart categories: detected meeting apps, Entire Screen (always prominent), Microphone Only, and an Advanced manual picker as fallback.
+
+### Files to modify
+- `electron/main.js` — new IPC handler with pattern matching
+- `electron/preload.js` — expose new IPC channel
+- `web/src/components/AudioSourcePicker.jsx` — full rewrite
+- `web/src/pages/Call.jsx` — minor updates if needed
+
+### Implementation
+
+**1. Add `get-meeting-sources` IPC handler in `electron/main.js`**
+
+Wraps `desktopCapturer.getSources()` with pattern matching against known meeting apps:
+
+```
+Meeting patterns:
+- /Zoom Meeting|^Zoom$/i → "Zoom"
+- /Microsoft Teams/i → "Microsoft Teams"
+- /Webex/i → "Webex"
+- /Meet\s*[-–]\s*.+/i → "Google Meet" (browser)
+- /teams\.microsoft\.com/i → "Teams (browser)"
+- /zoom\.us/i → "Zoom (browser)"
+```
+
+Returns `{ meetings: [...], screens: [...], allSources: [...] }`.
+
+**2. Update `electron/preload.js`**
+
+Expose `getMeetingSources` via the `window.clumo` bridge. Keep existing `getAudioSources` for backward compatibility.
+
+**3. Rewrite `AudioSourcePicker.jsx`**
+
+Card-based UI instead of a dropdown. Layout:
+
+```
+┌──────────────────────────────────────────────┐
+│ Detected meetings (only shown when found):   │
+│ [Teams icon] Microsoft Teams  [Zoom] Zoom    │
+│                                              │
+│ Always visible:                              │
+│ [Screen] Entire Screen (captures all audio)  │
+│ [Mic] Microphone Only                        │
+│                                              │
+│ ▸ Advanced: select a specific window         │
+└──────────────────────────────────────────────┘
+```
+
+- Follow existing card styling from Setup.jsx (border-2, active state border-gray-900 bg-gray-50)
+- Auto-refresh sources every 5 seconds while idle (before call starts)
+- If no meetings detected, show: "No active meetings detected. Use Entire Screen to capture all audio."
+- "Entire Screen" is always visible and prominent as the recommended fallback
+
+**4. Platform warnings**
+
+Detect platform via `navigator.platform`:
+- macOS: Show note under screen/window options: "macOS requires a virtual audio driver (like BlackHole) for system audio capture. Without one, only your microphone will be captured."
+- Linux: Similar note about PulseAudio/PipeWire configuration.
+
+**5. No changes needed to `Call.jsx` capture logic**
+
+The three capture paths (Electron desktop source, screen share, microphone) remain the same. The `audioSourceId` passed from the new picker is still a desktopCapturer source ID, so the existing logic at lines 66-86 works unchanged.
+
+---
+
+## Verification
+
+### Feature 1 (Managed/BYOK)
+1. `npm run dev` and open http://localhost:5173
+2. Setup wizard shows Managed/BYOK choice before provider selection
+3. Selecting "Managed" skips API key entry and proceeds to KB onboarding
+4. KB generation succeeds using managed embeddings endpoint
+5. Live call suggestion engine uses managed embeddings for semantic matching
+6. Selecting "BYOK" shows existing provider forms and works as before
+7. Settings page allows switching between managed and BYOK
+
+### Feature 2 (Security modal)
+1. Open Setup page, click "Security stuff for techies"
+2. New "How search works" section visible with embedding explanation
+3. Managed vs BYOK note displays correctly based on selected mode
+
+### Feature 3 (Audio picker)
+1. Open Clumo in Electron (`cd electron && npm start -- --dev`)
+2. Open a Zoom/Teams/Meet meeting
+3. AudioSourcePicker shows detected meeting app as a card
+4. "Entire Screen" always visible
+5. Advanced section expands to show full source list
+6. Selecting a detected app and starting a call captures audio correctly
+7. With no meeting apps open, picker shows "no meetings detected" with Entire Screen as the primary option
+
+---
+
+## Phase 8: Robust Knowledge-Base Onboarding (tiered fetch + type-routed generation) ✓
+
+### Problem
+Onboarding turned a company website into four knowledge types (Case Studies, Discovery
+Questions, Proof Points, Product Truth) using a single axios+cheerio scrape. That fails
+silently on JS-rendered SPA pages (Microsoft, Google, Beamery listings), never used
+sitemaps, fed one content blob to every type, and surfaced no warning when a type came
+back empty.
+
+### Approach (10x for 2x effort)
+- **Tiered fetch** — static first, escalate to **Playwright headless** only when a page is a
+  low-confidence SPA shell for the expected type. Composite quality gate (main-text length,
+  boilerplate ratio, type-relevance keywords, framework markers), per-run cache, per-source
+  confidence + telemetry. Headless degrades gracefully if Chromium is unavailable.
+- **Multi-strategy discovery** — sitemap.xml (+ robots + index recursion) + homepage/seed
+  anchor scraping + user-pasted URLs + optional provider adapters (Microsoft v1). URLs are
+  classified + ranked into per-type buckets with budgets; JS case-study listings are expanded
+  headlessly into individual story URLs (the Beamery failure).
+- **Type-routed generation** — `source-collector.js` routes the right pages to the right type
+  (case_study <- customer-story pages, proof <- blog/ROI, product_truth <- docs+product,
+  discovery <- product). A shared company-context packet + seller profile (personas, ICP,
+  competitors) are threaded into company analysis and every generator. Each type records
+  whether it used its primary bundle or fell back, plus coverage (sources / high-confidence /
+  weak) so the UI can warn and offer "add a source & re-run".
+- **Guided onboarding form** — main URL + optional per-type source URLs + "who do you sell to?"
+  profile. Results view shows per-type counts and actionable warnings.
+
+### Key files
+- server/fetch/{extract,static-fetcher,headless-fetcher,page-fetcher}.js
+- server/discovery/{sitemap,classify,url-discovery}.js + adapters/{index,microsoft}.js
+- server/onboarding/source-collector.js
+- server/knowledge-generator.js (type-routed bundles + profile), server/routes/api.js (wiring)
+- web/src/pages/Setup.jsx (guided form + per-type results/warnings)
+- Packaging: server playwright dep + install:chromium; electron prebuild + server-manager
+  sets PLAYWRIGHT_BROWSERS_PATH=0 in packaged builds.
+
+### Evidence
+Blog/proof and product/docs are server-rendered everywhere (static suffices). Case studies
+fail via discovery (Beamery: no sitemap + JS listing) and extraction (Legora individual pages
+are client-rendered shells; headless does not fully rescue — extract from the rich SSR listing
++ structured data, low confidence, "paste a URL" warning). New pipeline recovers 12-15 case
+studies on Legora/Beamery/HappyRobot where the old scraper returned 0.
+
+### Status
+Implemented + unit-tested (108 server tests green) + live-smoke validated. Packaged-build
+smoke on Win/macOS deferred (needs installer build env).
+
+### Phase 9: Guided Onboarding + Relevance-Ranked Knowledge Base ✓
+
+Turns onboarding into a short guided wizard that builds hyper-relevance from the first screen,
+and ranks case studies to what the seller actually sells. Fixes two reported defects:
+
+1. **All-SAP case studies for azure.microsoft.com/en-gb.** Root cause: discovery filled the
+   case-study bucket with listing pages, one of which (/solutions/sap/customers) is a single-vendor
+   vertical listing; it was headless-expanded and flooded the bucket. There was no per-listing
+   diversity cap, no relevance ranking, and locale duplicates wasted the expansion budget.
+2. **User never prompted for profile/sources.** The per-type source inputs and seller profile were
+   hidden behind collapsed `+` toggles defaulting to false, so the highest-leverage relevance
+   inputs were never collected.
+
+**Backend — relevance + hygiene.** classify.js detects narrow/vertical vs master customer-stories
+listings, locale-dedupes (preferring the user's locale), and strips fragment URLs. url-discovery.js
+caps per-listing contribution and round-robins master-first so one listing cannot dominate.
+A new relevance.js scores each fetched case study against {priorities, focusProducts,
+focusIndustries, personas, company keywords}; source-collector.js demotes low-relevance stories to
+weak candidates only when the seller supplied explicit focus (otherwise discovery order is kept).
+
+**Backend — wizard support.** New site-scanner.js (scanSite) does fast, discovery-only detection of
+the products/solutions a site offers plus its case-study/docs/blog hubs (no per-page LLM, no headless).
+New POST /api/onboarding/scan endpoint powers the wizard; priorities + a richer profile
+({role, focusProducts, focusIndustries, companySize, personas, competitors}) thread through
+start/add-documents/SSE and into buildProfileContext.
+
+**Frontend — guided wizard (Setup.jsx).** Stepped flow: About you (role segmented control;
+products/industries/competitors chip inputs; company-size + persona preset chips) -> Website +
+upload -> Scan -> Priorities (chips from the scan, pre-checked by focusProducts match) ->
+Confirm sources (pre-filled from detected hubs, editable) -> Run. Hardened against scan races,
+dirty-field clobbering on re-scan, stale priorities, and double-submit; EventSource torn down on unmount.
+
+**Local-first preserved:** the scan reads only the provided site; the only external calls remain the
+configured AI provider and the site being scraped. The about-you step and scan use no LLM.
+
+### Files
+- server/discovery/classify.js, server/discovery/url-discovery.js (listing hygiene + diversity)
+- server/onboarding/relevance.js (new), server/onboarding/site-scanner.js (new)
+- server/onboarding/source-collector.js (relevance ranking + demotion)
+- server/routes/api.js (/scan endpoint + priorities threading), server/knowledge-generator.js (profile context)
+- web/src/pages/Setup.jsx (guided wizard)
+
+### Status
+Implemented + unit-tested (125 server tests green). Live-validated: azure.microsoft.com/en-gb scan
+resolves the master /en-gb/resources/customer-stories hub (not the SAP narrow listing) with
+24 products / 24 solutions; beamery.com resolves /customers/ with 5 products / 4 solutions.
+
+---
+
+## Phase 10: Maximize KB Volume + Soft Prioritisation (host-agnostic) ✓
+
+**Problem.** The KB onboarding both under-produced and mis-prioritised. Narrow inputs collapsed
+the KB to a handful of stories (a hard demotion gate deleted off-focus case studies), while
+azure.microsoft.com flooded with generic SAP stories from a Microsoft-specific sitemap adapter.
+Volume was capped by low hardcoded prompt targets, small output-token ceilings, and a thin
+20k-char input slice; SPA listings (Beamery-style) yielded ~1 story from a single render pass.
+
+**Design principles (user).** (1) Inputs tailor Discovery Questions to the buyer/industry/segment.
+(2) Inputs PRIORITISE, never hard-filter — they raise on-focus items up the order across all four
+types, never remove or cap them. (3) Maximize the initial KB; the realtime pipeline refines later.
+(4-6) Raise targets: DQ -> up to 100, Proof Points -> up to 50, Product Truths -> up to 100 — all
+quality-dependent (never padded/fabricated). Must be a production solution that works across many
+websites — NO per-vendor code.
+
+**Volume.** Targets are config-driven (max_discovery_questions/proof_points/product_truths/
+case_studies_inferred) with new defaults. Generation uses a multi-pass continuation (_generateItems):
+chunk the (wider, 48k) source, request up to the remaining target per pass with a do-not-repeat
+avoid-list, dedupe by per-type identity, and stop on target/exhaustion/no-new — so high volume is
+achieved by grounding more source, not by inflating one response. Truncated JSON arrays are salvaged
+object-by-object. Source bundles widened (120k chars / 30 pages).
+
+**Soft prioritisation.** The hard case-study demotion gate is gone: every extracted story is kept,
+and relevance only ORDERS them (trusted/seller-intent -> relevance -> confidence). Relevance scoring
+moved to partial/proportional token matching with generic-term downweighting (ranking signal, not a
+gate). The seller profile now threads into ALL four generators, and the DQ prompt actively tailors
+questions to the chosen role/persona/industry/segment.
+
+**Host-agnostic harvest (replaces the vendor adapter).** The headless fetcher gained a generic
+listing mode: a bounded scroll/"load more"/"next" interaction loop that accumulates anchors across
+rounds (so list-replacing pagination doesn't lose earlier pages), plus generic JSON-response
+sniffing that extracts story-like URLs from any SPA's backing API. The page fetcher keeps a rendered
+listing when it surfaces candidate STORY links (story-path heuristic, not nav chrome). url-discovery
+merges DOM links (primary) + JSON links (secondary) with provenance. The Microsoft adapter — the only
+host-specific code and the source of the SAP flood — was deleted; the registry is now empty and the
+generic harvest covers SPA listings across sites.
+
+**UI.** Wizard copy reframed from "ranking/limiting" to prioritisation ("others still included").
+Per-type counts already shown; thin-grounding coverage warnings now surface at first-run in KB.jsx
+(parity with Setup.jsx).
+
+### Files
+- server/knowledge-generator.js (config targets, multi-pass _generateItems, profile in all four, JSON salvage)
+- server/routes/api.js (config-driven targets -> generate)
+- server/onboarding/source-collector.js (demotion gate removed; rank-only; trust/focus telemetry; wider bundles)
+- server/onboarding/relevance.js (partial-match scoring + generic-term downweighting)
+- server/fetch/headless-fetcher.js (listing mode: driveListing + JSON sniff + anchor accumulation; playwright injection)
+- server/fetch/page-fetcher.js (listing link-preference via story-path heuristic; jsonLinks threading)
+- server/discovery/url-discovery.js (DOM + JSON link merge with provenance; perTypeBudget 30)
+- server/discovery/adapters/ (microsoft.js DELETED; registry emptied)
+- web: OnboardingWizard.jsx (prioritisation copy), KB.jsx + BackgroundProcessContext.jsx (coverage at first-run)
+
+### Status
+Implemented + unit-tested. Full server suite 146 green (adds fake-browser headless-fetcher tests and
+page-fetcher listing tests). Web bundle rebuilt. No host-specific code remains in the discovery path.

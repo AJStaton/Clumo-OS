@@ -1,0 +1,44 @@
+1. Dev mode
+
+  Run the server and Vite dev server together — gives you hot reload on UI changes:
+
+  cd clumo-electron
+  npm run dev
+
+  This starts:
+  - Server on localhost:3000 (auto-restarts on server file changes via node --watch)
+  - Vite dev server on localhost:5173 (hot reloads on React/CSS changes, proxies API calls to the server)
+
+  Open http://localhost:5173 in your browser to see the app. Changes to any file in web/src/ reflect instantly.
+
+  To test inside Electron with dev tools, you'd run:
+
+  # Terminal 1: start the server
+  cd server && npm run dev
+
+  # Terminal 2: start Vite
+  cd web && npm run dev
+
+  # Terminal 3: start Electron pointing at Vite
+  cd electron && npm start -- --dev
+
+  But for day-to-day development, just using the browser at localhost:5173 is faster. Only use Electron when you need to test desktopCapturer or the app packaging.
+
+  2. Distributable installer
+
+  First, build the web UI, then build the Electron app:
+
+  cd clumo-electron
+
+  # Build the React UI into server/public/
+  cd web && npm run build
+
+  # Build the installer
+  cd ../electron && npm run build
+
+  This produces installers in clumo-electron/dist/:
+  - Windows: Clumo Setup.exe (installer) + Clumo.exe (portable)
+  - Mac: Clumo.dmg
+  - Linux: Clumo.AppImage + Clumo.deb
+
+  You upload these to GitHub Releases and link to them from your README.

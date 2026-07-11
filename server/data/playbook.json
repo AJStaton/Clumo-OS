@@ -1,0 +1,24 @@
+{
+  "role": "",
+  "company": {
+    "name": "",
+    "description": "Microsoft Azure offers a comprehensive suite of cloud computing services including AI, machine learning, data storage, and application development tools. It provides solutions for businesses to modernize their IT infrastructure, build intelligent applications, and leverage advanced analytics for data-driven insights."
+  },
+  "products": [],
+  "personas": [],
+  "outcomes": [
+    "Challenges in data management and analytics.",
+    "Need for modern application development and deployment.",
+    "Enterprise-ready cloud infrastructure with high performance and scalability.",
+    "Comprehensive AI and machine learning tools for building intelligent applications."
+  ],
+  "differentiators": [
+    "Integration of AI capabilities across all services.",
+    "Robust security and compliance features tailored for various industries."
+  ],
+  "competitors": [],
+  "proofPoints": [],
+  "competitorTraps": [],
+  "updatedAt": null,
+  "source": "draft"
+}

@@ -1,0 +1,78 @@
+{
+  "name": "clumo-electron",
+  "version": "1.0.0",
+  "private": true,
+  "main": "main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AJStaton/Clumo-OS.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "prebuild": "npm --prefix ../server run install:chromium",
+    "build": "electron-builder",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "electron": "^35.1.2",
+    "electron-builder": "^26.0.12",
+    "vitest": "^2.1.9"
+  },
+  "build": {
+    "appId": "com.clumo.app",
+    "productName": "Clumo",
+    "electronVersion": "35.7.5",
+    "publish": {
+      "provider": "github",
+      "owner": "AJStaton",
+      "repo": "Clumo-OS"
+    },
+    "directories": {
+      "output": "../dist",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "artifactName": "Clumo-Setup.exe"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "build/icon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "build/icon.png"
+    },
+    "files": [
+      "**/*",
+      "!node_modules"
+    ],
+    "extraResources": [
+      {
+        "from": "../server",
+        "to": "server",
+        "filter": [
+          "**/*",
+          "!data/**",
+          "!uploads/**",
+          "!node_modules/**"
+        ]
+      },
+      {
+        "from": "../server/node_modules",
+        "to": "server/node_modules"
+      }
+    ]
+  }
+}
