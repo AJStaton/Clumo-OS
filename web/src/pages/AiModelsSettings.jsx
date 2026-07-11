@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import SecurityModal from '../components/SecurityModal';
+import AzureKeyGuide from '../components/AzureKeyGuide';
 
 export default function AiModelsSettings() {
   const [settings, setSettings] = useState(null);
@@ -9,6 +11,7 @@ export default function AiModelsSettings() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [saved, setSaved] = useState(false);
+  const [showSecurity, setShowSecurity] = useState(false);
 
   useEffect(() => {
     fetch('/api/settings')
@@ -75,7 +78,15 @@ export default function AiModelsSettings() {
       <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">AI Models</h2>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">AI Provider</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">AI Provider</h3>
+          <button
+            onClick={() => setShowSecurity(true)}
+            className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 underline underline-offset-2"
+          >
+            Security stuff for the techies
+          </button>
+        </div>
 
         <div className="flex gap-3 mb-6">
           <button
@@ -103,6 +114,7 @@ export default function AiModelsSettings() {
             <input type="text" placeholder="Chat deployment name" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.chatDeployment || ''} onChange={e => setConfig({ ...config, chatDeployment: e.target.value })} />
             <input type="text" placeholder="Transcription deployment name (e.g. gpt-4o-mini-transcribe)" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.transcriptionDeployment || ''} onChange={e => setConfig({ ...config, transcriptionDeployment: e.target.value })} />
             <input type="text" placeholder="Embedding deployment name (e.g. text-embedding-3-small)" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.embeddingDeployment || ''} onChange={e => setConfig({ ...config, embeddingDeployment: e.target.value })} />
+            <AzureKeyGuide />
           </div>
         )}
 
@@ -144,6 +156,8 @@ export default function AiModelsSettings() {
           </Link>
         </div>
       </div>
+
+      {showSecurity && <SecurityModal onClose={() => setShowSecurity(false)} />}
     </div>
   );
 }
