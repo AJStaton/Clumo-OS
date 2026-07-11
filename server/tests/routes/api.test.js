@@ -180,7 +180,7 @@ describe('GET /api/preferences', () => {
 
   it('returns defaults when unset', async () => {
     const res = await request(app).get('/api/preferences');
-    expect(res.body).toEqual({ methodology: 'meddpicc', theme: 'system', coachingEnabled: true });
+    expect(res.body).toEqual({ methodology: 'meddpicc', theme: 'system' });
   });
 });
 
@@ -203,7 +203,7 @@ describe('PATCH /api/preferences', () => {
       methodology: 'bant',
       theme: 'dark'
     });
-    expect(res.body).toEqual({ methodology: 'bant', theme: 'dark', coachingEnabled: true });
+    expect(res.body).toEqual({ methodology: 'bant', theme: 'dark' });
   });
 
   it('ignores invalid theme value', async () => {

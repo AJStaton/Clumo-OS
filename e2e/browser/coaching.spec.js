@@ -1,4 +1,4 @@
-// E2E: experimental live-coaching UI (stacking nudges + repositioned right rail).
+// E2E: live-coaching UI (stacking nudges + repositioned right rail).
 //
 // The coaching view only renders during an active "listening" session, so this
 // spec drives a full, deterministic call without a real AI provider, real audio,
@@ -79,13 +79,13 @@ function coachingFrame(overrides = {}) {
   };
 }
 
-test.describe('experimental live-coaching UI', () => {
+test.describe('live-coaching UI', () => {
   test.beforeEach(async ({ page }) => {
-    // Deterministic app state: setup complete, provider configured, coaching on.
+    // Deterministic app state: setup complete, provider configured.
     await page.route('**/api/status', (r) =>
       r.fulfill({ json: { setupComplete: true } }));
     await page.route('**/api/preferences', (r) =>
-      r.fulfill({ json: { methodology: 'meddpicc', theme: 'light', coachingEnabled: true } }));
+      r.fulfill({ json: { methodology: 'meddpicc', theme: 'light' } }));
     await page.route('**/api/settings', (r) =>
       r.fulfill({ json: { configured: true } }));
     await page.route('**/api/sessions', (r) => r.fulfill({ json: [] }));
@@ -100,7 +100,6 @@ test.describe('experimental live-coaching UI', () => {
     await page.getByRole('button', { name: /start listening/i }).first().click();
     // Coaching column header confirms we're in the live coaching layout.
     await expect(page.getByRole('heading', { name: 'Coaching' })).toBeVisible();
-    await expect(page.getByText('Experimental')).toBeVisible();
   }
 
   test('starts a call and shows the empty coaching prompt', async ({ page }) => {
