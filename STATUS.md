@@ -1,6 +1,17 @@
 # Clumo OS Development Status
 
-## Security hardening (current) — from /cso audit
+## Coach persona settings (current)
+- [x] Renamed the "Playbook" surface to **Coach**, promoted to a top-level Settings nav item beside Preferences (`/settings/coach`, CoachSettings.jsx)
+- [x] New **coaching-style** input ("how should your coach behave?") — bounded free text, injected SLOW-lane only (`coaching-style.js`, `renderCoachingStyle`)
+- [x] Existing playbook fields unchanged — still feed BOTH lanes (hot nudge + slow refresh)
+- [x] `GET/PUT /api/coaching-style` (db config) + `POST /api/coach/preview` (server-truthful live preview of composed blocks)
+- [x] Slow-lane `refresh()` injects the style block; `ws.js` loads it per call; hot `nudge()` untouched
+- [x] Live prompt preview panel on the Coach page, updates as any Coach box changes (debounced)
+- [x] Removed the buried Playbook tab from Knowledge Base; relabelled onboarding + editor copy
+- [x] Default coaching style pre-loaded (consultative, value-led, concise executive tone) via `resolveStyle` — applies until the rep saves or explicitly clears it
+- [x] Tests: coaching-style unit + API route + engine lane-scope assertions; server 261 + web 38 green; web build + live endpoint smoke confirmed
+
+## Security hardening — from /cso audit
 - [x] F1 CRIT: server binds 127.0.0.1 only (server/index.js) — closes LAN exposure
 - [x] F2 HIGH: Host allowlist middleware + WS Origin/Host validation (net-guard.js, index.js, routes/ws.js) — closes DNS-rebinding
 - [x] F3 HIGH: SSRF guard on outbound fetch (fetch/ssrf-guard.js) — blocks private/loopback/metadata IPs incl. per-redirect

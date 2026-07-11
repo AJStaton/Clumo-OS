@@ -209,3 +209,37 @@ describe('Playbook grounding', () => {
     expect(system).toContain('Contoso');
   });
 });
+
+describe('Coaching style (slow-lane only)', () => {
+  const style = 'Be direct and concise. Never suggest discounting.';
+
+  it('injects the coaching style into the slow-lane refresh prompt', async () => {
+    const provider = makeProvider('ae');
+    const engine = new CoachingEngine(provider);
+    await engine.refresh({ coachingStyle: style }).catch(() => {});
+    const user = provider.calls.messages[0].find(m => m.role === 'user').content;
+    expect(user).toContain("REP'S COACHING PREFERENCES");
+    expect(user).toContain('Never suggest discounting');
+  });
+
+  it('does NOT inject the coaching style into the hot-lane nudge prompt', async () => {
+    const provider = makeProvider('se');
+    const engine = new CoachingEngine(provider);
+    await engine.nudge(
+      { coachingStyle: style },
+      { reason: 'moment', cue: 'api', category: 'integration', personaHint: 'se' }
+    );
+    const system = provider.calls.messages[0].find(m => m.role === 'system').content;
+    const user = provider.calls.messages[0].find(m => m.role === 'user').content;
+    expect(system).not.toContain("REP'S COACHING PREFERENCES");
+    expect(user).not.toContain('Never suggest discounting');
+  });
+
+  it('adds nothing to refresh when no style is supplied', async () => {
+    const provider = makeProvider('ae');
+    const engine = new CoachingEngine(provider);
+    await engine.refresh({}).catch(() => {});
+    const user = provider.calls.messages[0].find(m => m.role === 'user').content;
+    expect(user).not.toContain("REP'S COACHING PREFERENCES");
+  });
+});

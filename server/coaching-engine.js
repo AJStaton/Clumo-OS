@@ -22,6 +22,7 @@
 
 const { PERSONAS, getPersona, MOVES } = require('./coaching-personas');
 const { renderPlaybook } = require('./playbook');
+const { renderCoachingStyle } = require('./coaching-style');
 
 // --- Tunable constants --------------------------------------------------------
 // --- Hot lane (nudge) ---------------------------------------------------------
@@ -410,7 +411,7 @@ Return ONLY valid JSON:
 Only include "questions" entries for criteria NOT already confirmed. Keep every array to at most 3 short items. Keep each state list to at most ${STATE_LIST_CAP} short items.`;
 
       const user = `Update the call state and MEDDPICC killer questions from the conversation so far.
-${renderPlaybook(context.playbook) ? `\n${renderPlaybook(context.playbook)}\n` : ''}
+${renderPlaybook(context.playbook) ? `\n${renderPlaybook(context.playbook)}\n` : ''}${renderCoachingStyle(context.coachingStyle) ? `\n${renderCoachingStyle(context.coachingStyle)}\n` : ''}
 CALL STATE (current):
 ${this._stateSummary()}
 

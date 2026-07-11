@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const db = require('../db');
 const storage = require('../storage');
 const playbook = require('../playbook');
+const coachingStyle = require('../coaching-style');
 const { loadProvider, loadEmbeddingProvider, saveProviderConfig } = require('../ai-provider');
 const { getKnowledgeBase } = require('../knowledge-base');
 const { collectSources } = require('../onboarding/source-collector');
@@ -444,6 +445,46 @@ router.post('/api/playbook/regenerate', (req, res) => {
   const draft = playbook.assemblePlaybook(kb.profile || {}, kb.companyProfile || {});
   storage.savePlaybook(draft);
   res.json(draft);
+});
+
+// ============================================
+// COACHING STYLE (slow-lane "how to coach me" preferences)
+// ============================================
+
+// Get the rep's coaching-style text plus the exact block that will be injected
+// into the slow (strategic) coaching lane, so the editor preview is server-truthful.
+router.get('/api/coaching-style', (req, res) => {
+  const style = coachingStyle.resolveStyle(db.getConfig('coaching_style'));
+  res.json({ style, rendered: coachingStyle.renderCoachingStyle(style) });
+});
+
+// Save the coaching-style text. Validated + capped server-side; never trusts the
+// client shape. Returns the normalised text and its rendered block.
+router.put('/api/coaching-style', (req, res) => {
+  try {
+    const style = coachingStyle.normalizeStyle((req.body || {}).style);
+    db.setConfig('coaching_style', style);
+    res.json({ style, rendered: coachingStyle.renderCoachingStyle(style) });
+  } catch (e) {
+    console.error('[API] Failed to save coaching style:', e.message);
+    res.status(500).json({ error: 'Failed to save coaching style' });
+  }
+});
+
+// Live preview of the composed Coach context from the CURRENT (possibly unsaved)
+// form state. Runs the same pure renderers used by the coaching engine so the
+// preview matches exactly what gets injected, without persisting anything.
+router.post('/api/coach/preview', (req, res) => {
+  const body = req.body || {};
+  const playbookBlock = playbook.renderPlaybook(playbook.normalizePlaybook(body.playbook || {}));
+  const styleBlock = coachingStyle.renderCoachingStyle(body.style);
+  res.json({
+    playbookBlock,
+    styleBlock,
+    // Both lanes get the playbook; only the slow lane gets the style block.
+    hotLane: [playbookBlock].filter(Boolean).join('\n\n'),
+    slowLane: [playbookBlock, styleBlock].filter(Boolean).join('\n\n')
+  });
 });
 
 // ============================================

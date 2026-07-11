@@ -13,6 +13,7 @@ import KB from './pages/KB';
 import Settings from './pages/Settings';
 import AiModelsSettings from './pages/AiModelsSettings';
 import PreferencesSettings from './pages/PreferencesSettings';
+import CoachSettings from './pages/CoachSettings';
 import IntegrationsSettings from './pages/IntegrationsSettings';
 import Sidebar from './components/Sidebar';
 
@@ -81,6 +82,7 @@ export default function App() {
                   <Route path="ai-models" element={<AiModelsSettings />} />
                   <Route path="knowledge-base" element={<KB />} />
                   <Route path="preferences" element={<PreferencesSettings />} />
+                  <Route path="coach" element={<CoachSettings />} />
                   <Route path="integrations" element={<IntegrationsSettings />} />
                   <Route path="automation" element={<Navigate to="/settings/ai-models" replace />} />
                 </Route>
