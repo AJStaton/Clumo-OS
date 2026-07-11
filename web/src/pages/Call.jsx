@@ -163,9 +163,6 @@ export default function Call({ onListeningChange }) {
               <div className="flex-1 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-y-auto">
                 <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
                   <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Coaching</h2>
-                  <span className="text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
-                    Experimental
-                  </span>
                 </div>
                 <CoachingPanel coaching={coaching} status={status} />
               </div>

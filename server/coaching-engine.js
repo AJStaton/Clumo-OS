@@ -1,4 +1,4 @@
-// Coaching Engine for Clumo (experimental / flag-gated).
+// Coaching Engine for Clumo.
 //
 // Coaching is the STRATEGIC brain of the call. Where the knowledge SuggestionEngine
 // reacts on every utterance with retrieved facts, the coach speaks rarely and with

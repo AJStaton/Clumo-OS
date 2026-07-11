@@ -88,18 +88,17 @@ export default function PreferencesSettings() {
         </div>
       </div>
 
-      {/* Realtime Coaching (experimental) */}
+      {/* Realtime Coaching */}
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-5 mt-5">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Realtime Coaching</h3>
-              <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Experimental</span>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 max-w-md">
               A live coach alongside Knowledge: killer questions, reframes and pivots from a
-              Solution Engineer, Account Executive and Closer, timed to the moment. Off by
-              default. When off, the call experience is unchanged.
+              Solution Engineer, Account Executive and Closer, timed to the moment. On by
+              default; turn it off to keep the call experience limited to Knowledge.
             </p>
           </div>
           <button

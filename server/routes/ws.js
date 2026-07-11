@@ -63,10 +63,10 @@ function setupWebSocket(httpServer) {
     const suggestionEngine = new SuggestionEngine(activeProvider, null, embeddingProvider);
     await suggestionEngine.init('local');
 
-    // Experimental, flag-gated realtime coaching. When OFF, no coaching engine is
-    // created and zero extra LLM calls are made — the experience is identical to
-    // today. A chat-capable provider is required.
-    const coachingEnabled = db.getConfig('coaching_enabled') === 'true' && !!provider;
+    // Realtime coaching (on by default). Set coaching_enabled='false' to opt out, in
+    // which case no coaching engine is created and zero extra LLM calls are made — the
+    // experience is Knowledge-only. A chat-capable provider is required.
+    const coachingEnabled = db.getConfig('coaching_enabled') !== 'false' && !!provider;
     const coachingEngine = coachingEnabled ? new CoachingEngine(provider) : null;
     // Load the rep's editable playbook once per call — it is stable for the whole
     // session and grounds every coaching nudge in what THIS rep sells and how they win.
@@ -242,7 +242,7 @@ function setupWebSocket(httpServer) {
               })
               .catch(err => console.error('[WS] Suggestion error:', err.message));
 
-            // Realtime coaching (flag-gated) — strategic-only, two lanes. The
+            // Realtime coaching (on by default) — strategic-only, two lanes. The
             // fast/reactive lane is owned by Knowledge (getBestSuggestion above).
             if (coachingEngine) {
               const coachCtx = {
