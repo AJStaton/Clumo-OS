@@ -14,8 +14,11 @@ const API_VERSION = 'v9.2';
 
 function runAz(args) {
   return new Promise((resolve, reject) => {
-    // shell:true so Windows resolves `az` -> az.cmd on PATH.
-    execFile('az', args, { shell: true, windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
+    // No shell: args is a fixed array, so shell metacharacters are inert even if a
+    // future caller passes a user-controlled value. On Windows `az` is `az.cmd`, so
+    // name the extension explicitly for PATH resolution without a shell.
+    const azBin = process.platform === 'win32' ? 'az.cmd' : 'az';
+    execFile(azBin, args, { windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) {
         err.stderr = (stderr || '').trim();
         return reject(err);

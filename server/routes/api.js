@@ -29,9 +29,25 @@ const upload = multer({
   dest: uploadsDir,
   limits: { fileSize: 50 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = ['.pdf', '.pptx', '.md', '.txt', '.png', '.jpg', '.jpeg', '.docx'];
+    // Accept only when BOTH the extension and the declared MIME type are allowed.
+    // Extension alone is trivially spoofable (rename evil.exe -> evil.pdf); requiring a
+    // matching MIME raises the bar. Full magic-byte sniffing is out of scope for a
+    // local single-user upload.
+    const allowedExt = ['.pdf', '.pptx', '.md', '.txt', '.png', '.jpg', '.jpeg', '.docx'];
+    const allowedMime = new Set([
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/markdown',
+      'text/x-markdown',
+      'text/plain',
+      'application/octet-stream', // some OSes send this for .md/.docx
+      'image/png',
+      'image/jpeg',
+    ]);
     const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, allowed.includes(ext));
+    const mime = (file.mimetype || '').toLowerCase();
+    cb(null, allowedExt.includes(ext) && allowedMime.has(mime));
   }
 });
 

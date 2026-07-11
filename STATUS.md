@@ -1,5 +1,18 @@
 # Clumo OS Development Status
 
+## Security hardening (current) — from /cso audit
+- [x] F1 CRIT: server binds 127.0.0.1 only (server/index.js) — closes LAN exposure
+- [x] F2 HIGH: Host allowlist middleware + WS Origin/Host validation (net-guard.js, index.js, routes/ws.js) — closes DNS-rebinding
+- [x] F3 HIGH: SSRF guard on outbound fetch (fetch/ssrf-guard.js) — blocks private/loopback/metadata IPs incl. per-redirect
+- [x] Hardening: removed `shell:true` from az call (crm/dynamics-auth.js)
+- [x] Hardening: CSP + nosniff + Referrer-Policy headers (dev/prod split, index.js)
+- [x] Hardening: clumo.key written with 0o600 (db.js)
+- [x] Hardening: AES-256-CBC → GCM with backward-compatible decrypt (db.js)
+- [x] Hardening: Electron sandbox:true + will-navigate/setWindowOpenHandler (electron/main.js)
+- [x] Hardening: upload MIME allowlist alongside extension (routes/api.js)
+- [x] Verified: server 242 unit tests green; runtime smoke (bind, 403 forged Host, WS origin gate, CSP) confirmed
+- [ ] Electron GUI smoke (sandbox + nav guards) on next packaged run
+
 ## Pivot: Public BYOK-only edition (current)
 - [x] Removed all managed-model code from server (ai-provider.js, index.js, routes/api.js, db.js, managed-credentials*.js deleted)
 - [x] Setup.jsx: welcome explainer + Azure AI Foundry key-setup guide + security tips; managed toggle removed; SecurityModal scrubbed

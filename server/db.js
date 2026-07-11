@@ -50,26 +50,44 @@ function getEncryptionKey() {
   }
 
   if (fs.existsSync(KEY_PATH)) {
+    // Best-effort tighten perms on existing keys (POSIX; effectively a no-op on Windows).
+    try { fs.chmodSync(KEY_PATH, 0o600); } catch { /* ignore */ }
     return fs.readFileSync(KEY_PATH);
   }
 
-  // Generate a new 32-byte key on first run
+  // Generate a new 32-byte key on first run. Written owner-read/write only.
+  // Stronger option for the future: OS keychain / Windows DPAPI instead of a flat file.
   const key = crypto.randomBytes(32);
-  fs.writeFileSync(KEY_PATH, key);
+  fs.writeFileSync(KEY_PATH, key, { mode: 0o600 });
   return key;
 }
 
 function encrypt(text) {
   const key = getEncryptionKey();
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
   let encrypted = cipher.update(text, 'utf8', 'hex');
   encrypted += cipher.final('hex');
-  return iv.toString('hex') + ':' + encrypted;
+  const tag = cipher.getAuthTag().toString('hex');
+  // Versioned, authenticated format: gcm:iv:tag:ciphertext
+  return `gcm:${iv.toString('hex')}:${tag}:${encrypted}`;
 }
 
 function decrypt(text) {
   const key = getEncryptionKey();
+
+  // New authenticated format.
+  if (text.startsWith('gcm:')) {
+    const [, ivHex, tagHex, encrypted] = text.split(':');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(ivHex, 'hex'));
+    decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  }
+
+  // Legacy AES-256-CBC values (iv:ciphertext) written by older builds. Still
+  // decryptable; they upgrade to GCM the next time the value is saved.
   const [ivHex, encrypted] = text.split(':');
   const iv = Buffer.from(ivHex, 'hex');
   const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);

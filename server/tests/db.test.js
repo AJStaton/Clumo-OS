@@ -99,6 +99,24 @@ describe('db.js — encryption', () => {
     db.setConfig('broken', 'deadbeef:notvalidhex');
     expect(db.getSecureConfig('broken')).toBeNull();
   });
+
+  it('stores new values in authenticated gcm: format', () => {
+    db.setSecureConfig('api_key', 'sk-supersecret');
+    expect(db.getConfig('api_key')).toMatch(/^gcm:/);
+  });
+
+  it('still decrypts legacy AES-256-CBC values written by older builds', () => {
+    const crypto = require('crypto');
+    // Trigger key creation, then read it to craft a legacy CBC value by hand.
+    db.setSecureConfig('seed', 'x');
+    const key = fs.readFileSync(path.join(dir, 'clumo.key'));
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    let enc = cipher.update('legacy-secret', 'utf8', 'hex');
+    enc += cipher.final('hex');
+    db.setConfig('legacy', `${iv.toString('hex')}:${enc}`);
+    expect(db.getSecureConfig('legacy')).toBe('legacy-secret');
+  });
 });
 
 describe('db.js — session metadata', () => {

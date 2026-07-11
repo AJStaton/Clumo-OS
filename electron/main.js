@@ -1,7 +1,7 @@
 // Clumo Electron Main Process
 // Launches the embedded server and opens the web UI in a BrowserWindow
 
-const { app, BrowserWindow, ipcMain, desktopCapturer, session } = require('electron');
+const { app, BrowserWindow, ipcMain, desktopCapturer, session, shell } = require('electron');
 const path = require('path');
 const ServerManager = require('./server-manager');
 
@@ -39,13 +39,29 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      sandbox: true
     }
   });
 
   // Load the web UI from the embedded server
   const port = serverManager.getPort();
-  mainWindow.loadURL(`http://localhost:${port}`);
+  const appOrigin = `http://localhost:${port}`;
+  mainWindow.loadURL(appOrigin);
+
+  // Navigation hardening: keep the window pinned to the local app origin, and never
+  // open in-app child windows. External links go to the system browser instead.
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!url.startsWith(appOrigin)) {
+      event.preventDefault();
+    }
+  });
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
 
   // Open DevTools in development
   if (process.argv.includes('--dev')) {

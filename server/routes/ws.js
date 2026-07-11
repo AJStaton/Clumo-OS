@@ -8,6 +8,7 @@ const { loadProvider, loadEmbeddingProvider } = require('../ai-provider');
 const storage = require('../storage');
 const db = require('../db');
 const { generateAnalysis, formatSessionName } = require('../analysis');
+const { isAllowedHost, isAllowedOrigin } = require('../net-guard');
 
 // Active and completed sessions (in-memory)
 const activeSessions = new Map();
@@ -27,6 +28,11 @@ function setupWebSocket(httpServer) {
   const wss = new WebSocket.Server({ noServer: true });
 
   httpServer.on('upgrade', (req, socket, head) => {
+    // Reject cross-origin / non-loopback upgrades (DNS-rebinding + drive-by web).
+    if (!isAllowedHost(req.headers.host) || !isAllowedOrigin(req.headers.origin)) {
+      socket.destroy();
+      return;
+    }
     if (req.url === '/ws' || req.url === '/') {
       wss.handleUpgrade(req, socket, head, (ws) => {
         wss.emit('connection', ws, req);

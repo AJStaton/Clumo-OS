@@ -4,6 +4,7 @@
 
 const axios = require('axios');
 const { extractFromHtml } = require('./extract');
+const { assertHttpUrl, guardedHttpAgent, guardedHttpsAgent } = require('./ssrf-guard');
 
 const DEFAULT_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (compatible; Clumo/1.0; +https://clumo.co)',
@@ -14,10 +15,13 @@ const DEFAULT_HEADERS = {
 // Fetch raw HTML for a URL. Returns { ok, status, html, error }.
 async function fetchHtml(url, { timeout = 12000 } = {}) {
   try {
+    assertHttpUrl(url);
     const res = await axios.get(url, {
       timeout,
       headers: DEFAULT_HEADERS,
       maxRedirects: 5,
+      httpAgent: guardedHttpAgent,
+      httpsAgent: guardedHttpsAgent,
       // Accept 4xx so we can still inspect/branch, but treat >=400 as not-ok content.
       validateStatus: (s) => s < 500,
       responseType: 'text',
