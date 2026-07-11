@@ -16,6 +16,19 @@ function SecurityModal({ onClose }) {
 
         <div className="space-y-5 text-sm text-gray-700">
           <div>
+            <h3 className="font-semibold text-gray-900 mb-1.5">Your keys are only stored locally on your device</h3>
+            <p>
+              Clumo is bring-your-own-key, and your API keys <strong>never leave your machine</strong>. When
+              you save a key it's written only to a local database file on this computer&nbsp;
+              (<span className="font-mono text-xs">clumo.db</span>) &mdash; there is no Clumo account, no cloud
+              backend, and no server that your keys are sent to or synced with. The <em>only</em> place your key
+              is ever transmitted is directly to the AI provider you chose (OpenAI or Azure OpenAI), in the
+              standard authorization header, exactly as their own SDKs do it. If you delete Clumo's local data
+              folder, the keys are gone &mdash; they exist nowhere else.
+            </p>
+          </div>
+
+          <div>
             <h3 className="font-semibold text-gray-900 mb-1.5">Your API key is encrypted</h3>
             <p>
               The moment you save your API key, it's encrypted using <strong>AES-256-CBC</strong>, the
