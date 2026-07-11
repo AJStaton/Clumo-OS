@@ -10,6 +10,7 @@
 - [x] Removed the buried Playbook tab from Knowledge Base; relabelled onboarding + editor copy
 - [x] Default coaching style pre-loaded (consultative, value-led, concise executive tone) via `resolveStyle` — applies until the rep saves or explicitly clears it
 - [x] Tests: coaching-style unit + API route + engine lane-scope assertions; server 261 + web 38 green; web build + live endpoint smoke confirmed
+- [x] AI Models page: added the **Azure AI Foundry setup guide** (collapsible) and **"Security stuff for the techies"** modal — both extracted into shared components (`AzureKeyGuide.jsx`, `SecurityModal.jsx`) reused by Setup + AI Models (with dark-mode variants)
 
 ## Security hardening — from /cso audit
 - [x] F1 CRIT: server binds 127.0.0.1 only (server/index.js) — closes LAN exposure
