@@ -1,6 +1,6 @@
 # Clumo
 
-**AI-powered live call coaching for sales teams.**
+**AI-powered live call coaching for sales and technical sales teams.**
 
 <p align="center">
   <a href="https://github.com/AJStaton/Clumo-OS/releases/latest/download/Clumo-Setup.exe">
@@ -8,25 +8,25 @@
   </a>
 </p>
 
-Clumo listens to your live sales calls and surfaces the perfect discovery question, case study, or proof point — exactly when you need it. In real-time. Not after the call. During it.
+Clumo listens to your live sales calls and surfaces the perfect discovery question, case study, or proof point, exactly when you need it. In real-time. Not after the call. During it.
 
-Ever felt that moment of panic in a sales call where you don't know the answer? Or missed the opportunity to ask the killer question? Or talk about the perfect case study? That's where Clumo helps. It's like having an A-player on every call with you.
+Ever left a customer call and thought "Damn, I wish I'd have said...", or missed the opportunity to ask the killer question? Or talk about the perfect case study? That's where Clumo helps. It's like having an A-player on every call with you.
 
-Free, open source, runs locally. Your knowledge base never leaves your machine. You bring your own AI keys.
+Free, open source, stored data locally. Your knowledge base never leaves your machine. You bring your own AI keys.
 
 ---
 
 ## What it does
 
-**Real-time coaching** — Suggestions streamed as you talk. Discovery questions, case studies, and proof points surfaced at exactly the right moment based on what the prospect just said.
+**Real-time AI coaching** — Suggestions streamed as you talk. Insights, discovery questions, case studies, and proof points surfaced at exactly the right moment based on what the prospect just said.
 
-**Your private knowledge base** — Train Clumo with your website, battle cards, and docs. Your KB is stored locally on your machine, encrypted, and never shared.
+**Your private knowledge base** — Train Clumo with your website and docs. Your knowledge is stored locally on your machine, encrypted, and never shared.
 
-**Sales framework tracking** — MEDDPICC tracked in real-time as the conversation progresses. See qualification gaps live, not in a post-call review.
+**Sales framework tracking** — MEDDPICC or BANT tracked in real-time as the conversation progresses. See qualification gaps live, not in a post-call review.
 
 **Bring your own keys** — Works with Azure OpenAI or OpenAI. Your keys, your data, your costs. Keys are encrypted at rest. No middleman, no data sharing, no telemetry.
 
-**Post-call analysis** — Automatic call notes, CRM-ready summaries, and follow-up emails generated from the full conversation context.
+**Post-call analysis** — Automatic call notes, automate CRM updates, and follow-up emails generated from the full conversation context.
 
 **Desktop app** — Works with any meeting platform — Zoom, Teams, Meet, or anything running on your machine. No browser extension. No Docker. Just download and run.
 
@@ -36,9 +36,9 @@ Free, open source, runs locally. Your knowledge base never leaves your machine. 
 
 **Account Executives** — Discovery questions suggested in real-time. Qualification frameworks tracked automatically. Stop taking notes and start closing deals — Clumo remembers everything so you can focus on the relationship.
 
-**Founder-led Sales** — You built the product and know it inside out, but sales calls are a different skill. Clumo gives you the structure of a seasoned sales team — surfacing the right case study when a prospect mentions a pain point, suggesting the killer question you didn't think to ask.
-
 **Technical Sales / SEs** — You're running live demos and deep technical conversations where one perfectly-timed case study can change the outcome. Clumo listens to the context and surfaces exactly the right asset from your knowledge base. Never get caught without the proof point when a prospect pushes back.
+
+**Founder-led sales** - You've built the product, but running sales calls is a completely different skill. Keep yourself on track with coaching from an A-player sales person. 
 
 ---
 
@@ -50,11 +50,6 @@ Up and running in 5 minutes.
 
 Download the latest release for your platform from [GitHub Releases](../../releases):
 
-| Platform | File |
-|----------|------|
-| Windows | `Clumo-Setup.exe` |
-| macOS | `Clumo.dmg` |
-| Linux | `Clumo.AppImage` |
 
 ### 2. Paste your API key
 
@@ -76,21 +71,15 @@ Select your audio source (Zoom, Teams, or any app), click **Start Listening**, a
 
 Clumo uses a two-stage suggestion engine:
 
-1. **Semantic matching** — As the conversation is transcribed in real-time, Clumo converts transcript chunks into embedding vectors and compares them against pre-computed embeddings for every knowledge base item using cosine similarity. Items above a similarity threshold become candidates. This scales cleanly to hundreds of KB items without the false-positive issues of keyword matching.
+1. **Knowledge retrieval** - As the conversation is transcribed in real-time, Clumo converts transcript chunks into embedding vectors and compares them against pre-computed embeddings for every knowledge base item using cosine similarity. Items above a similarity threshold become candidates. This scales cleanly to hundreds of knowledge items without the false-positive issues of keyword matching.
 
-2. **AI confidence scoring** — Matched candidates are sent to GPT-4o which decides: "Is this the right moment to surface this suggestion?" Only items scoring above 80% confidence are shown. This focuses suggestions on pivotal moments — objections, pain point reveals, direct questions.
-
-Additional constraints keep suggestions useful:
-- 60-second minimum between suggestions (no spam)
-- Deduplication — once suggested, an item won't appear again
-- 500-word rolling context window for recency
-- Concurrent request guard prevents overlapping analyses
+2. **AI Coaching** - Strategic insight and killer questions to guide the conversation in the right direction. Where knowledge is the 'killer bit of information', AI coaching is the A-player sat next to you telling you where to focus next. 
 
 ### Audio capture
 
 The desktop app uses Electron's `desktopCapturer` API to capture audio from any application on your system — Zoom desktop, Teams, Google Meet, or any softphone. Audio is converted to PCM16 at 24kHz and sent to the Realtime API for transcription.
 
-On **Windows and Linux**, system audio capture works natively. On **macOS**, you may need a virtual audio driver like [BlackHole](https://github.com/ExistentialAudio/BlackHole) for full both-sides capture. Microphone-only mode works without it.
+On **Windows**, system audio capture works natively. 
 
 ### MEDDPICC tracking
 
@@ -189,16 +178,7 @@ clumo/
 
 Clumo requires an AI provider for real-time transcription (Realtime API) and suggestion scoring (Chat API). You bring your own keys — Clumo never stores or transmits them anywhere except directly to your chosen provider.
 
-### Option A: OpenAI
-
-1. Go to [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
-2. Create a new API key
-3. Ensure your account has access to:
-   - `gpt-4o` (used for suggestion scoring and post-call analysis)
-   - `gpt-4o-realtime-preview` (used for live transcription)
-4. Paste the key into Clumo's setup wizard
-
-### Option B: Azure OpenAI
+### Option A: Azure OpenAI
 
 1. Create an Azure OpenAI resource in the [Azure Portal](https://portal.azure.com)
 2. Deploy three models:
@@ -212,17 +192,27 @@ Clumo requires an AI provider for real-time transcription (Realtime API) and sug
    - **Realtime deployment name**: whatever you named your realtime model
    - **Embedding deployment name**: whatever you named your embedding model
 
+### Option B: OpenAI
+
+1. Go to [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+2. Create a new API key
+3. Ensure your account has access to:
+   - A **chat** model (e.g. `gpt-4o` or `gpt-4o-mini`) — used for suggestions
+   - A **realtime** model (`gpt-4o-realtime-preview`) — used for transcription
+   - An **embedding** model (`text-embedding-3-small`) — used for semantic matching
+4. Paste the key into Clumo's setup wizard
+
+
 ### Cost estimates
 
 The primary cost is the Realtime API for transcription. Rough estimates:
 
 | Call duration | Estimated cost |
 |--------------|----------------|
-| 15 minutes | $0.50 - $2.00 |
-| 30 minutes | $1.00 - $4.00 |
-| 60 minutes | $2.00 - $8.00 |
+| 15 minutes | $0.25 - $0.50 |
+| 30 minutes | $0.50 - $1.00 |
+| 60 minutes | $1.00 - $2.00 |
 
-Suggestion scoring uses the Chat API and adds a small amount ($0.01 - $0.10 per call depending on how many suggestions are evaluated). Post-call analysis is a single Chat API call (~$0.02).
 
 Costs depend on your provider's pricing, which model you use, and how much audio is processed. Check [OpenAI pricing](https://openai.com/pricing) or [Azure OpenAI pricing](https://azure.microsoft.com/pricing/details/cognitive-services/openai-service/) for current rates.
 
