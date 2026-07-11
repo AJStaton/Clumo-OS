@@ -339,6 +339,16 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
             Preferences
           </NavLink>
           <NavLink
+            to="/settings/coach"
+            className={({ isActive }) =>
+              `block px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                isActive ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-800 dark:hover:text-gray-200'
+              }`
+            }
+          >
+            Coach
+          </NavLink>
+          <NavLink
             to="/settings/ai-models"
             className={({ isActive }) =>
               `block px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${

@@ -624,7 +624,7 @@ export default function Setup({ onComplete }) {
                   onClick={() => setStep(3)}
                   className="w-full px-4 py-2 bg-gray-900 text-white rounded-md text-sm font-medium hover:bg-gray-800"
                 >
-                  Refine your playbook →
+                  Set up your Coach →
                 </button>
               </div>
             )}
@@ -652,10 +652,10 @@ export default function Setup({ onComplete }) {
           </div>
         )}
 
-        {/* Step 3: Refine your playbook */}
+        {/* Step 3: Set up your Coach */}
         {step === 3 && (
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold mb-1">Step 3: Refine your playbook</h2>
+            <h2 className="text-lg font-semibold mb-1">Step 3: Set up your Coach</h2>
             <p className="text-sm text-gray-500 mb-4">
               We drafted this from your knowledge base — who you are and how you win. Review and
               edit it, then start your first meeting. The coach uses it to ground every nudge in

@@ -63,7 +63,7 @@ describe('PlaybookEditor', () => {
     await userEvent.clear(roleInput);
     await userEvent.type(roleInput, 'Senior SE');
 
-    await userEvent.click(screen.getByRole('button', { name: /save playbook/i }));
+    await userEvent.click(screen.getByRole('button', { name: /save coach/i }));
 
     await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
     const sent = JSON.parse(put.mock.calls[0][0].body);
@@ -81,7 +81,7 @@ describe('PlaybookEditor', () => {
 
     const trap = await screen.findByLabelText('Trap question for Snowflake');
     await userEvent.type(trap, 'How do you govern models today?');
-    await userEvent.click(screen.getByRole('button', { name: /save playbook/i }));
+    await userEvent.click(screen.getByRole('button', { name: /save coach/i }));
 
     await waitFor(() => expect(put).toHaveBeenCalled());
     const sent = JSON.parse(put.mock.calls[0][0].body);
@@ -126,3 +126,4 @@ describe('PlaybookEditor', () => {
     expect(onContinue).not.toHaveBeenCalled();
   });
 });
+

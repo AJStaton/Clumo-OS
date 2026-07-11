@@ -327,6 +327,68 @@ describe('Playbook endpoints', () => {
   });
 });
 
+describe('Coaching style + preview endpoints', () => {
+  let dir;
+  let app;
+
+  beforeEach(() => {
+    dir = freshDataDir();
+    app = buildApp();
+  });
+
+  afterEach(() => {
+    try { require('../../db.js').close(); } catch {}
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('GET returns empty style and no rendered block by default', async () => {
+    const res = await request(app).get('/api/coaching-style');
+    expect(res.status).toBe(200);
+    expect(res.body.style).toBe('');
+    expect(res.body.rendered).toBe('');
+  });
+
+  it('PUT persists a capped style and renders the injected block', async () => {
+    const put = await request(app).put('/api/coaching-style').send({ style: '  Be direct.  ' });
+    expect(put.status).toBe(200);
+    expect(put.body.style).toBe('Be direct.');
+    expect(put.body.rendered).toContain("REP'S COACHING PREFERENCES");
+    expect(put.body.rendered).toContain('Be direct.');
+
+    const get = await request(app).get('/api/coaching-style');
+    expect(get.body.style).toBe('Be direct.');
+  });
+
+  it('PUT caps style length at the module limit', async () => {
+    const long = 'x'.repeat(5000);
+    const res = await request(app).put('/api/coaching-style').send({ style: long });
+    expect(res.status).toBe(200);
+    expect(res.body.style.length).toBe(1500);
+  });
+
+  it('POST /api/coach/preview composes playbook (both lanes) + style (slow lane only)', async () => {
+    const res = await request(app).post('/api/coach/preview').send({
+      playbook: { role: 'SE', company: { name: 'Contoso', description: 'Data + AI.' } },
+      style: 'Never discount.'
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.playbookBlock).toContain('Contoso');
+    expect(res.body.styleBlock).toContain('Never discount.');
+    // Hot lane gets playbook but NOT the style block; slow lane gets both.
+    expect(res.body.hotLane).toContain('Contoso');
+    expect(res.body.hotLane).not.toContain('Never discount.');
+    expect(res.body.slowLane).toContain('Contoso');
+    expect(res.body.slowLane).toContain('Never discount.');
+  });
+
+  it('POST /api/coach/preview returns empty blocks for empty input', async () => {
+    const res = await request(app).post('/api/coach/preview').send({ playbook: {}, style: '' });
+    expect(res.status).toBe(200);
+    expect(res.body.playbookBlock).toBe('');
+    expect(res.body.styleBlock).toBe('');
+  });
+});
+
 describe('Session endpoints', () => {
   let dir;
   let app;

@@ -76,7 +76,7 @@ function reconcileTraps(competitors, traps) {
   }));
 }
 
-export default function PlaybookEditor({ onContinue }) {
+export default function PlaybookEditor({ onContinue, onChange }) {
   const [pb, setPb] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -90,6 +90,10 @@ export default function PlaybookEditor({ onContinue }) {
       .catch(err => { if (alive) { setError(err.message); setLoading(false); } });
     return () => { alive = false; };
   }, []);
+
+  // Lift the current (possibly unsaved) playbook state up so a parent (e.g. the
+  // Coach page) can drive a live prompt preview as any field changes.
+  useEffect(() => { if (pb) onChange?.(pb); }, [pb, onChange]);
 
   function normalizeShape(data) {
     const d = data || {};
@@ -108,7 +112,6 @@ export default function PlaybookEditor({ onContinue }) {
   }
 
   function set(patch) { setPb(prev => ({ ...prev, ...patch })); setStatus('idle'); }
-
   function setCompetitors(next) {
     setPb(prev => ({ ...prev, competitors: next, competitorTraps: reconcileTraps(next, prev.competitorTraps) }));
     setStatus('idle');
@@ -159,7 +162,7 @@ export default function PlaybookEditor({ onContinue }) {
     }
   }
 
-  if (loading) return <div className="text-sm text-gray-500 dark:text-gray-400">Loading playbook…</div>;
+  if (loading) return <div className="text-sm text-gray-500 dark:text-gray-400">Loading coach…</div>;
   if (error) return <div className="text-sm text-amber-700 dark:text-amber-400">{error}</div>;
   if (!pb) return null;
 
@@ -183,7 +186,7 @@ export default function PlaybookEditor({ onContinue }) {
           <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-1">{personalSummary}</p>
         )}
         <p className="text-sm text-blue-800 dark:text-blue-300">
-          This playbook is <strong>yours</strong> — we drafted it from your onboarding so live coaching speaks to what you sell and how you win. Review, make it sound like you, then save.
+          This coach is <strong>yours</strong> — we drafted it from your onboarding so live coaching speaks to what you sell and how you win. Review, make it sound like you, then save.
         </p>
       </div>
 
@@ -256,7 +259,7 @@ export default function PlaybookEditor({ onContinue }) {
           disabled={status === 'saving'}
           className="px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-md text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-50"
         >
-          {status === 'saving' ? 'Saving…' : (onContinue ? 'Save & start meeting →' : 'Save playbook')}
+          {status === 'saving' ? 'Saving…' : (onContinue ? 'Save & start meeting →' : 'Save coach')}
         </button>
         <button
           onClick={regenerate}

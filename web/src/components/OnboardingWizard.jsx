@@ -256,7 +256,7 @@ export default function OnboardingWizard({ onSubmit, onBack, submitLabel = 'Gene
       {obStep === 'profile' && (
         <div className="space-y-4">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            This is where you tell Clumo who <strong>you</strong> are. Your role, what you sell, and who you sell to personalise your coaching and shape the playbook you'll refine next. A few quick taps — all optional.
+            This is where you tell Clumo who <strong>you</strong> are. Your role, what you sell, and who you sell to personalise your coaching and shape the Coach you'll set up next. A few quick taps — all optional.
           </p>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Your role</label>

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useBackgroundProcess } from '../context/BackgroundProcessContext';
 import OnboardingWizard from '../components/OnboardingWizard';
-import PlaybookEditor from '../components/PlaybookEditor';
 
 const ONBOARDING_PROCESS_ID = 'kb-onboarding';
 const ADD_CONTENT_PROCESS_ID = 'kb-add-content';
@@ -330,16 +329,6 @@ export default function KB() {
         <>
           {/* Tabs */}
           <div className="flex gap-1 mb-4 border-b border-gray-200 dark:border-gray-700">
-            <button
-              onClick={() => setTab('playbook')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                tab === 'playbook'
-                  ? 'border-gray-900 dark:border-gray-100 text-gray-900 dark:text-gray-100'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-              }`}
-            >
-              Playbook
-            </button>
             {Object.entries(tabs).map(([key, { label, items }]) => (
               <button
                 key={key}
@@ -355,11 +344,8 @@ export default function KB() {
             ))}
           </div>
 
-          {/* Playbook editor */}
-          {tab === 'playbook' && <PlaybookEditor />}
-
           {/* Items */}
-          {tab !== 'playbook' && (
+          {(
           <div className="space-y-3">
             {tabs[tab].items.map((item, i) => (
               <div key={item.id || i} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
