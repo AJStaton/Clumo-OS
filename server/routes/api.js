@@ -454,7 +454,7 @@ router.post('/api/playbook/regenerate', (req, res) => {
 // Get the rep's coaching-style text plus the exact block that will be injected
 // into the slow (strategic) coaching lane, so the editor preview is server-truthful.
 router.get('/api/coaching-style', (req, res) => {
-  const style = coachingStyle.normalizeStyle(db.getConfig('coaching_style') || '');
+  const style = coachingStyle.resolveStyle(db.getConfig('coaching_style'));
   res.json({ style, rendered: coachingStyle.renderCoachingStyle(style) });
 });
 

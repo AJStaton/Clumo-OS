@@ -341,9 +341,18 @@ describe('Coaching style + preview endpoints', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
-  it('GET returns empty style and no rendered block by default', async () => {
+  it('GET returns the default style until one is saved', async () => {
+    const { DEFAULT_STYLE } = require('../../coaching-style');
     const res = await request(app).get('/api/coaching-style');
     expect(res.status).toBe(200);
+    expect(res.body.style).toBe(DEFAULT_STYLE);
+    expect(res.body.rendered).toContain("REP'S COACHING PREFERENCES");
+    expect(res.body.rendered).toContain('consultative and value lead');
+  });
+
+  it('GET honours an explicitly cleared (empty) style over the default', async () => {
+    await request(app).put('/api/coaching-style').send({ style: '' });
+    const res = await request(app).get('/api/coaching-style');
     expect(res.body.style).toBe('');
     expect(res.body.rendered).toBe('');
   });

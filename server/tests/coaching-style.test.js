@@ -1,7 +1,7 @@
 // Tests for server/coaching-style.js — normalize + render.
 // Vitest globals are enabled repo-wide; do NOT import from 'vitest'.
 
-const { MAX_STYLE, normalizeStyle, renderCoachingStyle } = require('../coaching-style');
+const { MAX_STYLE, DEFAULT_STYLE, normalizeStyle, resolveStyle, renderCoachingStyle } = require('../coaching-style');
 
 describe('normalizeStyle', () => {
   it('trims whitespace', () => {
@@ -18,6 +18,27 @@ describe('normalizeStyle', () => {
   it('caps length at MAX_STYLE', () => {
     const out = normalizeStyle('x'.repeat(MAX_STYLE + 500));
     expect(out.length).toBe(MAX_STYLE);
+  });
+});
+
+describe('resolveStyle', () => {
+  it('falls back to the default when never set (null/undefined)', () => {
+    expect(resolveStyle(null)).toBe(DEFAULT_STYLE);
+    expect(resolveStyle(undefined)).toBe(DEFAULT_STYLE);
+  });
+
+  it('honours an explicitly cleared empty string (no default)', () => {
+    expect(resolveStyle('')).toBe('');
+    expect(resolveStyle('   ')).toBe('');
+  });
+
+  it('normalises a saved value', () => {
+    expect(resolveStyle('  Be direct.  ')).toBe('Be direct.');
+  });
+
+  it('the default is a non-empty, sensible sentence', () => {
+    expect(DEFAULT_STYLE).toContain('consultative');
+    expect(DEFAULT_STYLE.length).toBeLessThanOrEqual(MAX_STYLE);
   });
 });
 

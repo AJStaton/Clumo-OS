@@ -16,10 +16,23 @@
 
 const MAX_STYLE = 1500; // hard ceiling on the coaching-style free text
 
+// The default coaching style, used until the rep saves their own (or explicitly
+// clears it). Applied server-side so the UI prefill, the live preview, and live
+// coaching all agree.
+const DEFAULT_STYLE = 'The coach is consultative and value lead in conversations. It strikes a balance between empathy and the ability to constructively challenge the customer where required. It communicates in a concise, executive tone.';
+
 // Normalise incoming coaching-style text: coerce to string, trim, and cap length.
 function normalizeStyle(input) {
   if (typeof input !== 'string') return '';
   return input.trim().slice(0, MAX_STYLE);
+}
+
+// Resolve the effective style from a raw stored value. A null/undefined value means
+// "never set" -> fall back to the default. An empty string means the rep explicitly
+// cleared it -> honour that (no default).
+function resolveStyle(raw) {
+  if (raw === null || raw === undefined) return DEFAULT_STYLE;
+  return normalizeStyle(raw);
 }
 
 // Render the coaching style as a compact, clearly-marked prompt block for the slow
@@ -31,4 +44,4 @@ function renderCoachingStyle(style) {
 ${text}`;
 }
 
-module.exports = { MAX_STYLE, normalizeStyle, renderCoachingStyle };
+module.exports = { MAX_STYLE, DEFAULT_STYLE, normalizeStyle, resolveStyle, renderCoachingStyle };

@@ -6,6 +6,7 @@ const SuggestionEngine = require('../suggestion-engine');
 const CoachingEngine = require('../coaching-engine');
 const { loadProvider, loadEmbeddingProvider } = require('../ai-provider');
 const storage = require('../storage');
+const coachingStyle = require('../coaching-style');
 const db = require('../db');
 const { generateAnalysis, formatSessionName } = require('../analysis');
 const { isAllowedHost, isAllowedOrigin } = require('../net-guard');
@@ -72,7 +73,7 @@ function setupWebSocket(httpServer) {
     const coachingPlaybook = coachingEnabled ? storage.loadPlaybook() : null;
     // Load the rep's coaching-style preferences once per call. Injected into the
     // SLOW (strategic) lane only — it shapes HOW the coach reasons, not the live nudge path.
-    const coachingStyleText = coachingEnabled ? (db.getConfig('coaching_style') || '') : '';
+    const coachingStyleText = coachingEnabled ? coachingStyle.resolveStyle(db.getConfig('coaching_style')) : '';
     if (coachingEnabled) console.log(`[WS] Coaching engine enabled${coachingPlaybook ? ' (playbook loaded)' : ''}${coachingStyleText ? ' (style loaded)' : ''}`);
 
     let transcriptBuffer = '';
