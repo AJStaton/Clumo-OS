@@ -10,9 +10,37 @@ const { getConfig, getSecureConfig, setConfig, setSecureConfig } = require('./db
 // per-config, but this is the default everywhere.
 const DEFAULT_TRANSCRIPTION_MODEL = 'gpt-4o-mini-transcribe';
 
+function normalizeAzureEndpoint(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return raw.replace(/\/+$/, '');
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return raw.replace(/\/+$/, '');
+  }
+}
+
+function buildAzureConfigError(error, endpoint) {
+  const message = String(error && error.message ? error.message : error || '');
+  const status = error && (error.status || error.statusCode);
+  const isNotFound = status === 404 || /\b404\b/i.test(message) || /resource not found/i.test(message);
+
+  if (!isNotFound) return message || 'Azure OpenAI configuration is invalid';
+
+  return [
+    'Azure returned 404 (resource not found).',
+    'Use only the base endpoint host (for example https://<resource>.services.ai.azure.com or https://<resource>.openai.azure.com) with no /openai, /openai/v1, or other path.',
+    'Also confirm the chat/transcription/embedding deployment names exactly match Azure Foundry.',
+    endpoint ? `Current endpoint: ${endpoint}` : null
+  ].filter(Boolean).join(' ');
+}
+
 class AzureOpenAIProvider {
   constructor(config) {
-    this.endpoint = config.endpoint;
+    this.endpoint = normalizeAzureEndpoint(config.endpoint);
     this.apiKey = config.apiKey;
     this.apiVersion = config.apiVersion || '2024-10-21';
     this.chatDeployment = config.chatDeployment;
@@ -87,7 +115,7 @@ class AzureOpenAIProvider {
       });
       return { valid: true };
     } catch (e) {
-      return { valid: false, error: e.message };
+      return { valid: false, error: buildAzureConfigError(e, this.endpoint) };
     }
   }
 }
@@ -226,7 +254,8 @@ function saveProviderConfig(providerType, config) {
   setConfig('ai_provider', providerType);
 
   if (providerType === 'azure') {
-    setConfig('azure_endpoint', config.endpoint);
+    const endpoint = normalizeAzureEndpoint(config.endpoint);
+    setConfig('azure_endpoint', endpoint);
     if (config.apiKey) {
       setSecureConfig('azure_api_key', config.apiKey);
     }
@@ -256,5 +285,6 @@ module.exports = {
   loadProvider,
   loadEmbeddingProvider,
   saveProviderConfig,
-  DEFAULT_TRANSCRIPTION_MODEL
+  DEFAULT_TRANSCRIPTION_MODEL,
+  normalizeAzureEndpoint
 };
