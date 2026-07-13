@@ -39,6 +39,7 @@ describe('ai-provider.js — provider classes', () => {
     expect(p.endpoint).toBe('https://x.openai.azure.com');
     expect(p.chatDeployment).toBe('gpt4');
     expect(p.apiVersion).toBe('2024-10-21');
+    expect(p.realtimeApiVersion).toBe('2025-04-01-preview');
   });
 
   it('AzureOpenAIProvider respects custom apiVersion', () => {
@@ -47,6 +48,30 @@ describe('ai-provider.js — provider classes', () => {
       chatDeployment: 'c', realtimeDeployment: 'r', embeddingDeployment: 'e'
     });
     expect(p.apiVersion).toBe('2025-01-01');
+    expect(p.realtimeApiVersion).toBe('2025-04-01-preview');
+  });
+
+  it('AzureOpenAIProvider uses preview realtime api versions as-is', () => {
+    const p = new ai.AzureOpenAIProvider({
+      endpoint: 'x', apiKey: 'k', apiVersion: '2025-04-01-preview',
+      chatDeployment: 'c', realtimeDeployment: 'r', embeddingDeployment: 'e'
+    });
+    expect(p.realtimeApiVersion).toBe('2025-04-01-preview');
+  });
+
+  it('AzureOpenAIProvider accepts a valid unknown GA api version', () => {
+    const p = new ai.AzureOpenAIProvider({
+      endpoint: 'x', apiKey: 'k', apiVersion: '2026-01-01',
+      chatDeployment: 'c', realtimeDeployment: 'r', embeddingDeployment: 'e'
+    });
+    expect(p.apiVersion).toBe('2026-01-01');
+  });
+
+  it('AzureOpenAIProvider rejects malformed api versions', () => {
+    expect(() => new ai.AzureOpenAIProvider({
+      endpoint: 'x', apiKey: 'k', apiVersion: 'vNext',
+      chatDeployment: 'c', realtimeDeployment: 'r', embeddingDeployment: 'e'
+    })).toThrow(/Invalid Azure API version format/i);
   });
 
   it('OpenAIProvider applies model defaults', () => {
@@ -87,6 +112,21 @@ describe('ai-provider.js — provider classes', () => {
     // by stubbing WebSocket. Just confirm the method exists and is callable up
     // to the point of socket construction.
     expect(typeof p.createRealtimeWebSocket).toBe('function');
+    expect(p.getRealtimeConnectionModes()).toEqual(['preview', 'ga']);
+  });
+
+  it('AzureOpenAIProvider can build GA realtime URL shape', () => {
+    const p = new ai.AzureOpenAIProvider({
+      endpoint: 'https://x.openai.azure.com',
+      apiKey: 'k',
+      chatDeployment: 'c',
+      realtimeDeployment: 'rt-dep',
+      embeddingDeployment: 'e'
+    });
+    const url = p.buildRealtimeUrl('ga');
+    expect(url).toContain('/openai/v1/realtime?intent=transcription');
+    expect(url).not.toContain('api-version=');
+    expect(url).not.toContain('deployment=');
   });
 });
 
@@ -145,6 +185,7 @@ describe('ai-provider.js — saveProviderConfig + loadProvider', () => {
       transcriptionModel: 'gpt-4o-mini-transcribe'
     });
     const azureUrl = azure.buildRealtimeUrl();
+    expect(azureUrl).toContain('api-version=2025-04-01-preview');
     expect(azureUrl).toContain('deployment=gpt-4o-mini-transcribe');
     expect(azureUrl).toContain('intent=transcription');
     expect(azureUrl).not.toContain('gpt-realtime-mini');

@@ -4,6 +4,8 @@ import PlaybookEditor from '../components/PlaybookEditor';
 import SecurityModal from '../components/SecurityModal';
 import AzureKeyGuide from '../components/AzureKeyGuide';
 
+const DEFAULT_AZURE_API_VERSION = '2024-10-21';
+
 export default function Setup({ onComplete }) {
   const [step, setStep] = useState(1);
   const [provider, setProvider] = useState('');
@@ -195,7 +197,11 @@ export default function Setup({ onComplete }) {
             {/* BYOK provider selection */}
             <div className="flex gap-3 mb-6">
               <button
-                onClick={() => { setProvider('azure'); setConfig({}); setTestResult(null); }}
+                onClick={() => {
+                  setProvider('azure');
+                  setConfig({ apiVersion: DEFAULT_AZURE_API_VERSION });
+                  setTestResult(null);
+                }}
                 className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium transition-colors ${
                   provider === 'azure'
                     ? 'border-gray-900 bg-gray-50'
@@ -231,6 +237,13 @@ export default function Setup({ onComplete }) {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                   value={config.apiKey || ''}
                   onChange={e => setConfig({ ...config, apiKey: e.target.value })}
+                />
+                <input
+                  type="text"
+                  placeholder="API version (e.g. 2024-10-21 or 2025-04-01-preview)"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  value={config.apiVersion || DEFAULT_AZURE_API_VERSION}
+                  onChange={e => setConfig({ ...config, apiVersion: e.target.value })}
                 />
                 <input
                   type="text"

@@ -11,7 +11,13 @@ const db = require('../db');
 const storage = require('../storage');
 const playbook = require('../playbook');
 const coachingStyle = require('../coaching-style');
-const { loadProvider, loadEmbeddingProvider, saveProviderConfig } = require('../ai-provider');
+const {
+  loadProvider,
+  loadEmbeddingProvider,
+  saveProviderConfig,
+  getAzureModelApiVersionSupport,
+  DEFAULT_AZURE_API_VERSION
+} = require('../ai-provider');
 const { getKnowledgeBase } = require('../knowledge-base');
 const { collectSources } = require('../onboarding/source-collector');
 const { scanSite } = require('../onboarding/site-scanner');
@@ -80,16 +86,26 @@ router.get('/api/status', (req, res) => {
 // Get current settings (provider type, non-secret config)
 router.get('/api/settings', (req, res) => {
   const provider = db.getConfig('ai_provider');
+  const azureApiVersionSupport = getAzureModelApiVersionSupport();
 
   if (!provider) {
-    return res.json({ configured: false, providerMode: 'byok' });
+    return res.json({
+      configured: false,
+      providerMode: 'byok',
+      azureApiVersionSupport
+    });
   }
 
-  const settings = { configured: true, providerMode: 'byok', provider };
+  const settings = {
+    configured: true,
+    providerMode: 'byok',
+    provider,
+    azureApiVersionSupport
+  };
 
   if (provider === 'azure') {
     settings.endpoint = db.getConfig('azure_endpoint');
-    settings.apiVersion = db.getConfig('azure_api_version');
+    settings.apiVersion = db.getConfig('azure_api_version') || DEFAULT_AZURE_API_VERSION;
     settings.chatDeployment = db.getConfig('azure_chat_deployment');
     settings.realtimeDeployment = db.getConfig('azure_realtime_deployment');
     settings.transcriptionDeployment = db.getConfig('transcription_model');
@@ -131,8 +147,12 @@ router.post('/api/settings', async (req, res) => {
     }
   }
 
-  saveProviderConfig(provider, config);
-  res.json({ success: true });
+  try {
+    saveProviderConfig(provider, config);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message || 'Invalid settings' });
+  }
 });
 
 // Test API key connectivity

@@ -195,13 +195,14 @@ Clumo requires an AI provider for real-time transcription (Realtime API) and sug
 1. Create an Azure OpenAI resource in the [Azure Portal](https://portal.azure.com)
 2. Deploy three models:
    - A **chat** model (e.g. `gpt-4o` or `gpt-4o-mini`) — used for suggestions
-   - A **realtime** model (`gpt-4o-realtime-preview`) — used for transcription
+   - A **transcription** model (`gpt-4o-mini-transcribe`) — used for live transcript streaming
    - An **embedding** model (`text-embedding-3-small`) — used for semantic matching
 3. In Clumo's setup wizard, enter:
    - **Endpoint**: `https://your-resource.openai.azure.com`
    - **API Key**: from the Azure Portal
+   - **API version**: defaults to `2024-10-21` (chat + embeddings)
    - **Chat deployment name**: whatever you named your chat model
-   - **Realtime deployment name**: whatever you named your realtime model
+   - **Transcription deployment name**: whatever you named your transcription model
    - **Embedding deployment name**: whatever you named your embedding model
 
 ### Option B: OpenAI
@@ -213,6 +214,19 @@ Clumo requires an AI provider for real-time transcription (Realtime API) and sug
    - A **realtime** model (`gpt-4o-realtime-preview`) — used for transcription
    - An **embedding** model (`text-embedding-3-small`) — used for semantic matching
 4. Paste the key into Clumo's setup wizard
+
+### Model API version support
+
+Clumo is version-aware, but not version-locked:
+
+- **Azure chat + embeddings** use the API version you set in UI.
+- Any valid Azure version string is accepted (`YYYY-MM-DD` or `YYYY-MM-DD-preview`), so new GA/preview releases can be used without code changes.
+- Known tested defaults are:
+  - `2024-10-21` (default, GA)
+  - `2025-04-01-preview` (preview)
+- If a version is retired, Clumo can mark it as retired in one central registry (`server/ai-provider.js`) and reject it with a clear error.
+
+Realtime is handled separately: Clumo auto-falls back across Azure realtime route shapes (preview and GA websocket paths) to reduce 404 handshake failures across resource/version differences.
 
 
 ### Cost estimates
