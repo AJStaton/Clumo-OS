@@ -8,7 +8,7 @@ const { loadProvider, loadEmbeddingProvider } = require('../ai-provider');
 const storage = require('../storage');
 const coachingStyle = require('../coaching-style');
 const db = require('../db');
-const { generateAnalysis, formatSessionName } = require('../analysis');
+const { generateAnalysis, formatSessionName, formatDefaultSessionName } = require('../analysis');
 const { isAllowedHost, isAllowedOrigin } = require('../net-guard');
 
 // Active and completed sessions (in-memory)
@@ -105,7 +105,7 @@ function setupWebSocket(httpServer) {
     // Register session
     const sessionId = suggestionEngine.getSessionId();
     activeSessions.set(sessionId, suggestionEngine);
-    db.createSession(sessionId);
+    db.createSession(sessionId, formatDefaultSessionName(Date.now()));
     console.log(`[WS] Session started: ${sessionId}`);
 
     // Connect one channel's Realtime API session for transcription.

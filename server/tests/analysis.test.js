@@ -1,6 +1,6 @@
 // Tests for server/analysis.js — formatSessionName + generateAnalysis (mocked provider).
 
-const { formatSessionName, generateAnalysis } = require('../analysis.js');
+const { formatSessionName, formatDefaultSessionName, generateAnalysis } = require('../analysis.js');
 
 describe('formatSessionName', () => {
   it('formats as "{3-word topic} dd/mm"', () => {
@@ -9,6 +9,12 @@ describe('formatSessionName', () => {
       new Date('2025-05-17T14:30:00')
     );
     expect(out).toBe('Platform demo discussion 17/05');
+  });
+
+  describe('formatDefaultSessionName', () => {
+    it('formats as "Live sales call dd/mm"', () => {
+      expect(formatDefaultSessionName(new Date('2025-07-13T10:00:00Z'))).toBe('Live sales call 13/07');
+    });
   });
 
   it('trims topic to at most 3 words', () => {

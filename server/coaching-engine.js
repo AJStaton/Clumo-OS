@@ -28,6 +28,7 @@ const { renderCoachingStyle } = require('./coaching-style');
 // --- Hot lane (nudge) ---------------------------------------------------------
 const NUDGE_WORD_INTERVAL = 150;         // cadence floor: consider a nudge every N words
 const NUDGE_COOLDOWN_MS = 15000;         // min gap between nudge calls (bounds cost + spam)
+const NUDGE_DEDUP_WINDOW_MS = 2 * 60 * 1000; // suppress near-duplicate nudges in a short window
 const NUDGE_MAX_TOKENS = 220;            // lean output -> ~2s call
 // --- Slow lane (state + MEDDPICC questions) -----------------------------------
 const REFRESH_INTERVAL_MS = 3 * 60 * 1000; // refresh call state + tooltip questions every 3 min
@@ -66,6 +67,24 @@ const KEY_MOMENTS = [
   { category: 'disappointing', hint: 'closer', phrases: ['disappointing', 'frustrating', 'let down', 'underwhelming', 'not happy'] },
   { category: 'timeline',      hint: 'ae',     phrases: ['timeline', 'deadline', 'go live', 'timeframe', 'by when'] }
 ];
+
+function normalizeText(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function tokenSimilarity(a, b) {
+  const left = new Set(normalizeText(a).split(' ').filter(Boolean));
+  const right = new Set(normalizeText(b).split(' ').filter(Boolean));
+  if (!left.size || !right.size) return 0;
+  let intersection = 0;
+  for (const t of left) if (right.has(t)) intersection++;
+  const union = new Set([...left, ...right]).size;
+  return union === 0 ? 0 : intersection / union;
+}
 
 // Word-boundary-aware phrase match (avoids 'api' -> "therapist" style false hits).
 function phraseHit(text, phrase) {
@@ -196,6 +215,7 @@ class CoachingEngine {
       type: nudge.type,
       persona: nudge.persona,
       headline: nudge.headline,
+      say: nudge.say || '',
       at: new Date().toISOString()
     });
     if (this.coachingState.movesGiven.length > MOVES_GIVEN_CAP) {
@@ -209,6 +229,28 @@ class CoachingEngine {
     return this.coachingState.movesGiven
       .map(m => `- ${m.type || 'move'}${m.persona ? ` (${m.persona})` : ''}: ${m.headline}`)
       .join('\n') || '(none yet)';
+  }
+
+  _isNearDuplicateNudge(nudge) {
+    const now = Date.now();
+    const windowed = [...this.coachingState.movesGiven].reverse();
+    for (const prev of windowed) {
+      const at = Date.parse(prev.at);
+      if (!Number.isFinite(at)) continue;
+      const age = now - at;
+      if (age > NUDGE_DEDUP_WINDOW_MS) break;
+      if (prev.type !== nudge.type) continue;
+
+      const headlineSim = tokenSimilarity(prev.headline, nudge.headline);
+      const saySim = tokenSimilarity(prev.say, nudge.say);
+
+      const strongHeadlineMatch = headlineSim >= 0.65;
+      const strongSayMatch = saySim >= 0.75;
+      if (strongHeadlineMatch || strongSayMatch) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // Unconfirmed MEDDPICC criteria, tagged with the lens that owns each, so the coach
@@ -373,6 +415,7 @@ MEDDPICC criteria definitions: M=Metrics, E=Economic Buyer, D1=Decision Criteria
         urgency: n.urgency === 'now' ? 'now' : 'soon',
         triggeredAt: Date.now()
       };
+      if (this._isNearDuplicateNudge(nudge)) return null;
       this._recordMove(nudge);
       return nudge;
     } catch (err) {

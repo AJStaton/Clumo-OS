@@ -33,6 +33,20 @@ function makeProvider(personaEcho = 'se', moveEcho = 'DeRisk') {
   };
 }
 
+function makeProviderSequence(nudges) {
+  const calls = { messages: [] };
+  let idx = 0;
+  return {
+    calls,
+    async chatCompletion(messages) {
+      calls.messages.push(messages);
+      const nudge = nudges[Math.min(idx, nudges.length - 1)];
+      idx += 1;
+      return { choices: [{ message: { content: JSON.stringify({ nudge }) } }] };
+    }
+  };
+}
+
 describe('detectMoment persona routing', () => {
   it('routes technical cues to the Solution Engineer lens', () => {
     const technical = [
@@ -161,6 +175,65 @@ describe('SE voice: repetition guard rotates instead of fixating', () => {
     const user = provider.calls.messages[0].find(m => m.role === 'user').content;
     expect(user).toContain('UNDER-SERVED CRITERIA');
     expect(user).toContain('Metrics [M]');
+  });
+
+  it('suppresses near-duplicate nudges in a short window', async () => {
+    const provider = makeProviderSequence([
+      {
+        coach: true, confidence: 0.95, persona: 'se', move: 'Dig',
+        signal: 'metrics not confirmed',
+        headline: 'Clarify success metrics for collaboration',
+        why: 'Understanding metrics is crucial for alignment.',
+        say: 'What specific metrics will you use to measure success in our collaboration?',
+        urgency: 'now'
+      },
+      {
+        coach: true, confidence: 0.94, persona: 'se', move: 'Dig',
+        signal: 'metrics not confirmed',
+        headline: 'Explore success metrics for collaboration',
+        why: 'Understanding metrics is crucial for alignment.',
+        say: 'What specific metrics or KPIs would you like to track to measure our success together?',
+        urgency: 'soon'
+      }
+    ]);
+    const engine = new CoachingEngine(provider);
+    const trigger = { reason: 'cadence', cue: null, category: null, personaHint: null };
+
+    const first = await engine.nudge({}, trigger);
+    const second = await engine.nudge({}, trigger);
+
+    expect(first).toBeTruthy();
+    expect(second).toBeNull();
+  });
+
+  it('allows a different move even within the dedup window', async () => {
+    const provider = makeProviderSequence([
+      {
+        coach: true, confidence: 0.95, persona: 'se', move: 'Dig',
+        signal: 'metrics not confirmed',
+        headline: 'Clarify success metrics for collaboration',
+        why: 'Understanding metrics is crucial for alignment.',
+        say: 'What specific metrics will you use?',
+        urgency: 'now'
+      },
+      {
+        coach: true, confidence: 0.93, persona: 'ae', move: 'NextStep',
+        signal: 'timeline unclear',
+        headline: 'Lock in mutual next step',
+        why: 'Concretize ownership and timeline before momentum fades.',
+        say: 'Can we align on owners and timing for the next decision checkpoint?',
+        urgency: 'soon'
+      }
+    ]);
+    const engine = new CoachingEngine(provider);
+    const trigger = { reason: 'cadence', cue: null, category: null, personaHint: null };
+
+    const first = await engine.nudge({}, trigger);
+    const second = await engine.nudge({}, trigger);
+
+    expect(first).toBeTruthy();
+    expect(second).toBeTruthy();
+    expect(second.type).toBe('NextStep');
   });
 });
 
