@@ -437,9 +437,27 @@ describe('Session endpoints', () => {
     expect(res.body).toEqual([]);
   });
 
+  it('GET /api/sessions returns fallback names for unnamed completed sessions', async () => {
+    db.createSession('s1');
+    db.completeSession('s1', 0);
+    storage.saveSession('s1', { startTime: new Date('2025-07-13T10:00:00Z').toISOString(), fullTranscript: [] });
+    const res = await request(app).get('/api/sessions');
+    const row = res.body.find(s => s.sessionId === 's1');
+    expect(row.name).toMatch(/^Live sales call \d{2}\/\d{2}$/);
+  });
+
   it('GET /api/session/:id returns 404 for missing', async () => {
     const res = await request(app).get('/api/session/missing');
     expect(res.status).toBe(404);
+  });
+
+  it('GET /api/session/:id includes fallback name when missing in DB', async () => {
+    db.createSession('s2');
+    db.completeSession('s2', 0);
+    storage.saveSession('s2', { startTime: new Date('2025-07-13T10:00:00Z').toISOString(), fullTranscript: [] });
+    const res = await request(app).get('/api/session/s2');
+    expect(res.status).toBe(200);
+    expect(res.body.name).toMatch(/^Live sales call \d{2}\/\d{2}$/);
   });
 
   it('GET /api/session/:id/export includes transcript (regression: F-13)', async () => {

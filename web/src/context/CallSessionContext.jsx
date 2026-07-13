@@ -2,6 +2,46 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { createWsClient } from '../lib/ws-client';
 
 const CallSessionContext = createContext(null);
+const MESSAGE_DEDUP_WINDOW_MS = 2 * 60 * 1000;
+
+function normalizeText(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function suggestionFingerprint(suggestion) {
+  const item = suggestion && suggestion.suggestion ? suggestion.suggestion : (suggestion || {});
+  return [
+    suggestion?.type || item?.type || '',
+    normalizeText(item.question || item.headline || item.stat || item.fact || ''),
+    normalizeText(item.trigger || suggestion?.trigger || ''),
+  ].join('|');
+}
+
+function coachingFingerprint(nudge) {
+  return [
+    nudge?.persona || '',
+    nudge?.type || '',
+    normalizeText(nudge?.headline || ''),
+    normalizeText(nudge?.signal || '')
+  ].join('|');
+}
+
+function isDuplicate(cacheMapRef, fingerprint, ttlMs = MESSAGE_DEDUP_WINDOW_MS) {
+  if (!fingerprint) return false;
+  const now = Date.now();
+  const map = cacheMapRef.current;
+  for (const [key, ts] of map.entries()) {
+    if ((now - ts) > ttlMs) map.delete(key);
+  }
+  const previous = map.get(fingerprint);
+  if (previous && (now - previous) < ttlMs) return true;
+  map.set(fingerprint, now);
+  return false;
+}
 
 /**
  * Owns the live call session (websocket, audio capture, transcript, suggestions,
@@ -25,6 +65,8 @@ export function CallSessionProvider({ children }) {
   const streamRef = useRef(null);
   const micStreamRef = useRef(null);
   const audioContextRef = useRef(null);
+  const suggestionDedupRef = useRef(new Map());
+  const coachingDedupRef = useRef(new Map());
 
   const handleWsMessage = useCallback((msg) => {
     switch (msg.type) {
@@ -49,12 +91,14 @@ export function CallSessionProvider({ children }) {
         setPartialTranscript(msg.text || '');
         break;
       case 'suggestion':
+        if (isDuplicate(suggestionDedupRef, suggestionFingerprint(msg.suggestion || {}))) break;
         setSuggestions(prev => [...prev, { ...msg.suggestion, _id: Date.now() + Math.random() }]);
         break;
       case 'meddpicc_update':
         setMeddpicc(msg.meddpicc);
         break;
       case 'coaching':
+        if (isDuplicate(coachingDedupRef, coachingFingerprint(msg.coaching || {}))) break;
         // Stack nudges - newest first, keep history so earlier moves aren't lost.
         setCoaching(prev => [{ ...msg.coaching, _id: Date.now() + Math.random() }, ...prev].slice(0, 30));
         break;
@@ -99,6 +143,8 @@ export function CallSessionProvider({ children }) {
       setCoaching([]);
       setMeddpiccQuestions({});
       setSessionId(null);
+      suggestionDedupRef.current.clear();
+      coachingDedupRef.current.clear();
 
       const isElectron = !!window.clumo?.isElectron;
       let sourceId = audioSourceId;
@@ -219,6 +265,8 @@ export function CallSessionProvider({ children }) {
     setCoaching([]);
     setMeddpiccQuestions({});
     setError(null);
+    suggestionDedupRef.current.clear();
+    coachingDedupRef.current.clear();
   }, [cleanup]);
 
   // Tear down on full unmount (e.g. window close) — best-effort

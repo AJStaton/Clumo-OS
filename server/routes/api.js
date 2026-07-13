@@ -23,7 +23,7 @@ const { collectSources } = require('../onboarding/source-collector');
 const { scanSite } = require('../onboarding/site-scanner');
 const DocumentParser = require('../document-parser');
 const KnowledgeGenerator = require('../knowledge-generator');
-const { generateAnalysis, formatSessionName } = require('../analysis');
+const { generateAnalysis, formatSessionName, formatDefaultSessionName } = require('../analysis');
 const crm = require('../crm-provider');
 
 const router = express.Router();
@@ -544,7 +544,7 @@ router.get('/api/sessions', (req, res) => {
       sessions.push({
         sessionId: s.id,
         status: 'completed',
-        name: s.name,
+        name: s.name || formatDefaultSessionName(s.start_time || s.end_time),
         startTime: s.start_time,
         endTime: s.end_time,
         suggestionCount: s.suggestion_count,
@@ -569,13 +569,23 @@ router.get('/api/session/:sessionId', (req, res) => {
   // Check completed sessions (in-memory cache)
   const completed = getCompletedSessions().get(sessionId);
   if (completed) {
-    return res.json({ status: 'completed', ...completed });
+    const dbRow = db.getSession(sessionId);
+    return res.json({
+      status: 'completed',
+      name: (dbRow && dbRow.name) || formatDefaultSessionName((dbRow && dbRow.start_time) || completed.startTime),
+      ...completed
+    });
   }
 
   // Fall back to file storage
   const data = storage.loadSession(sessionId);
   if (data) {
-    return res.json({ status: 'completed', ...data });
+    const dbRow = db.getSession(sessionId);
+    return res.json({
+      status: 'completed',
+      name: (dbRow && dbRow.name) || formatDefaultSessionName((dbRow && dbRow.start_time) || data.startTime),
+      ...data
+    });
   }
 
   res.status(404).json({ error: 'Session not found' });
