@@ -1,6 +1,6 @@
-# Clumo (Beta)
+# Clumo
 
-**AI-powered realtime call coaching for sales and technical sales teams.**
+**AI-powered live call coaching for sales and technical sales teams.**
 
 <p align="center">
   <a href="https://github.com/AJStaton/Clumo-OS/releases/latest/download/Clumo-Setup.exe">
@@ -13,6 +13,18 @@ Clumo listens to your live sales calls and surfaces the perfect discovery questi
 Ever left a customer call and thought "Damn, I wish I'd have said...", or missed the opportunity to ask the killer question? Or talk about the perfect case study? That's where Clumo helps. It's like having an A-player on every call with you.
 
 Free, open source, stored data locally. Your knowledge base never leaves your machine. You bring your own AI keys.
+
+<p align="center">
+  <img src="docs/images/clumo-live-meeting-acme.png" alt="Clumo realtime coaching and knowledge suggestions in call">
+  <br>
+  <em>Clumo realtime coaching and knowledge suggestions in call</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/clumo-meeting-summary-acme.png" alt="Post-call CRM follow ups and CRM integration">
+  <br>
+  <em>Post-call CRM follow ups and CRM integration</em>
+</p>
 
 ---
 
@@ -30,7 +42,6 @@ Free, open source, stored data locally. Your knowledge base never leaves your ma
 
 **Desktop app** — Works with any meeting platform — Zoom, Teams, Meet, or anything running on your machine. No browser extension. No Docker. Just download and run.
 
-
 ---
 
 ## Who it's for
@@ -40,14 +51,6 @@ Free, open source, stored data locally. Your knowledge base never leaves your ma
 **Technical Sales / SEs** — You're running live demos and deep technical conversations where one perfectly-timed case study can change the outcome. Clumo listens to the context and surfaces exactly the right asset from your knowledge base. Never get caught without the proof point when a prospect pushes back.
 
 **Founder-led sales** - You've built the product, but running sales calls is a completely different skill. Keep yourself on track with coaching from an A-player sales person. 
-
----
-
-## A note on courtesy, privacy and trust 
-
-**Let people know** — Clumo uses live transcription models. It is always polite, and in some cases required, to tell other people on the call you're transcribing. "Hey, do you mind if I switch on transcription?" goes a long way! 
-
-**If you're in doubt** — If you're in doubt, you can use this sentence and post if in the chat or say a variation of it verbally! "I'm testing a new tool called Clumo to support note-taking, coaching, and follow-up. Please let me know if you if that is a problem for you.”
 
 ---
 
