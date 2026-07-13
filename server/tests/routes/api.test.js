@@ -76,6 +76,7 @@ describe('GET /api/settings', () => {
   it('returns configured: false when nothing set', async () => {
     const res = await request(app).get('/api/settings');
     expect(res.body).toMatchObject({ configured: false, providerMode: 'byok' });
+    expect(Array.isArray(res.body.azureApiVersionSupport?.chatEmbeddings)).toBe(true);
   });
 
   it('returns Azure config without exposing the api key', async () => {
@@ -91,6 +92,7 @@ describe('GET /api/settings', () => {
       configured: true,
       provider: 'azure',
       endpoint: 'https://x.openai.azure.com',
+      apiVersion: '2024-10-21',
       chatDeployment: 'gpt4',
       hasApiKey: true
     });
@@ -155,12 +157,26 @@ describe('POST /api/settings', () => {
       provider: 'azure',
       endpoint: 'https://x.openai.azure.com',
       apiKey: 'k',
+      apiVersion: '2025-04-01-preview',
       chatDeployment: 'gpt4',
       realtimeDeployment: 'rt',
       embeddingDeployment: 'emb'
     });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+  });
+
+  it('rejects malformed Azure apiVersion', async () => {
+    const res = await request(app).post('/api/settings').send({
+      provider: 'azure',
+      endpoint: 'https://x.openai.azure.com',
+      apiKey: 'k',
+      apiVersion: 'vNext',
+      chatDeployment: 'gpt4',
+      embeddingDeployment: 'emb'
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Invalid Azure API version format/i);
   });
 });
 

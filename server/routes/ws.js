@@ -90,6 +90,7 @@ function setupWebSocket(httpServer) {
         connected: false,
         connecting: false,
         failed: false,
+        connectionAttempt: 0,
         utterance: '',            // in-flight partial utterance
         utteranceStartedAt: 0,    // wall-clock of the first delta
         warmTimer: null           // debounce for warm speculative matching
@@ -110,7 +111,12 @@ function setupWebSocket(httpServer) {
     // Connect one channel's Realtime API session for transcription.
     async function connectToRealtimeAPI(chan) {
       return new Promise((resolve, reject) => {
-        const openaiWs = activeProvider.createRealtimeWebSocket();
+        const providerModes = typeof activeProvider.getRealtimeConnectionModes === 'function'
+          ? activeProvider.getRealtimeConnectionModes()
+          : ['default'];
+        const modeIndex = Math.max(0, Number(chan.connectionAttempt || 1) - 1);
+        const mode = providerModes[Math.min(modeIndex, providerModes.length - 1)];
+        const openaiWs = activeProvider.createRealtimeWebSocket(mode);
         chan.ws = openaiWs;
 
         openaiWs.on('open', () => {
@@ -331,6 +337,7 @@ function setupWebSocket(httpServer) {
 
             for (let attempt = 1; attempt <= MAX_CONNECTION_ATTEMPTS; attempt++) {
               try {
+                chan.connectionAttempt = attempt;
                 await connectToRealtimeAPI(chan);
                 lastError = null;
                 break;
@@ -344,6 +351,7 @@ function setupWebSocket(httpServer) {
             }
 
             chan.connecting = false;
+            chan.connectionAttempt = 0;
 
             if (lastError) {
               chan.failed = true;

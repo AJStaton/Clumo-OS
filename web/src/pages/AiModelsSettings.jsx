@@ -12,6 +12,7 @@ export default function AiModelsSettings() {
   const [testResult, setTestResult] = useState(null);
   const [saved, setSaved] = useState(false);
   const [showSecurity, setShowSecurity] = useState(false);
+  const defaultAzureApiVersion = settings?.azureApiVersionSupport?.defaults?.chatEmbeddings || '2024-10-21';
 
   useEffect(() => {
     fetch('/api/settings')
@@ -23,6 +24,7 @@ export default function AiModelsSettings() {
           if (data.provider === 'azure') {
             setConfig({
               endpoint: data.endpoint || '',
+              apiVersion: data.apiVersion || (data.azureApiVersionSupport?.defaults?.chatEmbeddings || '2024-10-21'),
               chatDeployment: data.chatDeployment || '',
               transcriptionDeployment: data.transcriptionDeployment || '',
               embeddingDeployment: data.embeddingDeployment || '',
@@ -90,7 +92,13 @@ export default function AiModelsSettings() {
 
         <div className="flex gap-3 mb-6">
           <button
-            onClick={() => { setProvider('azure'); setConfig({}); setTestResult(null); }}
+            onClick={() => {
+              setProvider('azure');
+              setConfig({
+                apiVersion: defaultAzureApiVersion
+              });
+              setTestResult(null);
+            }}
             className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium text-gray-900 dark:text-gray-100 ${
               provider === 'azure' ? 'border-gray-900 dark:border-gray-100 bg-gray-50 dark:bg-gray-700' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
             }`}
@@ -111,9 +119,27 @@ export default function AiModelsSettings() {
           <div className="space-y-3">
             <input type="text" placeholder="Endpoint" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.endpoint || ''} onChange={e => setConfig({ ...config, endpoint: e.target.value })} />
             <input type="password" placeholder={settings?.hasApiKey ? 'API Key (leave blank to keep current)' : 'API Key'} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.apiKey || ''} onChange={e => setConfig({ ...config, apiKey: e.target.value })} />
+            <input
+              type="text"
+              list="azure-api-versions"
+              placeholder="API version (e.g. 2024-10-21 or 2025-04-01-preview)"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200"
+              value={config.apiVersion || defaultAzureApiVersion}
+              onChange={e => setConfig({ ...config, apiVersion: e.target.value })}
+            />
+            <datalist id="azure-api-versions">
+              {(settings?.azureApiVersionSupport?.chatEmbeddings || []).map(v => (
+                <option key={v.version} value={v.version}>
+                  {v.lifecycle} ({v.status})
+                </option>
+              ))}
+            </datalist>
             <input type="text" placeholder="Chat deployment name" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.chatDeployment || ''} onChange={e => setConfig({ ...config, chatDeployment: e.target.value })} />
             <input type="text" placeholder="Transcription deployment name (e.g. gpt-4o-mini-transcribe)" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.transcriptionDeployment || ''} onChange={e => setConfig({ ...config, transcriptionDeployment: e.target.value })} />
             <input type="text" placeholder="Embedding deployment name (e.g. text-embedding-3-small)" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200" value={config.embeddingDeployment || ''} onChange={e => setConfig({ ...config, embeddingDeployment: e.target.value })} />
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Chat and embeddings use this API version. Any valid Azure version string is accepted; known tested versions are suggested above.
+            </p>
             <AzureKeyGuide />
           </div>
         )}
