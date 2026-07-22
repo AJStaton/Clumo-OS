@@ -291,9 +291,29 @@ cd ../electron && npm run build
 ```
 
 Output appears in `dist/`:
-- **Windows**: `Clumo Setup.exe` (installer) + `Clumo.exe` (portable)
+- **Windows**: `Clumo-Setup.exe` (installer) + `Clumo.exe` (portable)
 - **macOS**: `Clumo.dmg`
 - **Linux**: `Clumo.AppImage` + `Clumo.deb`
+
+### Publishing a release
+
+The **Download for Windows** button points at
+`releases/latest/download/Clumo-Setup.exe`, which is produced automatically by the
+[`Release (Windows)`](.github/workflows/release-windows.yml) GitHub Actions workflow.
+To cut a new release:
+
+1. Bump the version in `package.json`, `electron/package.json`, and `web/package.json`.
+2. Commit the change.
+3. Push a matching tag, for example:
+
+   ```bash
+   git tag v1.1.0
+   git push origin v1.1.0
+   ```
+
+The workflow builds `Clumo-Setup.exe` on a Windows runner and publishes it to the
+GitHub Release for that tag, updating the download button automatically. You can also
+run the workflow manually from the **Actions** tab to test a build without publishing.
 
 ---
 

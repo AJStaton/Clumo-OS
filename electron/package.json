@@ -25,7 +25,8 @@
     "publish": {
       "provider": "github",
       "owner": "AJStaton",
-      "repo": "Clumo-OS"
+      "repo": "Clumo-OS",
+      "releaseType": "release"
     },
     "directories": {
       "output": "../dist",
