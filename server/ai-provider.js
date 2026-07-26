@@ -115,8 +115,7 @@ class AzureOpenAIProvider {
     this.client = new AzureOpenAI({
       apiKey: this.apiKey,
       endpoint: this.endpoint,
-      apiVersion: this.apiVersion,
-      deployment: this.chatDeployment
+      apiVersion: this.apiVersion
     });
     return this.client;
   }
