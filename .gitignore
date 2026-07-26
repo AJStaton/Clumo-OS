@@ -4,6 +4,7 @@ out/
 server/data/clumo.db
 server/data/clumo.key
 server/data/knowledge-base.json
+server/data/playbook.json
 server/data/sessions/
 server/uploads/*
 !server/uploads/.gitkeep
