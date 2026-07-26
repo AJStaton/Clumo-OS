@@ -264,8 +264,8 @@ class SuggestionEngine {
       const words = transcriptText.split(/\s+/);
       const context = words.slice(-2000).join(' ');
 
-      const response = await this.openai.chat.completions.create({
-        messages: [
+      const response = await this._chatCompletion(
+        [
           {
             role: 'system',
             content: `You are a MEDDPICC sales methodology analyst. Analyze the sales call transcript and extract evidence for each MEDDPICC criterion, plus a short running call brief.
@@ -311,9 +311,8 @@ Keep evidence snippets to 1 short sentence each. Brief arrays should hold at mos
             content: `SALES CALL TRANSCRIPT:\n"${context}"\n\nAnalyze this transcript for MEDDPICC evidence.`
           }
         ],
-        temperature: 0.1,
-        max_tokens: 800
-      });
+        { temperature: 0.1, max_tokens: 800 }
+      );
 
       let content = response.choices[0].message.content.trim();
       if (content.startsWith('```')) {
@@ -622,16 +621,21 @@ Keep evidence snippets to 1 short sentence each. Brief arrays should hold at mos
   // Run the decision LLM with json_object mode, a trimmed prompt, and low tokens.
   async _runDecisionLLM(pivotal, candidates) {
     const prompt = this.buildDecisionPrompt(pivotal, candidates);
-    const response = await this.openai.chat.completions.create({
-      messages: [
+    const response = await this._chatCompletion(
+      [
         { role: 'system', content: DECISION_SYSTEM },
         { role: 'user', content: prompt }
       ],
-      temperature: 0.2,
-      max_tokens: 120,
-      response_format: { type: 'json_object' }
-    });
+      { temperature: 0.2, max_tokens: 120, response_format: { type: 'json_object' } }
+    );
     return this._parseDecision(response.choices[0].message.content || '');
+  }
+
+  async _chatCompletion(messages, options = {}) {
+    if (this.provider && typeof this.provider.chatCompletion === 'function') {
+      return this.provider.chatCompletion(messages, options);
+    }
+    return this.openai.chat.completions.create({ messages, ...options });
   }
 
   _parseDecision(content) {
