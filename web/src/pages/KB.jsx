@@ -146,7 +146,6 @@ export default function KB() {
 
   const tabs = {
     caseStudies: { label: 'Case Studies', items: kb?.caseStudies || [] },
-    discoveryQuestions: { label: 'Discovery Questions', items: kb?.discoveryQuestions || [] },
     proofPoints: { label: 'Proof Points', items: kb?.proofPoints || [] },
     productTruths: { label: 'Product Truths', items: kb?.productTruths || [] }
   };
@@ -256,7 +255,7 @@ export default function KB() {
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Build your knowledge base</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
             Enter your company website and/or upload sales documents. Clumo will extract case studies,
-            discovery questions, and proof points to use during live calls.
+            proof points, and product truths to use during live calls.
           </p>
 
           {setupStatus === 'idle' && (
@@ -278,7 +277,6 @@ export default function KB() {
               {setupCounts && (
                 <ul className="text-sm text-green-700 dark:text-green-400 mt-2 space-y-1">
                   <li>{setupCounts.caseStudies} case studies</li>
-                  <li>{setupCounts.discoveryQuestions} discovery questions</li>
                   <li>{setupCounts.proofPoints} proof points</li>
                   {setupCounts.productTruths > 0 && <li>{setupCounts.productTruths} product truths</li>}
                 </ul>
@@ -287,8 +285,7 @@ export default function KB() {
                 const labels = {
                   case_study: 'Case studies',
                   proof_point: 'Proof points',
-                  product_truth: 'Product truths',
-                  discovery_question: 'Discovery questions'
+                  product_truth: 'Product truths'
                 };
                 const warnings = Object.entries(setupCoverage)
                   .filter(([, c]) => c && c.warning)
@@ -353,17 +350,6 @@ export default function KB() {
                   <>
                     <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">{item.company}: {item.headline}</p>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{item.result}</p>
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {(item.triggers || []).slice(0, 5).map((t, j) => (
-                        <span key={j} className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded">{t}</span>
-                      ))}
-                    </div>
-                  </>
-                )}
-                {tab === 'discoveryQuestions' && (
-                  <>
-                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">{item.question}</p>
-                    {item.context && <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{item.context}</p>}
                     <div className="mt-2 flex flex-wrap gap-1">
                       {(item.triggers || []).slice(0, 5).map((t, j) => (
                         <span key={j} className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded">{t}</span>

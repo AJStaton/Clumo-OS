@@ -30,35 +30,35 @@ const ANALYSIS = {
 };
 
 describe('knowledge-generator multi-pass core', () => {
-  it('generateDiscoveryQuestions returns items without the identityOf regression', async () => {
+  it('generateProofPoints returns items without the identityOf regression', async () => {
     const page = JSON.stringify([
-      { id: 'dq1', question: 'What is your hiring volume?', context: 'c', triggers: ['hiring'] },
-      { id: 'dq2', question: 'How do you measure retention?', context: 'c', triggers: ['retention'] }
+      { id: 'pp1', stat: '40% faster hiring', source: 'c', triggers: ['hiring'] },
+      { id: 'pp2', stat: '2x retention', source: 'c', triggers: ['retention'] }
     ]);
     // Same items repeated on later passes -> dedupe -> pass adds 0 -> exhaustion stop.
     const { gen } = genWithResponses([page, page, page]);
-    const out = await gen.generateDiscoveryQuestions('lots of content', ANALYSIS, false, '', 100);
+    const out = await gen.generateProofPoints('lots of content', ANALYSIS, false, '', 100);
     expect(Array.isArray(out)).toBe(true);
     expect(out.length).toBe(2);
-    expect(out.map(q => q.question)).toContain('What is your hiring volume?');
+    expect(out.map(p => p.stat)).toContain('40% faster hiring');
   });
 
   it('dedupes by identity across passes and re-ids sequentially', async () => {
     const pass1 = JSON.stringify([
-      { id: 'x', question: 'Q one?', context: 'c', triggers: [] },
-      { id: 'y', question: 'Q two?', context: 'c', triggers: [] }
+      { id: 'x', stat: 'Stat one', source: 'c', triggers: [] },
+      { id: 'y', stat: 'Stat two', source: 'c', triggers: [] }
     ]);
-    // Pass 2 repeats Q two and adds a new Q three.
+    // Pass 2 repeats Stat two and adds a new Stat three.
     const pass2 = JSON.stringify([
-      { id: 'z', question: 'Q two?', context: 'c', triggers: [] },
-      { id: 'w', question: 'Q three?', context: 'c', triggers: [] }
+      { id: 'z', stat: 'Stat two', source: 'c', triggers: [] },
+      { id: 'w', stat: 'Stat three', source: 'c', triggers: [] }
     ]);
     const { gen } = genWithResponses([pass1, pass2, '[]']);
     // Use a long content so chunking produces multiple chunks (forces continuation passes).
     const content = 'a'.repeat(120000);
-    const out = await gen.generateDiscoveryQuestions(content, ANALYSIS, false, '', 100);
-    expect(out.map(q => q.question)).toEqual(['Q one?', 'Q two?', 'Q three?']);
-    expect(out.map(q => q.id)).toEqual(['dq1', 'dq2', 'dq3']);
+    const out = await gen.generateProofPoints(content, ANALYSIS, false, '', 100);
+    expect(out.map(p => p.stat)).toEqual(['Stat one', 'Stat two', 'Stat three']);
+    expect(out.map(p => p.id)).toEqual(['pp1', 'pp2', 'pp3']);
   });
 
   it('never pads beyond what the content supports (stops on exhaustion)', async () => {

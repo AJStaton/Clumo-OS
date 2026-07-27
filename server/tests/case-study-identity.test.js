@@ -81,7 +81,6 @@ describe('KnowledgeGenerator.deduplicate (case studies)', () => {
 
   it('preserves distinct stories from the same company at merge time', () => {
     const kb = {
-      discoveryQuestions: [],
       proofPoints: [],
       productTruths: [],
       caseStudies: [

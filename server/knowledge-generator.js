@@ -1,5 +1,5 @@
 // Knowledge Generator for Clumo Onboarding
-// Uses GPT-4o to generate discovery questions, case studies, and proof points
+// Uses GPT-4o to generate case studies, proof points, and product truths
 // from extracted website and document content
 
 const storage = require('./storage');
@@ -9,7 +9,6 @@ const { caseStudyKey } = require('./case-study-identity');
 // the generators are instructed never to pad or fabricate to reach them. Overridable per-run via
 // generate({ targets }) (wired from config in routes/api.js).
 const DEFAULT_TARGETS = {
-  discoveryQuestions: 100,
   caseStudies: 30,        // inference fallback only; the primary path is harvested/extracted stories
   proofPoints: 50,
   productTruths: 100
@@ -112,7 +111,6 @@ class KnowledgeGenerator {
       const base = bundle && bundle.length > 200 ? bundle : allContent;
       return documentText ? `${base}\n${documentText}` : base;
     };
-    const discoveryContent = pick(bundles.discovery);
     const proofContent = pick(bundles.proof);
     const productTruthContent = pick(bundles.productTruth);
     const caseStudyContent = pick(bundles.company);
@@ -125,35 +123,29 @@ class KnowledgeGenerator {
     if (onProgress) onProgress({ stage: 'analyzing', message: 'Analyzing your company and products...' });
     const companyAnalysis = await this.analyzeCompany(allContent, profileCtx);
 
-    // Phase 2: Generate Discovery Questions
-    if (onProgress) onProgress({ stage: 'discovery_questions', message: merge ? 'Extracting new discovery questions...' : 'Generating discovery questions...' });
-    typePaths.discoveryQuestions = bundles.discovery && bundles.discovery.length > 200 ? 'primary' : 'fallback';
-    const discoveryQuestions = await this.generateDiscoveryQuestions(discoveryContent, companyAnalysis, merge, profileCtx, targets.discoveryQuestions);
-    console.log(`[Knowledge Generator] LLM returned ${discoveryQuestions.length} discovery questions`);
-
-    // Phase 3: Generate Case Studies
+    // Phase 2: Generate Case Studies
     if (onProgress) onProgress({ stage: 'case_studies', message: merge ? 'Extracting new case studies...' : 'Creating case studies...' });
     typePaths.caseStudies = (extractedCaseStudies && extractedCaseStudies.length > 0) ? 'primary' : 'fallback';
     const caseStudies = await this.generateCaseStudies(caseStudyContent, companyAnalysis, merge, extractedCaseStudies, profileCtx, targets.caseStudies);
     console.log(`[Knowledge Generator] LLM returned ${caseStudies.length} case studies`);
 
-    // Phase 4: Generate Proof Points
+    // Phase 3: Generate Proof Points
     if (onProgress) onProgress({ stage: 'proof_points', message: merge ? 'Extracting new proof points...' : 'Building proof points...' });
     typePaths.proofPoints = bundles.proof && bundles.proof.length > 200 ? 'primary' : 'fallback';
     const proofPoints = await this.generateProofPoints(proofContent, companyAnalysis, merge, profileCtx, targets.proofPoints);
     console.log(`[Knowledge Generator] LLM returned ${proofPoints.length} proof points`);
 
-    // Phase 4b: Generate Product Truths
+    // Phase 3b: Generate Product Truths
     if (onProgress) onProgress({ stage: 'product_truths', message: merge ? 'Extracting new product truths...' : 'Building product truths...' });
     typePaths.productTruths = bundles.productTruth && bundles.productTruth.length > 200 ? 'primary' : 'fallback';
     const productTruths = await this.generateProductTruths(productTruthContent, companyAnalysis, merge, profileCtx, targets.productTruths);
     console.log(`[Knowledge Generator] LLM returned ${productTruths.length} product truths`);
 
-    // Phase 5: Generate embeddings for all KB items
+    // Phase 4: Generate embeddings for all KB items
     if (this.embeddingProvider && typeof this.embeddingProvider.generateEmbedding === 'function') {
       if (onProgress) onProgress({ stage: 'embeddings', message: 'Generating embeddings...' });
-      await this.generateEmbeddings(discoveryQuestions, caseStudies, proofPoints, productTruths);
-      console.log(`[Knowledge Generator] Embeddings generated for ${discoveryQuestions.length} DQs, ${caseStudies.length} CSs, ${proofPoints.length} PPs, ${productTruths.length} PTs`);
+      await this.generateEmbeddings(caseStudies, proofPoints, productTruths);
+      console.log(`[Knowledge Generator] Embeddings generated for ${caseStudies.length} CSs, ${proofPoints.length} PPs, ${productTruths.length} PTs`);
     }
 
     let knowledgeBase = {
@@ -168,7 +160,6 @@ class KnowledgeGenerator {
       },
       generatedAt: new Date().toISOString(),
       caseStudies,
-      discoveryQuestions,
       proofPoints,
       productTruths
     };
@@ -195,14 +186,13 @@ class KnowledgeGenerator {
     // If merge mode, combine with existing KB
     if (merge) {
       const beforeMerge = {
-        dq: knowledgeBase.discoveryQuestions.length,
         cs: knowledgeBase.caseStudies.length,
         pp: knowledgeBase.proofPoints.length,
         pt: knowledgeBase.productTruths.length
       };
       knowledgeBase = await this.mergeWithExisting(knowledgeBase, userId);
-      console.log(`[Knowledge Generator] Before merge: ${beforeMerge.dq} DQs, ${beforeMerge.cs} CSs, ${beforeMerge.pp} PPs, ${beforeMerge.pt} PTs`);
-      console.log(`[Knowledge Generator] After merge+dedup: ${knowledgeBase.discoveryQuestions.length} DQs, ${knowledgeBase.caseStudies.length} CSs, ${knowledgeBase.proofPoints.length} PPs, ${(knowledgeBase.productTruths || []).length} PTs`);
+      console.log(`[Knowledge Generator] Before merge: ${beforeMerge.cs} CSs, ${beforeMerge.pp} PPs, ${beforeMerge.pt} PTs`);
+      console.log(`[Knowledge Generator] After merge+dedup: ${knowledgeBase.caseStudies.length} CSs, ${knowledgeBase.proofPoints.length} PPs, ${(knowledgeBase.productTruths || []).length} PTs`);
     }
 
     // Save to local storage
@@ -212,7 +202,6 @@ class KnowledgeGenerator {
       stage: 'complete',
       message: 'Knowledge base generated successfully!',
       counts: {
-        discoveryQuestions: knowledgeBase.discoveryQuestions.length,
         caseStudies: knowledgeBase.caseStudies.length,
         proofPoints: knowledgeBase.proofPoints.length,
         productTruths: knowledgeBase.productTruths.length
@@ -223,7 +212,6 @@ class KnowledgeGenerator {
 
     return {
       counts: {
-        discoveryQuestions: knowledgeBase.discoveryQuestions.length,
         caseStudies: knowledgeBase.caseStudies.length,
         proofPoints: knowledgeBase.proofPoints.length,
         productTruths: knowledgeBase.productTruths.length
@@ -379,75 +367,7 @@ Return ONLY valid JSON, no markdown formatting.`
     }
   }
 
-  // Phase 2: Generate discovery questions
-  async generateDiscoveryQuestions(content, analysis, isAdditional = false, profileCtx = '', target = DEFAULT_TARGETS.discoveryQuestions) {
-    const quantityInstruction = isAdditional
-      ? `Generate discovery questions that are DIRECTLY supported by specific content in the documents provided. Extract every NEW question that the content supports — including questions inspired by third-party research, industry insights, analyst findings, or market data found in the documents. These are valuable because they let a salesperson reference credible external sources during discovery. Do NOT invent questions beyond what the content supports, but DO be thorough in extracting all questions the content can ground.`
-      : `Generate Challenger-style discovery questions that are DIRECTLY grounded in the provided content. Every question must be clearly supported by specific product capabilities, pain points, or value propositions found in the source material. Do NOT pad with generic or filler questions — only generate as many as the content genuinely supports.
-
-Generate up to {{REMAINING}} NEW discovery questions in this pass (quality-dependent — fewer is fine if the content does not support more), covering all three categories below:
-
-Category 1 — Product-Specific Pain Point Questions:
-Questions that uncover pain points the product directly solves, challenge prospect assumptions about their current approach, create urgency around the problems, and guide conversations toward the product's strengths.
-
-Category 2 — Strategic 'Big Picture' Discovery Questions:
-Questions that explore the prospect's broader business strategy, long-term goals, organizational priorities, and how the problem area fits into their wider transformation or growth initiatives.
-
-Category 3 — MEDDIC-Style Discovery Questions:
-Questions focused on key metrics (how they measure success), economic impact (cost of inaction, ROI expectations), decision process (who is involved, approval steps), decision timeline (urgency, deadlines), pain points today (current challenges and workarounds), and potential competition (other solutions being evaluated).`;
-
-    // Active tailoring: when the seller gave a profile, lead with questions framed for their exact
-    // buyer/industry/segment/role — prioritisation, not exclusion (still cover the product broadly).
-    const tailoring = profileCtx
-      ? `\nTAILORING (prioritise, do not exclude): Lead with questions tailored to the seller's role, target buyer personas, target industries, and company segment described in SELLER CONTEXT — phrase them the way that specific buyer in that industry and segment would actually experience the problem. Then broaden to cover the rest of the product's value. Do NOT drop well-grounded questions just because they are not persona-specific.`
-      : '';
-
-    const buildSystem = (remaining) => `You are an expert sales coach specializing in the Challenger Sale methodology. Generate discovery questions that a salesperson selling ${analysis.companyName}'s product would ask prospects.
-
-The company: ${analysis.productDescription}
-Target market: ${analysis.targetMarket}
-Pain points solved: ${analysis.painPointsSolved?.join(', ')}
-Value propositions: ${analysis.valuePropositions?.join(', ')}
-${profileCtx}
-${tailoring}
-
-${quantityInstruction.replace('{{REMAINING}}', remaining)}
-
-For each question, generate 15-20 trigger keywords - individual words and short phrases a PROSPECT might say during a sales call that would make this question relevant.
-
-TRIGGER RULES (follow strictly):
-- MOSTLY single words: "hiring", "retention", "skills", "analytics", "onboarding", "recruiting", "attrition", "automation"
-- Include synonyms and related terms: e.g. for "data" → "metrics", "analytics", "reporting", "insights", "tracking", "visibility"
-- Occasionally 2-word phrases are fine but keep them short and natural: "talent pipeline", "skills gap", "time to hire"
-- Include acronyms and common shorthand: "ATS", "HCM", "ROI", "KPI", "AI", "ML"
-- Cover the full semantic space: the problem, the solution, the outcome, and how prospects describe it informally
-- AVOID generic filler like "HR technology solutions", "data-driven decisions", "strategic planning" — be specific
-
-GOOD TRIGGER EXAMPLE: ["hiring", "attrition", "retention", "turnover", "skills", "gap", "upskilling", "reskilling", "talent", "pipeline", "ATS", "sourcing", "recruiting", "onboarding", "mobility"]
-BAD TRIGGER EXAMPLE: ["talent acquisition strategy", "skills-based approach", "HR technology solutions", "data-driven decisions", "workforce optimization"]
-
-Return ONLY a JSON array (no markdown):
-[
-  {
-    "id": "dq1",
-    "question": "the question text",
-    "context": "why this question is valuable and what it uncovers",
-    "triggers": ["keyword1", "keyword2", "phrase variation", "related term", "synonym", ...]
-  }
-]`;
-
-    return this._generateItems({
-      buildSystem,
-      userIntro: 'Generate discovery questions based on this company content:',
-      content,
-      idPrefix: 'dq',
-      target,
-      temperature: 0.5,
-      identityOf: (q) => q.question
-    });
-  }
-
-  // Phase 3: Generate case studies
+  // Phase 2: Generate case studies
   async generateCaseStudies(content, analysis, isAdditional = false, extractedCaseStudies = null, profileCtx = '', target = DEFAULT_TARGETS.caseStudies) {
     // Use pre-extracted case studies from hybrid scraper if available
     if (extractedCaseStudies && extractedCaseStudies.length > 0) {
@@ -520,7 +440,7 @@ Return ONLY a JSON array (no markdown):
     });
   }
 
-  // Phase 4: Generate proof points
+  // Phase 3: Generate proof points
   async generateProofPoints(content, analysis, isAdditional = false, profileCtx = '', target = DEFAULT_TARGETS.proofPoints) {
     const quantityInstruction = isAdditional
       ? `Extract ALL proof points that are DIRECTLY supported by specific statistics, metrics, research findings, analyst insights, awards, or verifiable claims found in the documents provided. This includes:
@@ -584,7 +504,7 @@ Return ONLY a JSON array (no markdown):
     });
   }
 
-  // Phase 4b: Generate Product Truths
+  // Phase 3b: Generate Product Truths
   async generateProductTruths(content, analysis, isAdditional = false, profileCtx = '', target = DEFAULT_TARGETS.productTruths) {
     const quantityInstruction = isAdditional
       ? `Extract ALL factual product statements that are DIRECTLY supported by specific content in the documents. Focus on technical capabilities, security features, platform specifications, compliance certifications, and architectural facts.`
@@ -660,11 +580,8 @@ Return ONLY a JSON array (no markdown):
   }
 
   // Generate embeddings for all KB items using the provider
-  async generateEmbeddings(discoveryQuestions, caseStudies, proofPoints, productTruths = []) {
+  async generateEmbeddings(caseStudies, proofPoints, productTruths = []) {
     // Build semantic text for each item type
-    const dqTexts = discoveryQuestions.map(dq =>
-      `${dq.question} ${dq.context || ''}`
-    );
     const csTexts = caseStudies.map(cs =>
       `${cs.company} ${cs.headline} ${cs.problem} ${cs.solution} ${cs.result}`
     );
@@ -677,13 +594,6 @@ Return ONLY a JSON array (no markdown):
 
     // Batch embed each type (OpenAI supports array input)
     const embedder = this.embeddingProvider;
-    if (dqTexts.length > 0) {
-      const embeddings = await embedder.generateEmbedding(dqTexts);
-      for (let i = 0; i < discoveryQuestions.length; i++) {
-        discoveryQuestions[i].embedding = embeddings[i];
-      }
-    }
-
     if (csTexts.length > 0) {
       const embeddings = await embedder.generateEmbedding(csTexts);
       for (let i = 0; i < caseStudies.length; i++) {
@@ -789,17 +699,11 @@ Return ONLY a JSON array (no markdown):
       if (!existing) return newKb;
 
       // Find max IDs from existing KB
-      const maxDqId = this.getMaxId(existing.discoveryQuestions, 'dq');
       const maxCsId = this.getMaxId(existing.caseStudies, 'cs');
       const maxPpId = this.getMaxId(existing.proofPoints, 'pp');
       const maxPtId = this.getMaxId(existing.productTruths || [], 'pt');
 
       // Re-number new items to avoid ID conflicts
-      const newDqs = newKb.discoveryQuestions.map((dq, i) => ({
-        ...dq,
-        id: `dq${maxDqId + i + 1}`
-      }));
-
       const newCs = newKb.caseStudies.map((cs, i) => ({
         ...cs,
         id: `cs${maxCsId + i + 1}`
@@ -820,7 +724,6 @@ Return ONLY a JSON array (no markdown):
         companyProfile: existing.companyProfile || newKb.companyProfile || {},
         generatedAt: new Date().toISOString(),
         meta: Object.assign({}, existing.meta, newKb.meta),
-        discoveryQuestions: [...existing.discoveryQuestions, ...newDqs],
         caseStudies: [...existing.caseStudies, ...newCs],
         proofPoints: [...existing.proofPoints, ...newPp],
         productTruths: [...(existing.productTruths || []), ...newPt]
@@ -832,12 +735,6 @@ Return ONLY a JSON array (no markdown):
 
   // Deduplicate all knowledge base sections
   deduplicate(kb) {
-    kb.discoveryQuestions = this.deduplicateItems(
-      kb.discoveryQuestions,
-      'dq',
-      (item) => item.question.toLowerCase().trim()
-    );
-
     kb.caseStudies = this.deduplicateItems(
       kb.caseStudies,
       'cs',
@@ -856,7 +753,7 @@ Return ONLY a JSON array (no markdown):
       (item) => item.fact.toLowerCase().trim()
     );
 
-    console.log(`[Knowledge Generator] After dedup: ${kb.discoveryQuestions.length} questions, ${kb.caseStudies.length} case studies, ${kb.proofPoints.length} proof points, ${kb.productTruths.length} product truths`);
+    console.log(`[Knowledge Generator] After dedup: ${kb.caseStudies.length} case studies, ${kb.proofPoints.length} proof points, ${kb.productTruths.length} product truths`);
     return kb;
   }
 
