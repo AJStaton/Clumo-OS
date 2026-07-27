@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clumo OS</title>
+  <script>
+    (() => {
+      const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+      const theme =
+        param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --cp-bg: #f7f4ef;
+      --cp-bg-elevated: #fcfbf8;
+      --cp-surface: #ffffff;
+      --cp-surface-soft: #f5f5f5;
+      --cp-border: #dedede;
+      --cp-border-strong: #919191;
+      --cp-text: #242424;
+      --cp-text-muted: #5c5c5c;
+      --cp-text-soft: #6f6f6f;
+      --cp-accent: #b11f4b;
+      --cp-accent-hover: #9a1a41;
+      --cp-accent-soft: rgba(177, 31, 75, 0.08);
+      --cp-accent-fg: #ffffff;
+      --cp-success: #16a34a;
+      --cp-danger: #dc2626;
+      --cp-warning: #f59e0b;
+      --cp-link: #0078d4;
+      --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+      --cp-overlay: rgba(255, 255, 255, 0.8);
+      --cp-panel: rgba(255, 255, 255, 0.86);
+      --cp-panel-strong: rgba(255, 255, 255, 0.96);
+      --cp-sheen: rgba(255, 255, 255, 0.55);
+      --cp-highlight: rgba(177, 31, 75, 0.12);
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --cp-bg: #3d3b3a;
+      --cp-bg-elevated: #343231;
+      --cp-surface: #292929;
+      --cp-surface-soft: #2e2e2e;
+      --cp-border: #474747;
+      --cp-border-strong: #5f5f5f;
+      --cp-text: #dedede;
+      --cp-text-muted: #919191;
+      --cp-text-soft: #b0b0b0;
+      --cp-accent: #fd8ea1;
+      --cp-accent-hover: #fb7b91;
+      --cp-accent-soft: rgba(253, 142, 161, 0.14);
+      --cp-accent-fg: #1a1a1a;
+      --cp-success: #4ade80;
+      --cp-danger: #f87171;
+      --cp-warning: #fbbf24;
+      --cp-link: #4da6ff;
+      --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+      --cp-overlay: rgba(41, 41, 41, 0.88);
+      --cp-panel: rgba(41, 41, 41, 0.72);
+      --cp-panel-strong: rgba(41, 41, 41, 0.96);
+      --cp-sheen: rgba(255, 255, 255, 0.04);
+      --cp-highlight: rgba(253, 142, 161, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--cp-surface);
+      color: var(--cp-text);
+      font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.5;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 18px;
+    }
+
+    .siteHeader {
+      height: 72px;
+      border: 1px solid var(--cp-border);
+      border-radius: 16px;
+      background: var(--cp-surface);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px;
+      margin-bottom: 14px;
+      box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14);
+    }
+
+    .logo {
+      margin: 0;
+      font-size: 40px;
+      line-height: 1;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--cp-text);
+    }
+
+    .headerNav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .headerLink {
+      text-decoration: none;
+      color: var(--cp-text);
+      font-size: 15px;
+      font-weight: 600;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--cp-border);
+      background: var(--cp-surface-soft);
+    }
+
+    .headerLink:hover { background: var(--cp-highlight); }
+
+    .navTab.active {
+      background: var(--cp-surface-soft);
+      color: var(--cp-text);
+      border-color: var(--cp-border-strong);
+    }
+
+    .headerGithub {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--cp-surface-soft);
+      color: var(--cp-text);
+      border-color: var(--cp-border);
+    }
+
+    .headerGithub:hover { background: var(--cp-highlight); }
+    .headerGithub svg { display: block; }
+
+    .window {
+      background: var(--cp-surface);
+      border: 1px solid var(--cp-border);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14);
+    }
+
+    .windowTop {
+      height: 72px;
+      border-bottom: 1px solid var(--cp-border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 30px;
+    }
+
+    .dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+    .dot.red { background: var(--cp-danger); }
+    .dot.yellow { background: var(--cp-warning); }
+    .dot.green { background: var(--cp-success); }
+
+    .windowTitle {
+      margin-left: 24px;
+      font-size: 30px;
+      letter-spacing: 0.06em;
+      color: var(--cp-text);
+      font-weight: 600;
+    }
+
+    .content { padding: 56px 56px 34px; }
+
+    .intro {
+      margin: 0 0 34px;
+      text-align: center;
+      font-size: 38px;
+      color: var(--cp-text);
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+
+    .notes {
+      display: grid;
+      gap: 18px;
+    }
+
+    .note {
+      border: 1px solid var(--cp-border);
+      border-radius: 10px;
+      background: var(--cp-surface);
+      overflow: hidden;
+    }
+
+    .note summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 16px 18px;
+      font-size: 24px;
+      font-weight: 600;
+      line-height: 1.25;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--cp-text);
+    }
+
+    .note summary::-webkit-details-marker { display: none; }
+    .note summary:hover { background: var(--cp-surface-soft); }
+
+    .note summary::after {
+      content: "+";
+      width: 28px;
+      height: 28px;
+      border-radius: 10px;
+      border: 1px solid var(--cp-border);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--cp-text-muted);
+      background: var(--cp-surface);
+      margin-left: 12px;
+      flex-shrink: 0;
+    }
+
+    .note[open] summary::after {
+      content: "-";
+      color: var(--cp-accent);
+      border-color: var(--cp-accent-soft);
+      background: var(--cp-surface-soft);
+    }
+
+    .noteBody {
+      padding: 0 18px 18px;
+      border-top: 1px solid var(--cp-border);
+      background: var(--cp-surface);
+    }
+
+    .noteBody p {
+      margin: 14px 0 0;
+      color: var(--cp-text);
+      font-size: 33px;
+      line-height: 1.45;
+    }
+
+    .noteBody p.small { font-size: 16px; }
+    .noteBody a { color: var(--cp-text); font-weight: 600; text-decoration: underline; }
+
+    .steps {
+      margin: 14px 0 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 10px;
+      color: var(--cp-text);
+      font-size: 16px;
+    }
+
+    .steps li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      line-height: 1.45;
+    }
+
+    .stepNumber {
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      border: 1px solid var(--cp-border);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+      background: var(--cp-surface-soft);
+    }
+
+    .securityList {
+      margin: 14px 0 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 8px;
+      color: var(--cp-text);
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    .securityList li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .securityList li::before {
+      content: "•";
+      color: var(--cp-text);
+      line-height: 1.2;
+      margin-top: 1px;
+    }
+
+    .actions {
+      margin-top: 16px;
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .button {
+      text-decoration: none;
+      border-radius: 10px;
+      border: 1px solid var(--cp-border);
+      padding: 10px 16px;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--cp-text);
+      background: var(--cp-surface-soft);
+    }
+
+    .button:hover { background: var(--cp-highlight); }
+
+    .divider {
+      margin-top: 28px;
+      border-top: 1px solid var(--cp-border);
+      padding-top: 20px;
+    }
+
+    .tagline {
+      margin: 0;
+      font-size: 45px;
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--cp-text);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--cp-text);
+      color: var(--cp-surface);
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .siteFooter {
+      margin-top: 14px;
+      border: 1px solid var(--cp-border);
+      border-radius: 16px;
+      background: var(--cp-surface);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14);
+    }
+
+    .footerLabel {
+      margin: 0;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--cp-text-muted);
+    }
+
+    .footerDetails {
+      margin: 0;
+      font-size: 14px;
+      color: var(--cp-text);
+    }
+
+    .footerDetails a {
+      color: var(--cp-text);
+      text-decoration: none;
+      border-bottom: 1px solid var(--cp-border-strong);
+    }
+
+    @media (max-width: 980px) {
+      .windowTitle { font-size: 24px; }
+      .content { padding: 26px 20px 22px; }
+      .intro { font-size: 26px; margin-bottom: 20px; }
+      .siteHeader { height: auto; padding: 14px; flex-wrap: wrap; gap: 10px; }
+      .logo { font-size: 30px; }
+      .note summary { font-size: 19px; }
+      .noteBody p { font-size: 18px; }
+      .noteBody p.small { font-size: 16px; }
+      .tagline { font-size: 26px; }
+      .siteFooter { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="siteHeader">
+      <p class="logo">Clumo</p>
+      <nav class="headerNav">
+        <a class="headerLink navTab active" data-page="quickstart" href="#quickstart">Quickstart</a>
+        <a class="headerLink navTab" data-page="integrations" href="#integrations">Integrations</a>
+        <a class="headerLink headerGithub" href="https://github.com/AJStaton/Clumo-OS" aria-label="GitHub">
+          <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"></path>
+          </svg>
+          <span>GitHub</span>
+        </a>
+      </nav>
+    </header>
+
+    <div class="window pageView" id="page-quickstart">
+      <div class="windowTop">
+        <span class="dot red"></span>
+        <span class="dot yellow"></span>
+        <span class="dot green"></span>
+        <span class="windowTitle">QUICKSTART.MD</span>
+      </div>
+
+      <div class="content">
+        <span id="quickstart"></span>
+        <p class="intro">Real time AI coaching for live customer calls so you never miss an opportunity again.</p>
+
+        <main class="notes">
+          <details class="note" open>
+            <summary>What is Clumo</summary>
+            <div class="noteBody">
+              <p class="small">Ever finished a call and wished you had asked that perfect question or had a better response to that one difficult objection. That is what Clumo is for. It gives you coaching in the call, real time, so you can show up as an A player in every call. Clumo is committed to providing an opensource core.</p>
+            </div>
+          </details>
+
+          <details class="note">
+            <summary>Who it is for</summary>
+            <div class="noteBody">
+              <p class="small">Built for B2B technology sales people who spend most of their time in complex sales. Non technical and technical sellers both benefit with clearer discovery, stronger control, and better outcomes.</p>
+            </div>
+          </details>
+
+          <details class="note">
+            <summary>Features</summary>
+            <div class="noteBody">
+              <ol class="steps">
+                <li><span class="stepNumber">1</span><span>Works with any online meeting tool (e.g. Teams, Zoom, Google Meets)</span></li>
+                <li><span class="stepNumber">2</span><span>Real time AI sales coaching and call guidance with three personas (Sales, Engineer, Negotiator)</span></li>
+                <li><span class="stepNumber">3</span><span>Real time knowledge retrieval based on your data (case studies, proof points, product truths)</span></li>
+                <li><span class="stepNumber">4</span><span>Customisable coach to adjust style, tone and context</span></li>
+                <li><span class="stepNumber">5</span><span>Post call summary, next steps and CRM integration</span></li>
+                <li><span class="stepNumber">6</span><span>MEDDPIC and BANT cheat sheet updated real time for every call</span></li>
+                <li><span class="stepNumber">7</span><span>Bring your own AI keys (Foundry or OpenAI)</span></li>
+              </ol>
+            </div>
+          </details>
+
+          <details class="note">
+            <summary>See it in action</summary>
+            <div class="noteBody">
+              <p class="small">Demo video will be added here.</p>
+            </div>
+          </details>
+
+          <details class="note">
+            <summary>Get setup in 5 minutes</summary>
+            <div class="noteBody">
+              <ol class="steps">
+                <li><span class="stepNumber">1</span><span>Download the Windows app</span></li>
+                <li><span class="stepNumber">2</span><span>Setup your AI keys using OpenAI or Azure Foundry</span></li>
+                <li><span class="stepNumber">3</span><span>Build your customer knowledge base</span></li>
+                <li><span class="stepNumber">4</span><span>Tailor your coach</span></li>
+                <li><span class="stepNumber">5</span><span>Join a meeting</span></li>
+              </ol>
+              <div class="actions">
+                <a class="button" href="https://github.com/AJStaton/Clumo-OS/releases/latest/download/Clumo-Setup.exe">Download Windows installer</a>
+                <a class="button" href="https://github.com/AJStaton/Clumo-OS">Open GitHub repository</a>
+              </div>
+            </div>
+          </details>
+
+          <details class="note">
+            <summary>Security stuff for techies</summary>
+            <div class="noteBody">
+              <p class="small">Bring your own key model. Your key is stored locally and encrypted with AES 256 CBC. Clumo does not run a cloud account system and does not sync your key anywhere.</p>
+              <ul class="securityList">
+                <li>Everything runs on your machine. Knowledge base files, transcripts, and settings stay local.</li>
+                <li>The only external connection is directly to your provider, OpenAI or Azure OpenAI, over TLS.</li>
+                <li>During calls, Clumo sends audio for transcription and small transcript excerpts for relevance scoring.</li>
+                <li>After calls, Clumo can send the full transcript once to generate a summary and follow up draft.</li>
+                <li>No telemetry, no tracking, and no data collection by Clumo.</li>
+              </ul>
+            </div>
+          </details>
+        </main>
+
+        <div class="divider">
+          <p class="tagline"><span class="badge">✓</span>Never miss an opportunity again.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="window pageView" id="page-integrations" hidden>
+      <div class="windowTop">
+        <span class="dot red"></span>
+        <span class="dot yellow"></span>
+        <span class="dot green"></span>
+        <span class="windowTitle">INTEGRATIONS.MD</span>
+      </div>
+
+      <div class="content">
+        <span id="integrations"></span>
+        <p class="intro">Connect Clumo to your CRM and keep every opportunity moving.</p>
+
+        <main class="notes">
+          <details class="note" open>
+            <summary>Out of the box</summary>
+            <div class="noteBody">
+              <ol class="steps">
+                <li><span class="stepNumber">1</span><span>Dynamics 365</span></li>
+                <li><span class="stepNumber">2</span><span>Salesforce</span></li>
+                <li><span class="stepNumber">3</span><span>HubSpot</span></li>
+              </ol>
+            </div>
+          </details>
+
+          <details class="note">
+            <summary>Custom</summary>
+            <div class="noteBody">
+              <p class="small">As the base of Clumo is opensource, you can fork and add your own CRM integrations.</p>
+            </div>
+          </details>
+
+          <details class="note">
+            <summary>Which meeting tools does it work with</summary>
+            <div class="noteBody">
+              <p class="small">Any meeting tool, as Clumo uses system audio to transcribe and make suggestions. Teams, Zoom, Google, and Slack are all supported.</p>
+            </div>
+          </details>
+
+          <details class="note">
+            <summary>My tool is not supported</summary>
+            <div class="noteBody">
+              <p class="small">If you have a scenario which is not supported, contact us using the <a href="mailto:contact@clumo.co">contact@clumo.co</a> email or by submitting an issue in the <a href="https://github.com/AJStaton/Clumo-OS/issues">GitHub repository</a>.</p>
+            </div>
+          </details>
+        </main>
+
+        <div class="divider">
+          <p class="tagline"><span class="badge">✓</span>Your pipeline, always in sync.</p>
+        </div>
+      </div>
+    </div>
+
+    <footer class="siteFooter">
+      <p class="footerLabel">Contact details</p>
+      <p class="footerDetails"><a href="mailto:contact@clumo.co">contact@clumo.co</a>  |  London, United Kingdom</p>
+    </footer>
+  </div>
+
+  <script>
+    (() => {
+      const tabs = document.querySelectorAll(".navTab");
+      const pages = document.querySelectorAll(".pageView");
+      function show(page) {
+        pages.forEach((p) => { p.hidden = p.id !== "page-" + page; });
+        tabs.forEach((t) => { t.classList.toggle("active", t.dataset.page === page); });
+      }
+      tabs.forEach((tab) => {
+        tab.addEventListener("click", (e) => {
+          e.preventDefault();
+          show(tab.dataset.page);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
