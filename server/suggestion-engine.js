@@ -13,13 +13,15 @@ const RETRIEVAL_FLOOR = 0.28;               // absolute minimum cosine score to 
 const MIN_CANDIDATES = 4;                   // don't starve the LLM of choice
 const MAX_CANDIDATES = 12;                  // fused shortlist cap sent to the LLM
 // Variety: per-type seats in the shortlist so a single linguistically-dominant
-// type (discovery questions embed closest to customer statements) can't crowd out
-// evidence. Sums to MAX_CANDIDATES. The LLM still chooses FREELY across whatever
-// is seated — no routing, no forced pick.
+// type can't crowd out the others. Sums to MAX_CANDIDATES. The LLM still chooses
+// FREELY across whatever is seated — no routing, no forced pick.
+//
+// The fast lane is EVIDENCE-ONLY (case studies, proof points, product truths).
+// Discovery questions are deliberately excluded here — they are owned by the
+// slow-lane coach (CoachingEngine), so the two surfaces don't feel duplicative.
 const TYPE_QUOTAS = {
-  discovery: 4,
-  case_study: 3,
-  proof_point: 2,
+  case_study: 5,
+  proof_point: 4,
   product_truth: 3
 };
 // Hybrid retrieval: blend the curated per-item trigger phrases into the score so
@@ -45,7 +47,7 @@ const MIN_UTTERANCE_WORDS = 4;
 // candidate set — no intent classification or type routing. It picks by id.
 const DECISION_SYSTEM = `You are a surgical sales coach - you speak rarely but with high precision and impact.
 
-You are given the customer's most recent statement, recent conversation, a running call brief, and a shortlist of candidate suggestions (discovery questions, case studies, proof points, product truths). Decide whether to surface ONE candidate to the salesperson right now.
+You are given the customer's most recent statement, recent conversation, a running call brief, and a shortlist of candidate suggestions (case studies, proof points, product truths). Decide whether to surface ONE candidate to the salesperson right now.
 
 ONLY suggest when ALL of these are true:
 1. The customer just said something that DIRECTLY relates to a candidate
@@ -58,8 +60,7 @@ Do NOT suggest for small talk, when the rep is already handling it well, when a 
 Choose the single best candidate by its id - any type is allowed; pick whatever fits the moment.
 
 PICKING THE RIGHT TYPE (guidance, not rules - you still choose freely):
-- Lean to EVIDENCE (case study, proof point, product truth) when the customer is skeptical, asks for proof, names a competitor or alternative, states a concrete requirement, or asks a product / security / pricing question.
-- Lean to a DISCOVERY QUESTION to open a new topic or when key information is missing.
+- Surface EVIDENCE (case study, proof point, product truth) when the customer is skeptical, asks for proof, names a competitor or alternative, states a concrete requirement, or asks a product / security / pricing question.
 - You will be shown the types surfaced most recently; avoid repeating the same type back-to-back unless it is clearly the best choice.
 
 Respond ONLY with valid JSON:
@@ -373,9 +374,10 @@ Keep evidence snippets to 1 short sentence each. Brief arrays should hold at mos
   }
 
   // KB groups in a uniform shape so candidate building is type-agnostic.
+  // Fast-lane retrieval is EVIDENCE-ONLY. Discovery questions live with the
+  // slow-lane coach, so they are intentionally not part of the KB groups here.
   _kbGroups() {
     return [
-      { kind: 'discovery', list: this.knowledgeBase.discoveryQuestions || [] },
       { kind: 'case_study', list: this.knowledgeBase.caseStudies || [] },
       { kind: 'proof_point', list: this.knowledgeBase.proofPoints || [] },
       { kind: 'product_truth', list: this.knowledgeBase.productTruths || [] }
@@ -385,7 +387,7 @@ Keep evidence snippets to 1 short sentence each. Brief arrays should hold at mos
   _hasEmbeddings() {
     return !!(this.embeddingProvider &&
       typeof this.embeddingProvider.generateEmbedding === 'function' &&
-      (this.knowledgeBase.discoveryQuestions || []).some(dq => dq.embedding));
+      this._kbGroups().some(({ list }) => list.some(item => item.embedding)));
   }
 
   // Count how many of an item's curated trigger phrases appear in the utterance.
@@ -454,7 +456,7 @@ Keep evidence snippets to 1 short sentence each. Brief arrays should hold at mos
       .sort((a, b) => b.rankScore - a.rankScore);
     if (!eligible.length) return [];
 
-    const taken = { discovery: 0, case_study: 0, proof_point: 0, product_truth: 0 };
+    const taken = { case_study: 0, proof_point: 0, product_truth: 0 };
     const selected = [];
     for (const c of eligible) {
       const quota = TYPE_QUOTAS[c.kind] || 0;
@@ -657,11 +659,6 @@ Keep evidence snippets to 1 short sentence each. Brief arrays should hold at mos
 
   // Turn a chosen candidate into the wire-format suggestion the client expects.
   _materialize(kind, id, trigger) {
-    if (kind === 'discovery') {
-      const item = (this.knowledgeBase.discoveryQuestions || []).find(x => x.id === id);
-      if (!item) return null;
-      return { type: 'discovery', question: item.question, context: item.context, trigger };
-    }
     if (kind === 'case_study') {
       const item = (this.knowledgeBase.caseStudies || []).find(x => x.id === id);
       if (!item) return null;
@@ -750,8 +747,6 @@ Keep evidence snippets to 1 short sentence each. Brief arrays should hold at mos
 
   _describeCandidate(c) {
     switch (c.kind) {
-      case 'discovery':
-        return `[discovery question] "${c.item.question}" (context: ${c.item.context || ''})`;
       case 'case_study':
         return `[case study] ${c.item.company}: ${c.item.headline} - ${c.item.result}`;
       case 'proof_point':
@@ -771,7 +766,7 @@ Keep evidence snippets to 1 short sentence each. Brief arrays should hold at mos
     if (recent) prompt += `RECENT CONVERSATION:\n"${recent.slice(-1200)}"\n\n`;
     if (brief) prompt += `CALL BRIEF:\n${brief}\n\n`;
     if (this.recentTypes.length) {
-      const labels = { discovery: 'discovery question', case_study: 'case study', proof_point: 'proof point', product_truth: 'product truth' };
+      const labels = { case_study: 'case study', proof_point: 'proof point', product_truth: 'product truth' };
       const shown = this.recentTypes.map(t => labels[t] || t).join(', ');
       prompt += `RECENTLY SHOWN (avoid repeating the same type unless clearly best): ${shown}\n\n`;
     }

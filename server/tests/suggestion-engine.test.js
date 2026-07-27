@@ -15,7 +15,8 @@ function makeKb() {
       { id: 'dq2', question: 'Who owns the budget?', context: 'budget', embedding: [0, 1, 0], triggers: ['budget', 'cost'] }
     ],
     caseStudies: [
-      { id: 'cs1', company: 'Astronomer', headline: 'Scaled data pipelines', result: '5x faster', link: 'https://x', embedding: [0.9, 0.1, 0], triggers: ['pipeline', 'scale'] }
+      { id: 'cs1', company: 'Astronomer', headline: 'Scaled data pipelines', result: '5x faster', link: 'https://x', embedding: [0.9, 0.1, 0], triggers: ['pipeline', 'scale'] },
+      { id: 'cs2', company: 'Nebula', headline: 'Modernized data platform', result: '3x faster', link: 'https://x2', embedding: [0.87, 0.13, 0] }
     ],
     proofPoints: [
       { id: 'pp1', stat: '99.9% uptime', source: 'SLA', link: 'https://y', embedding: [0, 0, 1], triggers: ['uptime', 'sla', 'reliability'] }
@@ -71,29 +72,28 @@ function makeEngine(chatClient, embedProvider) {
 }
 
 describe('suggestion-engine — candidate selection', () => {
-  it('fuses candidates across types and applies a dynamic relative threshold', async () => {
+  it('fuses candidates across evidence types and never retrieves discovery questions', async () => {
     const engine = makeEngine(makeChatClient(), makeEmbeddingProvider());
     const { scored } = await engine._semanticCandidates('our data pipeline is slow');
     const selected = engine._selectCandidates(scored);
     const ids = selected.map(c => c.id);
-    // dq1 (1.0) and cs1 (~0.99) cluster at the top and are kept; budget/security
-    // items fall below the absolute floor and are dropped.
-    expect(ids).toContain('dq1');
+    // cs1 (~0.99) clusters at the top and is kept; budget/security items fall
+    // below the absolute floor and are dropped.
     expect(ids).toContain('cs1');
-    expect(ids).not.toContain('dq2');
     expect(ids).not.toContain('pp1');
-    // Candidates are a single fused list, not per-type buckets.
+    // Discovery questions are owned by the slow-lane coach and are never part of
+    // the fast-lane shortlist, even though the KB fixture still contains them.
     const kinds = new Set(selected.map(c => c.kind));
-    expect(kinds.has('discovery')).toBe(true);
+    expect(kinds.has('discovery')).toBe(false);
     expect(kinds.has('case_study')).toBe(true);
   });
 
   it('skips items that are on the re-surface cooldown', async () => {
     const engine = makeEngine(makeChatClient(), makeEmbeddingProvider());
-    engine.suggestedAt.set('dq1', Date.now()); // just suggested
+    engine.suggestedAt.set('cs1', Date.now()); // just suggested
     const { scored } = await engine._semanticCandidates('our data pipeline is slow');
     const ids = engine._selectCandidates(scored).map(c => c.id);
-    expect(ids).not.toContain('dq1');
+    expect(ids).not.toContain('cs1');
   });
 });
 
@@ -243,7 +243,7 @@ describe('suggestion-engine — trigger timestamp & links', () => {
 // ---------------------------------------------------------------------------
 // Variety overhaul: per-type quotas, hybrid trigger scoring, anti-monotony,
 // decision-LLM steering. These guarantee the LLM sees a fair multi-type
-// shortlist instead of a discovery-question monoculture.
+// shortlist across the evidence types instead of a single-type monoculture.
 // ---------------------------------------------------------------------------
 
 function makeEngineWithKb(kb, chatClient, embedProvider) {
@@ -258,13 +258,13 @@ function makeEngineWithKb(kb, chatClient, embedProvider) {
 
 describe('suggestion-engine — per-type quotas', () => {
   it('caps a dominant type and guarantees a multi-type shortlist', async () => {
-    // Six discovery questions all embed identically to the query, plus one of
-    // each evidence type. Without quotas the shortlist would be all discovery.
+    // Eight case studies all embed identically to the query, plus one of each
+    // other evidence type. Without quotas the shortlist would be all case study.
     const kb = {
-      discoveryQuestions: Array.from({ length: 6 }, (_, i) => ({
-        id: `dq${i}`, question: `q${i}`, context: 'c', embedding: [1, 0, 0]
+      discoveryQuestions: [],
+      caseStudies: Array.from({ length: 8 }, (_, i) => ({
+        id: `cs${i}`, company: 'C', headline: 'h', result: 'r', embedding: [1, 0, 0]
       })),
-      caseStudies: [{ id: 'cs1', company: 'C', headline: 'h', result: 'r', embedding: [0.95, 0.05, 0] }],
       proofPoints: [{ id: 'pp1', stat: 's', source: 'src', embedding: [0.95, 0, 0.05] }],
       productTruths: [{ id: 'pt1', fact: 'f', category: 'cat', embedding: [0.9, 0.1, 0.1] }]
     };
@@ -272,12 +272,13 @@ describe('suggestion-engine — per-type quotas', () => {
     const { scored } = await engine._semanticCandidates('our data pipeline');
     const selected = engine._selectCandidates(scored);
     const kinds = selected.map(c => c.kind);
-    // Discovery is capped at its quota (4), not all 6.
-    expect(kinds.filter(k => k === 'discovery').length).toBe(4);
-    // Every evidence type that cleared the floor earns a seat.
-    expect(kinds).toContain('case_study');
+    // Case studies are capped at their quota (5), not all 8.
+    expect(kinds.filter(k => k === 'case_study').length).toBe(5);
+    // Every other evidence type that cleared the floor earns a seat.
     expect(kinds).toContain('proof_point');
     expect(kinds).toContain('product_truth');
+    // Discovery is never seated in the fast lane.
+    expect(kinds).not.toContain('discovery');
   });
 });
 
@@ -306,34 +307,34 @@ describe('suggestion-engine — hybrid trigger scoring', () => {
 describe('suggestion-engine — anti-monotony rotation', () => {
   it('de-emphasises the most recently surfaced type', () => {
     const engine = makeEngine(makeChatClient(), makeEmbeddingProvider());
-    engine.recentTypes = ['discovery'];
+    engine.recentTypes = ['case_study'];
     const scored = [
-      { kind: 'discovery', id: 'dqX', score: 0.90, item: {} },
-      { kind: 'case_study', id: 'csX', score: 0.88, item: {} }
+      { kind: 'case_study', id: 'csX', score: 0.90, item: {} },
+      { kind: 'proof_point', id: 'ppX', score: 0.88, item: {} }
     ];
     const selected = engine._selectCandidates(scored);
-    // The just-shown discovery (0.90 − 0.03 = 0.87) now ranks below the case
-    // study (0.88), so the case study leads the shortlist.
-    expect(selected[0].kind).toBe('case_study');
+    // The just-shown case study (0.90 − 0.03 = 0.87) now ranks below the proof
+    // point (0.88), so the proof point leads the shortlist.
+    expect(selected[0].kind).toBe('proof_point');
   });
 });
 
 describe('suggestion-engine — decision-LLM steering', () => {
   it('buildDecisionPrompt surfaces recently-shown types to discourage repeats', () => {
     const engine = makeEngine(makeChatClient(), makeEmbeddingProvider());
-    engine.recentTypes = ['discovery', 'discovery'];
+    engine.recentTypes = ['case_study', 'case_study'];
     const prompt = engine.buildDecisionPrompt('our data pipeline is slow', [
       { kind: 'case_study', id: 'cs1', item: engine.knowledgeBase.caseStudies[0] }
     ]);
     expect(prompt).toContain('RECENTLY SHOWN');
-    expect(prompt.toLowerCase()).toContain('discovery question');
+    expect(prompt.toLowerCase()).toContain('case study');
   });
 
   it('tracks recent suggestion types as suggestions are committed', () => {
     const engine = makeEngine(makeChatClient(), makeEmbeddingProvider());
-    engine._commitSuggestion({ type: 'discovery' }, 'dq1');
+    engine._commitSuggestion({ type: 'proof_point' }, 'pp1');
     engine._commitSuggestion({ type: 'case_study' }, 'cs1');
-    expect(engine.recentTypes).toEqual(['discovery', 'case_study']);
+    expect(engine.recentTypes).toEqual(['proof_point', 'case_study']);
   });
 });
 

@@ -116,7 +116,6 @@ export default function SessionSummary({ session, analysis, badge, onAnalyze, an
                   <div key={i} className="text-sm p-3 bg-gray-50 dark:bg-gray-700 rounded-md" title={triggerTip}>
                     <span className="font-medium text-gray-700 dark:text-gray-300">
                       {s.type === 'case_study' && `Case Study: ${s.suggestion?.company}${s.suggestion?.headline ? `, ${s.suggestion.headline}` : ''}`}
-                      {s.type === 'discovery' && `Discovery: ${s.suggestion?.question}`}
                       {s.type === 'proof_point' && `Proof Point: ${s.suggestion?.stat}`}
                       {s.type === 'product_truth' && `Product Truth: ${s.suggestion?.fact}`}
                     </span>
