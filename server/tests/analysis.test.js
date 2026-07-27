@@ -51,7 +51,7 @@ describe('generateAnalysis', () => {
   const fixture = {
     fullTranscript: [{ text: 'Hello, I am Acme Corp.' }, { text: 'We need a platform.' }],
     suggestions: [
-      { type: 'discovery', suggestion: { question: 'What is your budget?' } }
+      { type: 'proof_point', suggestion: { stat: '99.9% uptime SLA' } }
     ],
     meddpicc: {
       M: { label: 'Metrics', status: 'identified', evidence: ['$1M ARR target'] }

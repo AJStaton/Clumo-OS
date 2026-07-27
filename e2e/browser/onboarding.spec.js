@@ -28,7 +28,7 @@ const INIT_SCRIPT = `
         setTimeout(() => {
           this._emit('progress', { message: 'Reading your site…' });
           this._emit('complete', {
-            counts: { caseStudies: 3, discoveryQuestions: 12, proofPoints: 5, productTruths: 4 },
+            counts: { caseStudies: 3, proofPoints: 5, productTruths: 4 },
             coverage: null
           });
         }, 10);

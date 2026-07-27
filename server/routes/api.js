@@ -305,7 +305,6 @@ router.get('/api/onboarding/stream', async (req, res) => {
     const maxCaseStudies = parseInt(db.getConfig('max_case_studies') || '50', 10);
     // Quality-dependent volume ceilings for the LLM-generated knowledge types (config-tunable).
     const targets = {
-      discoveryQuestions: parseInt(db.getConfig('max_discovery_questions') || '100', 10),
       proofPoints: parseInt(db.getConfig('max_proof_points') || '50', 10),
       productTruths: parseInt(db.getConfig('max_product_truths') || '100', 10),
       caseStudies: parseInt(db.getConfig('max_case_studies_inferred') || '30', 10)

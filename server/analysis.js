@@ -98,7 +98,6 @@ async function generateAnalysis(sessionId, sessionData, provider) {
   const methodology = db.getConfig('methodology') || 'meddpicc';
 
   const suggestionsSummary = (sessionData.suggestions || []).map(s => {
-    if (s.type === 'discovery') return `Discovery: ${s.suggestion.question}`;
     if (s.type === 'case_study') return `Case Study: ${s.suggestion.company} - ${s.suggestion.headline}`;
     if (s.type === 'proof_point') return `Proof Point: ${s.suggestion.stat}`;
     if (s.type === 'product_truth') return `Product Truth: ${s.suggestion.fact}`;

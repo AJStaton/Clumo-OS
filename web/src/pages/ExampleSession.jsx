@@ -23,10 +23,8 @@ const EXAMPLE_SESSION = {
     { timestamp: '2025-04-23T10:07:10Z', text: "I appreciate that. Let me show you how our real-time coaching works in a live deal scenario..." },
   ],
   suggestions: [
-    { type: 'discovery', suggestion: { question: "How does pipeline inaccuracy affect your quarterly forecasting today?" }, timestamp: '2025-04-23T10:02:00Z' },
     { type: 'proof_point', suggestion: { stat: "Companies with 30+ reps see 40% reduction in manager admin time within 90 days of deployment" }, timestamp: '2025-04-23T10:03:15Z' },
     { type: 'case_study', suggestion: { company: 'TechFlow Inc', headline: 'Reduced deal review prep from 3 hours to 20 minutes, increased coaching time by 65%' }, timestamp: '2025-04-23T10:04:00Z' },
-    { type: 'discovery', suggestion: { question: "What criteria will Rachel use to evaluate ROI from the pilot?" }, timestamp: '2025-04-23T10:05:45Z' },
   ],
   meddpicc: {
     M: { score: 4, notes: 'Quantified: 18 hours/week manager time on data wrangling across 6 managers' },

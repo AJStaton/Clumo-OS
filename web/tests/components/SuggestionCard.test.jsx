@@ -30,19 +30,6 @@ describe('SuggestionCard', () => {
     expect(screen.getByText('Case Study')).toBeInTheDocument();
   });
 
-  it('renders discovery question', () => {
-    render(
-      <SuggestionCard
-        suggestion={{ type: 'discovery', suggestion: { question: 'What is your budget?', context: 'Asked early' } }}
-        onUse={() => {}}
-        onDismiss={() => {}}
-      />
-    );
-    expect(screen.getByText('What is your budget?')).toBeInTheDocument();
-    expect(screen.getByText('Asked early')).toBeInTheDocument();
-    expect(screen.getByText('Discovery Question')).toBeInTheDocument();
-  });
-
   it('renders proof point with source', () => {
     render(
       <SuggestionCard

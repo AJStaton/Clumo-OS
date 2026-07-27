@@ -1,5 +1,14 @@
 # Clumo OS Development Status
 
+## Remove Discovery Questions from the Knowledge Base (current)
+- [x] Validated safe: fast-lane suggestion engine already excludes DQs (evidence-only corpus); slow-lane CoachingEngine generates its own MEDDPICC "killer questions" live from the transcript — neither reads `knowledgeBase.discoveryQuestions`
+- [x] Generation pipeline (`knowledge-generator.js`): removed the DQ phase, `generateDiscoveryQuestions`, DQ embeddings, and all DQ merge/dedup/re-id/count handling
+- [x] Defaults + validation (`knowledge-base.js`): deleted `defaultKnowledgeBase.discoveryQuestions`; dropped the DQ requirement from the KB validity check (old stored KBs still load)
+- [x] Onboarding collector (`source-collector.js`): removed the unused `discovery` content bundle; folded homepage into company/productTruth bundles; dropped `discovery_question` coverage
+- [x] API (`routes/api.js`): removed the `max_discovery_questions` onboarding target
+- [x] UI: removed DQ tabs/counts/copy from `KB.jsx`, `Setup.jsx`; removed legacy `discovery` render blocks in `SuggestionCard.jsx`, `SessionSummary.jsx`, `analysis.js`; cleaned `ExampleSession.jsx` demo data
+- [x] Tests: server 51 green (repointed generator regression tests to proof points), web 37 green; web build OK; default KB confirmed DQ-free, stored KB still loads
+
 ## Coach persona settings (current)
 - [x] Renamed the "Playbook" surface to **Coach**, promoted to a top-level Settings nav item beside Preferences (`/settings/coach`, CoachSettings.jsx)
 - [x] New **coaching-style** input ("how should your coach behave?") — bounded free text, injected SLOW-lane only (`coaching-style.js`, `renderCoachingStyle`)

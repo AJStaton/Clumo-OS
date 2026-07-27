@@ -179,7 +179,7 @@ export default function Setup({ onComplete }) {
             <div className="mb-6 space-y-3 text-sm text-gray-600">
               <p>
                 <strong className="text-gray-900">Clumo</strong> is AI-powered live call coaching. It listens to your
-                sales calls and surfaces the right discovery question, case study, or proof point at exactly the
+                sales calls and surfaces the right case study, proof point, or product truth at exactly the
                 right moment — in real time, during the call. It's built for account executives, founder-led sales,
                 and technical sales / SEs who want an A-player on every call.
               </p>
@@ -382,7 +382,6 @@ export default function Setup({ onComplete }) {
                   {onboardingCounts && (
                     <ul className="text-sm text-green-700 mt-2 space-y-1">
                       <li>{onboardingCounts.caseStudies} case studies</li>
-                      <li>{onboardingCounts.discoveryQuestions} discovery questions</li>
                       <li>{onboardingCounts.proofPoints} proof points</li>
                       {typeof onboardingCounts.productTruths === 'number' && (
                         <li>{onboardingCounts.productTruths} product truths</li>
@@ -396,8 +395,7 @@ export default function Setup({ onComplete }) {
                   const labels = {
                     case_study: 'Case studies',
                     proof_point: 'Proof points',
-                    product_truth: 'Product truths',
-                    discovery_question: 'Discovery questions'
+                    product_truth: 'Product truths'
                   };
                   const warnings = Object.entries(onboardingCoverage)
                     .filter(([, c]) => c && c.warning)

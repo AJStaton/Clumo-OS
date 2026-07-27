@@ -9,7 +9,6 @@
 //        case_study  <- individual customer-story pages (LLM-extracted, structured)
 //        proof       <- blog / research / ROI pages
 //        product_truth <- docs + product/platform pages
-//        discovery   <- product/platform pages
 //        company     <- homepage + top product pages (for company analysis)
 //   4. Records per-type coverage + confidence so the UI can warn on weak/missing types.
 //
@@ -90,7 +89,7 @@ async function collectSources(websiteUrl, options = {}) {
     : null);
 
   const result = {
-    bundles: { company: '', discovery: '', proof: '', productTruth: '' },
+    bundles: { company: '', proof: '', productTruth: '' },
     extractedCaseStudies: [],
     weakCaseStudyCandidates: [],
     coverage: {},        // per-type: { sources, highConfidence, weak, status }
@@ -116,14 +115,12 @@ async function collectSources(websiteUrl, options = {}) {
     const blogPages = await fetchBucket(pageFetcher, buckets.blog, 'proof_point', MAX_PAGES_PER_BUNDLE);
 
     // Always read the homepage for company analysis grounding.
-    const homepage = await pageFetcher.fetch(websiteUrl, { expectedType: 'discovery_question' });
-    const homepageOk = homepage && homepage.ok ? 1 : 0;
+    const homepage = await pageFetcher.fetch(websiteUrl, { expectedType: 'product_truth' });
     const companyPages = [homepage, ...productPages].filter((p) => p && p.ok);
 
     result.bundles.company = bundleText(companyPages);
-    result.bundles.discovery = bundleText([...productPages, homepage].filter(Boolean));
     result.bundles.proof = bundleText(blogPages);
-    result.bundles.productTruth = bundleText([...docsPages, ...productPages]);
+    result.bundles.productTruth = bundleText([...docsPages, ...productPages, homepage].filter(Boolean));
 
     // --- Case studies: fetch each page, then rank by relevance to what the seller sells, and
     // LLM-extract them. Relevance is used ONLY to ORDER the stories (on-focus first) — it never
@@ -230,10 +227,6 @@ async function collectSources(websiteUrl, options = {}) {
         productTruthSources, productTruthSources, 0,
         (buckets.docs || []).length + (buckets.product || []).length,
         productTruthSources === 0 ? 'No docs/product pages found. Paste a docs URL for product truths.' : null
-      ),
-      discovery_question: coverageFor(
-        productPages.length + homepageOk, productPages.length + homepageOk, 0,
-        (buckets.product || []).length + 1, null
       )
     };
 
