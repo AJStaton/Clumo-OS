@@ -5,6 +5,6 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "package": "tar -a -c -f landingpage.zip index.html package.json server.js clumo-demo.mp4"
+    "package": "tar -a -c -f landingpage.zip index.html package.json server.js web.config clumo-demo.mp4"
   }
 }
