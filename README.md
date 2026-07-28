@@ -15,12 +15,11 @@ Ever left a customer call and thought "Damn, I wish I'd have said...", or missed
 Free, open source, stored data locally. Your knowledge base never leaves your machine. You bring your own AI keys.
 
 <p align="center">
-  <video src="https://raw.githubusercontent.com/AJStaton/Clumo-OS/main/landing-webapp/clumo-demo.mp4" controls muted loop width="800">
-    Your browser does not support the video tag.
-    <a href="https://raw.githubusercontent.com/AJStaton/Clumo-OS/main/landing-webapp/clumo-demo.mp4">Watch the Clumo demo</a>.
-  </video>
+  <a href="https://raw.githubusercontent.com/AJStaton/Clumo-OS/main/landing-webapp/clumo-demo.mp4">
+    <img src="docs/images/clumo-demo-poster.png" alt="Watch the Clumo demo — realtime coaching, knowledge suggestions, and post-call summary" width="800">
+  </a>
   <br>
-  <em>Clumo in action — realtime coaching, knowledge suggestions, and post-call summary</em>
+  <em>▶ Clumo in action — click to watch the demo (realtime coaching, knowledge suggestions, and post-call summary)</em>
 </p>
 
 ---
