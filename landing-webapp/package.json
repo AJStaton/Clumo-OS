@@ -4,6 +4,7 @@
   "private": true,
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "package": "tar -a -c -f landingpage.zip index.html package.json server.js clumo-demo.mp4"
   }
 }
