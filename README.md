@@ -231,14 +231,32 @@ Realtime is handled separately: Clumo auto-falls back across Azure realtime rout
 
 ### Cost estimates
 
-The primary cost is the Realtime API for transcription. Rough estimates:
+Clumo is cheap to run. Here are the real, measured costs for a **45 minute transcribed call**:
 
-| Call duration | Estimated cost |
-|--------------|----------------|
-| 15 minutes | $0.25 - $0.50 |
-| 30 minutes | $0.50 - $1.00 |
-| 60 minutes | $1.00 - $2.00 |
+| Service | Model | Cost |
+|---------|-------|------|
+| Realtime transcription | `gpt-4o-mini-transcribe` | $0.09 |
+| Chat completion | `gpt-4o-mini` | $0.04 |
+| Embeddings | `text-embedding-3-small` | $0.0009 |
+| **Total** | | **~$0.13** |
 
+**Realtime transcription** — `gpt-4o-mini-transcribe`: $0.09
+
+<p align="center">
+  <img src="docs/images/cost-transcription-gpt-4o-mini-transcribe.png" alt="gpt-4o-mini-transcribe usage and estimated cost">
+</p>
+
+**Chat completion** — `gpt-4o-mini`: $0.04
+
+<p align="center">
+  <img src="docs/images/cost-chat-gpt-4o-mini.png" alt="gpt-4o-mini usage and estimated cost">
+</p>
+
+**Embeddings** — `text-embedding-3-small`: $0.0009
+
+<p align="center">
+  <img src="docs/images/cost-embeddings-text-embedding-3-small.png" alt="text-embedding-3-small usage and estimated cost">
+</p>
 
 Costs depend on your provider's pricing, which model you use, and how much audio is processed. Check [OpenAI pricing](https://openai.com/pricing) or [Azure OpenAI pricing](https://azure.microsoft.com/pricing/details/cognitive-services/openai-service/) for current rates.
 
